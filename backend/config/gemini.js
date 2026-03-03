@@ -9,9 +9,9 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Get the Gemini model instance
-// Using 'gemini-1.5-flash' for faster responses and lower cost
+// Using 'gemini-2.5-flash-lite' - Lightweight model with higher free tier quota
 const geminiModel = genAI.getGenerativeModel({
-  model: "gemini-1.5-flash",
+  model: "gemini-2.5-flash-lite",
 });
 
 export { geminiModel, genAI };
