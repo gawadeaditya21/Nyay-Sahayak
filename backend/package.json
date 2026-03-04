@@ -22,7 +22,6 @@
     "multer": "^2.0.2",
     "fs": "^0.0.1-security",
     "moongoose": "^0.0.5",
-    "multer": "^2.1.0",
     "nodemon": "^3.1.14",
     "path": "^0.12.7",
     "pdf-parse": "^1.1.1",

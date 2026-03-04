@@ -1,1 +1,9 @@
 @import "tailwindcss";
+
+@theme {
+  /* The "Modern Juris" Hybrid Theme for Nyay Sahayak */
+  --color-brand-base: #F9F8F6;    /* Crisp paper white: Main background */
+  --color-brand-surface: #EFE9E3; /* Soft cream: Sidebars, cards, and input backgrounds */
+  --color-brand-accent: #4F959D;  /* Trustworthy teal: Buttons, icons, and hover states */
+  --color-brand-primary: #2A3663; /* Deep navy blue: Main text, headers, and dark buttons */
+}
