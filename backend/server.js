@@ -6,6 +6,7 @@ import cors from "cors";
 import analysisRoutes from "./routes/analysisRoutes.js";
 import ocrRoutes from "./routes/ocrRoutes.js";
 import pdfRoutes from "./routes/pdfRoutes.js";
+import documentRoutes from "./routes/documentRoutes.js";
 
 // Validate environment variables on startup
 if (!process.env.GEMINI_API_KEY) {
@@ -19,6 +20,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// API ROUTES
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// Primary Document Analysis Route (Recommended)
+app.use("/api/document", documentRoutes);
+
+// Legacy routes (for backward compatibility)
 app.use("/api", analysisRoutes);
 app.use("/api", ocrRoutes);
 app.use("/api/pdf", pdfRoutes);

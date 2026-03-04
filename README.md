@@ -111,5 +111,23 @@ npm run dev
 
 Once all three servers are active, navigate to **\`http://localhost:5173\`** to access the application.
 
+---
+
+## 📚 Documentation
+
+### 🚀 **New to the project? Start here:**
+- **[Quick Start Guide](./QUICK_START.md)** - Get up and running in 5 minutes
+- **[Integration Documentation](./INTEGRATION_DOCUMENTATION.md)** - Complete technical documentation
+
+### 📖 **What's in the documentation:**
+- ✅ Complete API reference for all endpoints
+- ✅ Frontend-Backend integration guide
+- ✅ Data flow diagrams and architecture overview
+- ✅ Error handling and troubleshooting
+- ✅ Security features and privacy protection
+- ✅ Code examples and best practices
+- ✅ Deployment considerations
+
+---
 
 *Disclaimer: Nyay Sahayak is an AI tool designed for educational and preliminary screening purposes. It does not constitute formal legal advice. Always consult a qualified legal professional for critical matters.*
