@@ -13,12 +13,13 @@ const FloatingPapers = () => {
     speed: Math.random() * 0.015 + 0.005
   })), []);
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     papers.forEach((p, i) => {
       const mesh = groupRef.current.children[i];
       mesh.rotation.x += p.speed * 0.3;
       mesh.rotation.y += p.speed * 0.4;
-      mesh.position.y += Math.sin(state.clock.elapsedTime * p.speed * 20) * 0.01;
+      mesh.userData.time = (mesh.userData.time || 0) + delta;
+      mesh.position.y += Math.sin(mesh.userData.time * p.speed * 20) * 0.01;
     });
     groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, (state.pointer.y * Math.PI) / 10, 0.05);
     groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, (state.pointer.x * Math.PI) / 10, 0.05);

@@ -22,7 +22,10 @@ const AbstractNetwork = () => {
     if (meshRef.current) {
       meshRef.current.rotation.x += delta * 0.05;
       meshRef.current.rotation.y += delta * 0.1;
-      meshRef.current.position.y = Math.sin(state.clock.elapsedTime) * 0.1;
+      
+      // We calculate time accumulated through delta to avoid using state.clock which uses deprecated THREE.Clock
+      meshRef.current.userData.time = (meshRef.current.userData.time || 0) + delta;
+      meshRef.current.position.y = Math.sin(meshRef.current.userData.time) * 0.1;
     }
   });
 

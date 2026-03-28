@@ -78,13 +78,13 @@ const Features = () => {
           </h3>
         </div>
 
-        <div ref={trackRef} className="flex gap-8 px-6 md:px-20 pb-20 w-[max-content] will-change-transform">
+        <div ref={trackRef} className="flex gap-8 px-6 md:px-20 pb-20 w-max will-change-transform">
           {features.map((feature, index) => (
             <div 
               key={index}
-              className="feature-card w-[85vw] md:w-[400px] h-[450px] p-10 rounded-3xl bg-[#0a0a0c]/80 backdrop-blur-md border border-white/5 relative overflow-hidden group hover:border-indigo-500/30 transition-colors flex flex-col justify-between shadow-2xl"
+              className="feature-card w-[85vw] md:w-100 h-112.5 p-10 rounded-3xl bg-[#0a0a0c]/80 backdrop-blur-md border border-white/5 relative overflow-hidden group hover:border-indigo-500/30 transition-colors flex flex-col justify-between shadow-2xl"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              <div className="absolute inset-0 bg-linear-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               
               <div className="relative z-10">
                 <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-8 text-indigo-400 group-hover:scale-110 group-hover:bg-indigo-500 group-hover:text-white transition-all duration-500">
@@ -98,7 +98,7 @@ const Features = () => {
                 </p>
               </div>
 
-              <div className="absolute bottom-8 right-8 text-6xl font-serif font-bold text-white/[0.03] group-hover:text-white/[0.08] transition-colors pointer-events-none">
+              <div className="absolute bottom-8 right-8 text-6xl font-serif font-bold text-white/3 group-hover:text-white/8 transition-colors pointer-events-none">
                 0{index + 1}
               </div>
             </div>
@@ -106,9 +106,9 @@ const Features = () => {
         </div>
 
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-4 text-slate-500 text-sm tracking-widest uppercase opacity-60">
-          <div className="w-12 h-[1px] bg-slate-700" />
+          <div className="w-12 h-px bg-slate-700" />
           Scroll sideways to explore
-          <div className="w-12 h-[1px] bg-slate-700" />
+          <div className="w-12 h-px bg-slate-700" />
         </div>
       </section>
     </div>
