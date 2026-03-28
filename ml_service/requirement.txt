@@ -1,3 +1,0 @@
-Flask 
-Pillow 
-pytesseract (Also install Tesseract at UB Mannheim)

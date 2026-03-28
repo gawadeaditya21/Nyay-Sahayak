@@ -1,12 +1,13 @@
 // Load environment variables from .env file
 import "dotenv/config";
-
+import connectDB from "./config/db.js";
 import express from "express";
 import cors from "cors";
 import analysisRoutes from "./routes/analysisRoutes.js";
 import ocrRoutes from "./routes/ocrRoutes.js";
 import pdfRoutes from "./routes/pdfRoutes.js";
 import documentRoutes from "./routes/documentRoutes.js";
+import authRoutes from "./routes/authRoutes.js";    
 
 // Validate environment variables on startup
 if (!process.env.GEMINI_API_KEY) {
@@ -14,7 +15,7 @@ if (!process.env.GEMINI_API_KEY) {
   console.error("Please add GEMINI_API_KEY=your_key_here to backend/.env");
   process.exit(1);
 }
-
+connectDB();
 const app = express();
 
 app.use(cors());
@@ -31,6 +32,9 @@ app.use("/api/document", documentRoutes);
 app.use("/api", analysisRoutes);
 app.use("/api", ocrRoutes);
 app.use("/api/pdf", pdfRoutes);
+
+// auth routes
+app.use('/api/auth', authRoutes);
 
 const PORT = process.env.PORT || 5000;
 
