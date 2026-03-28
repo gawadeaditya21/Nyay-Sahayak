@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import Lenis from 'lenis'; // New, bug-free vanilla package
+import React, { useLayoutEffect, useRef } from 'react';
+import Lenis from 'lenis';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import gsap from 'gsap';
@@ -59,7 +59,7 @@ const Background3D = () => {
 const CustomCursor = () => {
   const cursorRef = useRef(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const moveCursor = (e) => {
       gsap.to(cursorRef.current, {
         x: e.clientX,
@@ -80,31 +80,30 @@ const CustomCursor = () => {
   );
 };
 
-// ----------------------------------------------------------------------
-// Main Application - With React 19 Safe Lenis Implementation
-// ----------------------------------------------------------------------
 export default function LandingPage() {
   
-  useEffect(() => {
-    // 1. Initialize Lenis
+  useLayoutEffect(() => {
     const lenis = new Lenis({
       duration: 1.2,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       smoothWheel: true,
     });
 
-    // 2. Sync Lenis scroll with GSAP ScrollTrigger
     lenis.on('scroll', ScrollTrigger.update);
 
-    // 3. Update Lenis inside GSAP's ticker for max performance
     gsap.ticker.add((time) => {
       lenis.raf(time * 1000);
     });
 
     gsap.ticker.lagSmoothing(0, 0);
 
-    // 4. Cleanup function (to prevent memory leaks)
+    // Forces GSAP to recalculate all layouts after rendering to prevent overlapping
+    const timeout = setTimeout(() => {
+      ScrollTrigger.refresh();
+    }, 100);
+
     return () => {
+      clearTimeout(timeout);
       lenis.destroy();
       gsap.ticker.remove(lenis.raf);
     };
@@ -115,14 +114,15 @@ export default function LandingPage() {
       <CustomCursor />
       <Background3D />
       
-      <main className="relative z-10 w-full overflow-hidden">
+      {/* Changed overflow-hidden to overflow-x-clip for better GSAP performance */}
+      <main className="relative z-10 w-full overflow-x-clip">
         <Hero />
         <Features />
         <DocumentScanner />
         <HowItWorks />
       </main>
       
-      <footer className="relative z-10 py-10 border-t border-white/5 text-center text-slate-500 text-sm bg-transparent backdrop-blur-sm">
+      <footer className="relative z-10 py-10 border-t border-white/5 text-center text-slate-500 text-sm bg-[#050505]">
         <p>© 2026 Nyay Sahayak. All rights reserved.</p>
       </footer>
     </div>
