@@ -1,384 +1,473 @@
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// UNIFIED DOCUMENT CONTROLLER - Main Entry Point for Document Analysis
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Purpose: Handle document uploads (PDF/Images) and route to analysis pipeline
-// Flow: Upload → Extract Text → Comprehensive Analysis → Return Results
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 import fs from "fs";
 import { createRequire } from "module";
 import { createWorker } from "tesseract.js";
-import { analyzeDocument } from "../services/aiService.js";
+import {
+  analyzeDocument,
+  analyzeLegalQuery,
+  detectDocumentType,
+  extractTextFromDocx,
+} from "../services/aiService.js";
 import { maskSensitiveData } from "../utils/dataMasking.js";
 
-// PDF parser setup (CommonJS module in ES module project)
 const require = createRequire(import.meta.url);
 const pdf = require("pdf-parse");
 
-/**
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * HELPER FUNCTION: Extract Text from PDF
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- */
 async function extractTextFromPDF(filePath) {
-  try {
-    console.log("[PDF Extractor] Reading PDF file...");
-    const dataBuffer = fs.readFileSync(filePath);
-    const pdfData = await pdf(dataBuffer);
-    
-    const extractedText = pdfData.text.trim();
-    
-    // Check if PDF is scanned (no extractable text)
-    if (!extractedText || extractedText.length < 50) {
-      throw new Error("PDF appears to be scanned. Use OCR for image-based PDFs.");
-    }
-    
-    console.log(`[PDF Extractor] ✅ Extracted ${extractedText.length} characters from ${pdfData.numpages} pages`);
-    
-    return {
-      text: extractedText,
-      pages: pdfData.numpages,
-      method: "pdf-parse"
-    };
-  } catch (error) {
-    console.error("[PDF Extractor] Error:", error.message);
-    throw error;
+  const dataBuffer = fs.readFileSync(filePath);
+  const pdfData = await pdf(dataBuffer);
+  const extractedText = pdfData.text.trim();
+
+  if (!extractedText || extractedText.length < 30) {
+    throw new Error("PDF appears to be scanned. Use OCR for image-based PDFs.");
   }
+
+  return {
+    text: extractedText,
+    pages: pdfData.numpages,
+    method: "pdf-parse",
+  };
 }
 
-/**
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * HELPER FUNCTION: Extract Text from Image (OCR)
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- */
 async function extractTextFromImage(filePath) {
+  const worker = await createWorker("eng");
+
   try {
-    console.log("[OCR] Initializing Tesseract worker...");
-    const worker = await createWorker("eng");
-    
-    console.log("[OCR] Recognizing text from image...");
     const { data } = await worker.recognize(filePath);
-    
-    await worker.terminate();
-    
     const extractedText = data.text.trim();
-    
+
     if (!extractedText || extractedText.length < 20) {
-      throw new Error("Unable to extract sufficient text from image. Image may be too blurry or contain no text.");
+      throw new Error(
+        "Unable to extract sufficient text from image. Image may be too blurry or contain no text."
+      );
     }
-    
-    console.log(`[OCR] ✅ Extracted ${extractedText.length} characters (Confidence: ${data.confidence}%)`);
-    
+
     return {
       text: extractedText,
       confidence: data.confidence,
-      method: "tesseract-ocr"
+      method: "tesseract-ocr",
     };
-  } catch (error) {
-    console.error("[OCR] Error:", error.message);
-    throw error;
+  } finally {
+    await worker.terminate();
   }
 }
 
-/**
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * MAIN ENDPOINT: Upload and Analyze Document
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * Route: POST /api/document/analyze
- * Form Data:
- *   - document: File (PDF or Image)
- *   - analysisType: "quick" | "comprehensive" (optional, default: comprehensive)
- * 
- * Complete Processing Pipeline:
- * 1. Validate uploaded file
- * 2. Extract text (PDF-parse or OCR)
- * 3. Mask sensitive data (Privacy Protection)
- * 4. Analyze with Gemini AI
- * 5. Return comprehensive results
- * 6. Clean up uploaded file
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- */
+function cleanupUploadedFile(filePath) {
+  if (filePath && fs.existsSync(filePath)) {
+    try {
+      fs.unlinkSync(filePath);
+    } catch (error) {
+      console.error("[documentController] Cleanup failed:", error.message);
+    }
+  }
+}
+
+function buildRiskStatistics(risks = []) {
+  return {
+    total: risks.length,
+    high: risks.filter((risk) => risk.severity === "HIGH").length,
+    medium: risks.filter((risk) => risk.severity === "MEDIUM").length,
+    low: risks.filter((risk) => risk.severity === "LOW").length,
+  };
+}
+
+function buildDocumentResponse({
+  fileName,
+  fileSize,
+  mimeType,
+  extractionResult,
+  extractedText,
+  maskingResult,
+  aiAnalysis,
+}) {
+  const legacyRisks = aiAnalysis.legacyRisks || [];
+  const riskStatistics = buildRiskStatistics(legacyRisks);
+
+  return {
+    success: true,
+    message: "Document analysis completed successfully",
+    data: {
+      document: {
+        fileName,
+        fileSize,
+        fileType: mimeType,
+        pages: extractionResult.pages || 1,
+        extractionMethod: extractionResult.method,
+        textLength: extractedText.length,
+        confidence: extractionResult.confidence || null,
+        extractionWarnings: extractionResult.warnings || [],
+      },
+      privacy: {
+        protected: maskingResult.hasSensitiveData,
+        fieldsProtected: maskingResult.replacements.length,
+        dataTypes: Object.keys(maskingResult.summary),
+        summary: maskingResult.summary,
+      },
+      analysis: {
+        mode: "document",
+        documentType: aiAnalysis.documentType,
+        detectedType: aiAnalysis.detectedType,
+        summary: aiAnalysis.summary,
+        risks: legacyRisks,
+        riskStatistics,
+        chunksProcessed: aiAnalysis.chunksProcessed,
+        contextUsed: aiAnalysis.contextUsed,
+        contextCount: aiAnalysis.contextCount,
+        structured: aiAnalysis.structured,
+      },
+      metadata: {
+        processedAt: new Date().toISOString(),
+        processingSteps: [
+          "Text extraction",
+          "Privacy protection",
+          "RAG context retrieval",
+          "AI analysis",
+          "Report generation",
+        ],
+      },
+    },
+  };
+}
+
+function isLikelyUserQuery(text) {
+  const trimmed = text.trim();
+  return (
+    trimmed.length <= 300 &&
+    (trimmed.includes("?") ||
+      /\b(kya|kaise|batao|samjhao|rules|rule|penalty|license|agreement|property|ticket)\b/i.test(
+        trimmed
+      ))
+  );
+}
+
+function isQuotaOrRateLimitError(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return (
+    message.includes("quota exceeded") ||
+    message.includes("too many requests") ||
+    message.includes("rate limit") ||
+    message.includes("free_tier") ||
+    message.includes("billing") ||
+    message.includes("[429")
+  );
+}
+
+function buildFallbackQueryAnalysis(queryText) {
+  return {
+    topic: "Legal Guidance",
+    simple_explanation:
+      "AI service quota is currently exhausted. Basic guidance is shown from local rules. Please retry later for full AI analysis.",
+    rules: [
+      "Read all clauses before acting or signing.",
+      "Keep payment and communication proof.",
+      "Do not share OTP/CVV/password with anyone.",
+    ],
+    penalties: [],
+    user_guidance: [
+      "If money/property risk is high, consult a qualified lawyer.",
+      `Original query: ${queryText.slice(0, 180)}`,
+    ],
+    fallback: true,
+  };
+}
+
+function buildFallbackDocumentAnalysis(documentText) {
+  const detectedType = detectDocumentType(documentText);
+  const normalizedText = documentText.toLowerCase();
+  const risks = [];
+
+  if (/delay|possession|handover/i.test(normalizedText)) {
+    risks.push({
+      clause: "Delay Risk",
+      severity: "HIGH",
+      reason: "Document contains delay/possession terms that may postpone expected delivery.",
+    });
+  }
+
+  if (/penalt|cancellation|deduct|forfeit/i.test(normalizedText)) {
+    risks.push({
+      clause: "Penalty Risk",
+      severity: "HIGH",
+      reason: "Document contains penalty/cancellation deduction clauses that may cause financial loss.",
+    });
+  }
+
+  if (/jurisdiction|sole discretion|builder|developer/i.test(normalizedText)) {
+    risks.push({
+      clause: "One-sided Clause Risk",
+      severity: "HIGH",
+      reason: "Document contains one-sided terms that can reduce user legal protection.",
+    });
+  }
+
+  const riskLevel = risks.length >= 2 ? "HIGH" : risks.length === 1 ? "MEDIUM" : "LOW";
+  const classification =
+    detectedType === "property_document" || detectedType === "rental_agreement" || detectedType === "legal"
+      ? "UNFAIR"
+      : risks.length > 0
+      ? "UNFAIR"
+      : "NORMAL";
+
+  const structured = {
+    document_type:
+      detectedType === "property_document"
+        ? "Property / Builder Agreement"
+        : detectedType === "rental_agreement"
+        ? "Rental Agreement"
+        : detectedType === "offer_letter"
+        ? "Job Offer Letter"
+        : detectedType === "bank_financial"
+        ? "Financial / Bank Document"
+        : detectedType === "ticket"
+        ? "Ticket / Transport"
+        : detectedType === "resume"
+        ? "Resume"
+        : detectedType === "policy" || detectedType === "government_rule"
+        ? "Policy / Rules"
+        : "Unknown",
+    classification,
+    risk_level: riskLevel,
+    suspicious_clauses: [],
+    top_risks: risks.map((risk) => ({
+      type: risk.clause,
+      description: risk.reason,
+      impact: "Review with legal caution before signing.",
+    })),
+    warnings: [
+      "AI detailed analysis is temporarily unavailable due to quota limits.",
+      "This is a local fallback assessment and may miss nuanced issues.",
+    ],
+    final_decision: classification === "NORMAL" ? "SAFE_TO_SIGN" : "REVIEW_CAUTION",
+    should_user_sign: classification === "NORMAL" ? "YES" : "CAUTION",
+    reason_for_decision:
+      classification === "NORMAL"
+        ? "No major high-risk patterns detected by local fallback rules."
+        : "Potentially unfair or high-risk clauses detected by local fallback rules.",
+    what_user_should_do: [
+      "Review clauses carefully before signing.",
+      "Consult a legal expert for final confirmation.",
+      "Retry AI analysis later when quota resets.",
+    ],
+    lawyer_suggestion: "Consult a legal expert before taking final action.",
+    law_reference:
+      detectedType === "property_document" || detectedType === "rental_agreement"
+        ? {
+            applicable: true,
+            laws: ["RERA Act", "Indian Contract Act"],
+            simple_explanation:
+              "Property and rental agreements are generally assessed under RERA and contract law principles.",
+          }
+        : {
+            applicable: true,
+            laws: ["Indian Contract Act"],
+            simple_explanation:
+              "Contract terms should be fair, transparent, and clearly understood before acceptance.",
+          },
+    note_for_user:
+      "AI guidance is currently in fallback mode due to quota limits. For serious matters, consult a legal expert.",
+    fallback: true,
+  };
+
+  return {
+    documentType: detectedType,
+    detectedType,
+    summary: structured.reason_for_decision,
+    risks,
+    legacyRisks: risks,
+    structured,
+    chunksProcessed: 1,
+    contextUsed: false,
+    contextCount: 0,
+    fallback: true,
+  };
+}
+
 export const uploadAndAnalyzeDocument = async (req, res) => {
   let filePath = null;
-  
+
   try {
-    console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    console.log("📄 NEW DOCUMENT ANALYSIS REQUEST");
-    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 1: VALIDATE FILE UPLOAD
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        message: "No document uploaded. Please upload a PDF or image file.",
-        error: "FILE_MISSING"
+        message: "No document uploaded. Please upload a PDF, image, or DOCX file.",
+        error: "FILE_MISSING",
       });
     }
-    
+
     filePath = req.file.path;
     const fileName = req.file.originalname;
     const fileSize = req.file.size;
     const mimeType = req.file.mimetype;
-    
-    console.log(`[Upload] File: ${fileName}`);
-    console.log(`[Upload] Size: ${(fileSize / 1024).toFixed(2)} KB`);
-    console.log(`[Upload] Type: ${mimeType}`);
-    
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 2: EXTRACT TEXT FROM DOCUMENT
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    console.log("\n[Step 1/4] 📝 Extracting text from document...");
-    
+
     let extractionResult;
-    let extractedText;
-    
-    // Determine file type and extract accordingly
+
     if (mimeType === "application/pdf") {
       extractionResult = await extractTextFromPDF(filePath);
-      extractedText = extractionResult.text;
     } else if (mimeType.startsWith("image/")) {
       extractionResult = await extractTextFromImage(filePath);
-      extractedText = extractionResult.text;
+    } else if (
+      mimeType ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ) {
+      extractionResult = await extractTextFromDocx(filePath);
     } else {
-      throw new Error(`Unsupported file type: ${mimeType}. Please upload PDF or image files.`);
+      throw new Error(`Unsupported file type: ${mimeType}.`);
     }
-    
-    // Validate extracted text
-    if (!extractedText || extractedText.trim().length < 50) {
+
+    const extractedText = extractionResult.text;
+
+    if (!extractedText || extractedText.trim().length < 20) {
       throw new Error("Insufficient text extracted. Document may be empty or unreadable.");
     }
-    
-    console.log(`[Step 1/4] ✅ Text extraction successful (${extractedText.length} characters)`);
-    
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 3: MASK SENSITIVE DATA (Privacy Protection)
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    console.log("\n[Step 2/4] 🔒 Protecting sensitive information...");
-    
+
     const maskingResult = maskSensitiveData(extractedText);
-    const { maskedText, hasSensitiveData, summary, replacements } = maskingResult;
-    
-    if (hasSensitiveData) {
-      console.log(`[Step 2/4] ✅ Protected ${replacements.length} sensitive fields:`, summary);
-    } else {
-      console.log("[Step 2/4] ✅ No sensitive data detected");
-    }
-    
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 4: ANALYZE WITH GEMINI AI
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    console.log("\n[Step 3/4] 🤖 Analyzing document with AI...");
-    
-    const aiAnalysis = await analyzeDocument(maskedText);
-    
-    console.log(`[Step 3/4] ✅ AI analysis complete (${aiAnalysis.risks.length} risks identified)`);
-    
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 5: BUILD COMPREHENSIVE RESPONSE
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    console.log("\n[Step 4/4] 📊 Generating comprehensive report...");
-    
-    // Calculate risk statistics
-    const riskStats = {
-      total: aiAnalysis.risks.length,
-      high: aiAnalysis.risks.filter(r => r.severity === "HIGH").length,
-      medium: aiAnalysis.risks.filter(r => r.severity === "MEDIUM").length,
-      low: aiAnalysis.risks.filter(r => r.severity === "LOW").length
-    };
-    
-    // Build final response
-    const response = {
-      success: true,
-      message: "Document analysis completed successfully",
-      data: {
-        // Document Information
-        document: {
-          fileName: fileName,
-          fileSize: fileSize,
-          fileType: mimeType,
-          pages: extractionResult.pages || 1,
-          extractionMethod: extractionResult.method,
-          textLength: extractedText.length,
-          confidence: extractionResult.confidence || null
-        },
-        
-        // Privacy Protection
-        privacy: {
-          protected: hasSensitiveData,
-          fieldsProtected: replacements.length,
-          dataTypes: Object.keys(summary),
-          summary: summary
-        },
-        
-        // AI Analysis Results
-        analysis: {
-          summary: aiAnalysis.summary,
-          risks: aiAnalysis.risks,
-          riskStatistics: riskStats,
-          chunksProcessed: aiAnalysis.chunksProcessed
-        },
-        
-        // Processing Metadata
-        metadata: {
-          processedAt: new Date().toISOString(),
-          processingSteps: [
-            "✅ Text extraction",
-            "✅ Privacy protection",
-            "✅ AI analysis",
-            "✅ Report generation"
-          ]
-        }
+    let aiAnalysis;
+
+    try {
+      aiAnalysis = await analyzeDocument(maskingResult.maskedText);
+    } catch (error) {
+      if (!isQuotaOrRateLimitError(error)) {
+        throw error;
       }
-    };
-    
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 6: CLEANUP AND SEND RESPONSE
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    
-    // Delete uploaded file (privacy + storage management)
-    if (filePath && fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-      console.log("[Cleanup] ✅ Uploaded file deleted for privacy");
+
+      console.warn("[documentController] Gemini quota exceeded, using local fallback for uploaded document");
+      aiAnalysis = buildFallbackDocumentAnalysis(maskingResult.maskedText);
     }
-    
-    console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    console.log("✅ ANALYSIS COMPLETE");
-    console.log(`   Risks Found: ${riskStats.total} (${riskStats.high} High, ${riskStats.medium} Medium, ${riskStats.low} Low)`);
-    console.log(`   Privacy: ${hasSensitiveData ? replacements.length + " fields protected" : "No sensitive data"}`);
-    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
-    
+
+    const response = buildDocumentResponse({
+      fileName,
+      fileSize,
+      mimeType,
+      extractionResult,
+      extractedText,
+      maskingResult,
+      aiAnalysis,
+    });
+
+    cleanupUploadedFile(filePath);
     return res.status(200).json(response);
-    
   } catch (error) {
-    console.error("\n❌ ERROR DURING DOCUMENT ANALYSIS:", error.message);
-    
-    // Cleanup on error
-    if (filePath && fs.existsSync(filePath)) {
-      try {
-        fs.unlinkSync(filePath);
-        console.log("[Cleanup] File deleted after error");
-      } catch (cleanupError) {
-        console.error("[Cleanup] Failed to delete file:", cleanupError.message);
-      }
-    }
-    
-    // Determine appropriate HTTP status code
+    console.error("[documentController] Document analysis failed:", error.message);
+    cleanupUploadedFile(filePath);
+
     let statusCode = 500;
     let errorType = "PROCESSING_ERROR";
-    
+
     if (error.message.includes("Unsupported file type")) {
       statusCode = 400;
       errorType = "INVALID_FILE_TYPE";
     } else if (error.message.includes("Insufficient text")) {
       statusCode = 400;
       errorType = "INSUFFICIENT_TEXT";
-    } else if (error.message.includes("Gemini") || error.message.includes("API")) {
-      statusCode = 503;
-      errorType = "AI_SERVICE_ERROR";
     } else if (error.message.includes("scanned")) {
       statusCode = 400;
       errorType = "SCANNED_PDF";
+    } else if (error.message.includes("Gemini") || error.message.includes("API")) {
+      statusCode = 503;
+      errorType = "AI_SERVICE_ERROR";
     }
-    
+
     return res.status(statusCode).json({
       success: false,
       message: error.message || "Document analysis failed",
       error: errorType,
-      details: process.env.NODE_ENV === "development" ? error.stack : undefined
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
     });
   }
 };
 
-/**
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * QUICK TEXT ANALYSIS ENDPOINT (No File Upload)
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * Route: POST /api/document/analyze-text
- * Body: { text: string }
- * 
- * Use case: When user pastes text directly instead of uploading file
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- */
 export const analyzeTextOnly = async (req, res) => {
   try {
-    const { text } = req.body;
-    
-    console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    console.log("📝 TEXT-ONLY ANALYSIS REQUEST");
-    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    
-    // Validate input
-    if (!text || text.trim().length === 0) {
+    const { text } = req.body ?? {};
+
+    if (!text || !text.trim()) {
       return res.status(400).json({
         success: false,
         message: "Text is required for analysis",
-        error: "TEXT_MISSING"
+        error: "TEXT_MISSING",
       });
     }
-    
-    if (text.trim().length < 50) {
-      return res.status(400).json({
-        success: false,
-        message: "Text is too short. Please provide at least 50 characters.",
-        error: "TEXT_TOO_SHORT"
+
+    const trimmedText = text.trim();
+
+    if (isLikelyUserQuery(trimmedText)) {
+      let queryAnalysis;
+      try {
+        queryAnalysis = await analyzeLegalQuery(trimmedText);
+      } catch (error) {
+        if (!isQuotaOrRateLimitError(error)) {
+          throw error;
+        }
+
+        console.warn("[documentController] Gemini quota exceeded, using fallback for query");
+        queryAnalysis = buildFallbackQueryAnalysis(trimmedText);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Legal query analyzed successfully",
+        data: {
+          analysis: {
+            mode: "query",
+            query: queryAnalysis,
+          },
+          metadata: {
+            processedAt: new Date().toISOString(),
+            textLength: trimmedText.length,
+          },
+        },
       });
     }
-    
-    console.log(`[Input] Text length: ${text.length} characters`);
-    
-    // Mask sensitive data
-    console.log("\n[Step 1/2] 🔒 Protecting sensitive information...");
-    const maskingResult = maskSensitiveData(text);
-    const { maskedText, hasSensitiveData, summary, replacements } = maskingResult;
-    
-    if (hasSensitiveData) {
-      console.log(`[Step 1/2] ✅ Protected ${replacements.length} sensitive fields`);
+
+    const maskingResult = maskSensitiveData(trimmedText);
+    let aiAnalysis;
+    try {
+      aiAnalysis = await analyzeDocument(maskingResult.maskedText);
+    } catch (error) {
+      if (!isQuotaOrRateLimitError(error)) {
+        throw error;
+      }
+
+      console.warn("[documentController] Gemini quota exceeded, using local fallback for text analysis");
+      aiAnalysis = buildFallbackDocumentAnalysis(maskingResult.maskedText);
     }
-    
-    // Analyze with AI
-    console.log("\n[Step 2/2] 🤖 Analyzing text with AI...");
-    const aiAnalysis = await analyzeDocument(maskedText);
-    
-    // Calculate statistics
-    const riskStats = {
-      total: aiAnalysis.risks.length,
-      high: aiAnalysis.risks.filter(r => r.severity === "HIGH").length,
-      medium: aiAnalysis.risks.filter(r => r.severity === "MEDIUM").length,
-      low: aiAnalysis.risks.filter(r => r.severity === "LOW").length
-    };
-    
-    console.log(`\n✅ Analysis complete: ${riskStats.total} risks found\n`);
-    
+    const legacyRisks = aiAnalysis.legacyRisks || [];
+    const riskStats = buildRiskStatistics(legacyRisks);
+
     return res.status(200).json({
       success: true,
       message: "Text analysis completed successfully",
       data: {
         privacy: {
-          protected: hasSensitiveData,
-          fieldsProtected: replacements.length,
-          summary: summary
+          protected: maskingResult.hasSensitiveData,
+          fieldsProtected: maskingResult.replacements.length,
+          summary: maskingResult.summary,
         },
         analysis: {
+          mode: "document",
+          documentType: aiAnalysis.documentType,
+          detectedType: aiAnalysis.detectedType,
           summary: aiAnalysis.summary,
-          risks: aiAnalysis.risks,
-          riskStatistics: riskStats
+          risks: legacyRisks,
+          riskStatistics: riskStats,
+          contextUsed: aiAnalysis.contextUsed,
+          contextCount: aiAnalysis.contextCount,
+          structured: aiAnalysis.structured,
         },
         metadata: {
           processedAt: new Date().toISOString(),
-          textLength: text.length
-        }
-      }
+          textLength: trimmedText.length,
+        },
+      },
     });
-    
   } catch (error) {
-    console.error("❌ Text analysis error:", error.message);
-    
-    return res.status(500).json({
+    console.error("[documentController] Text analysis failed:", error.message);
+
+    const statusCode = isQuotaOrRateLimitError(error) ? 503 : 500;
+
+    return res.status(statusCode).json({
       success: false,
       message: error.message || "Text analysis failed",
-      error: "ANALYSIS_ERROR"
+      error: isQuotaOrRateLimitError(error) ? "AI_QUOTA_EXCEEDED" : "ANALYSIS_ERROR",
     });
   }
 };

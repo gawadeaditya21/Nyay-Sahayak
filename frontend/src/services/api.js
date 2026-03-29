@@ -20,6 +20,7 @@ const ENDPOINTS = {
   DOCUMENT_ANALYZE: `${API_BASE_URL}/document/analyze`,
   TEXT_ANALYZE: `${API_BASE_URL}/document/analyze-text`,
   HEALTH_CHECK: `${API_BASE_URL}/document/health`,
+  CHAT: `${API_BASE_URL}/chat`,
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -160,8 +161,8 @@ export async function analyzeText(text) {
       throw new Error("Text cannot be empty");
     }
     
-    if (text.trim().length < 50) {
-      throw new Error("Text is too short. Please provide at least 50 characters.");
+    if (text.trim().length < 5) {
+      throw new Error("Text is too short. Please provide at least 5 characters.");
     }
     
     // Send request
@@ -218,6 +219,33 @@ export async function checkHealth() {
   }
 }
 
+export async function sendChatMessage(message) {
+  try {
+    if (!message || !message.trim()) {
+      throw new Error("Message cannot be empty");
+    }
+
+    const response = await fetch(ENDPOINTS.CHAT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message: message.trim() }),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("[API] Chat error:", error);
+
+    const userMessage = formatErrorMessage(error);
+    const formattedError = new Error(userMessage);
+    formattedError.originalError = error;
+    formattedError.code = error.code;
+
+    throw formattedError;
+  }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // EXPORT DEFAULT API OBJECT (Alternative usage pattern)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -226,6 +254,7 @@ const api = {
   analyzeDocument,
   analyzeText,
   checkHealth,
+  sendChatMessage,
 };
 
 export default api;

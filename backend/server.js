@@ -8,6 +8,7 @@ import ocrRoutes from "./routes/ocrRoutes.js";
 import pdfRoutes from "./routes/pdfRoutes.js";
 import documentRoutes from "./routes/documentRoutes.js";
 import authRoutes from "./routes/authRoutes.js";    
+import chatRoutes from "./routes/chatRoutes.js";
 
 // Validate environment variables on startup
 if (!process.env.GEMINI_API_KEY) {
@@ -35,6 +36,7 @@ app.use("/api/pdf", pdfRoutes);
 
 // auth routes
 app.use('/api/auth', authRoutes);
+app.use("/api/chat", chatRoutes);
 
 const PORT = process.env.PORT || 5000;
 
