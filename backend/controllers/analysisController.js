@@ -130,7 +130,10 @@ export const analyzeWithGemini = async (req, res) => {
     // Call AI service to analyze document with Gemini
     // This is where the magic happens - Gemini analyzes the document
     console.log("[Controller] Calling Gemini AI service...");
-    const analysis = await analyzeDocument(documentText);
+    const analysis = await analyzeDocument(documentText, {
+      detectionText: documentText,
+      rawText: documentText,
+    });
 
     console.log("[Controller] Analysis complete. Sending response...");
 
@@ -223,7 +226,10 @@ export const comprehensiveAnalysis = async (req, res) => {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     console.log("[Step 3/4] 🤖 Sending to Gemini AI for deep analysis...");
 
-    const geminiAnalysis = await analyzeDocument(maskedText);
+    const geminiAnalysis = await analyzeDocument(maskedText, {
+      detectionText: documentText,
+      rawText: documentText,
+    });
 
     console.log(`[Step 3/4] ✅ Gemini identified ${geminiAnalysis.risks.length} risks`);
 

@@ -207,6 +207,9 @@ function buildFallbackDocumentAnalysis(documentText) {
       ? "UNFAIR"
       : "NORMAL";
 
+  const isTicket = detectedType === "ticket";
+  const safeDecision = isTicket ? "SAFE_TO_USE" : "SAFE_TO_SIGN";
+
   const structured = {
     document_type:
       detectedType === "property_document"
@@ -236,7 +239,7 @@ function buildFallbackDocumentAnalysis(documentText) {
       "AI detailed analysis is temporarily unavailable due to quota limits.",
       "This is a local fallback assessment and may miss nuanced issues.",
     ],
-    final_decision: classification === "NORMAL" ? "SAFE_TO_SIGN" : "REVIEW_CAUTION",
+    final_decision: classification === "NORMAL" ? safeDecision : "REVIEW_CAUTION",
     should_user_sign: classification === "NORMAL" ? "YES" : "CAUTION",
     reason_for_decision:
       classification === "NORMAL"
@@ -249,12 +252,33 @@ function buildFallbackDocumentAnalysis(documentText) {
     ],
     lawyer_suggestion: "Consult a legal expert before taking final action.",
     law_reference:
-      detectedType === "property_document" || detectedType === "rental_agreement"
+      detectedType === "property_document"
         ? {
             applicable: true,
             laws: ["RERA Act", "Indian Contract Act"],
             simple_explanation:
-              "Property and rental agreements are generally assessed under RERA and contract law principles.",
+              "Property agreements are generally assessed under RERA and contract law principles.",
+          }
+        : detectedType === "rental_agreement"
+        ? {
+            applicable: true,
+            laws: ["Model Tenancy Act / State Rent Act", "Indian Contract Act"],
+            simple_explanation:
+              "Rental agreements are generally assessed under tenancy laws and contract law principles.",
+          }
+        : detectedType === "ticket"
+        ? {
+            applicable: true,
+            laws: ["Indian Railways Rules"],
+            simple_explanation:
+              "Tickets and travel documents should be checked for validity and timing conditions before travel.",
+          }
+        : detectedType === "bank_financial"
+        ? {
+            applicable: true,
+            laws: ["RBI Guidelines"],
+            simple_explanation:
+              "Banking and financial documents should follow RBI fair practice and customer protection rules.",
           }
         : {
             applicable: true,
@@ -323,14 +347,17 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
     let aiAnalysis;
 
     try {
-      aiAnalysis = await analyzeDocument(maskingResult.maskedText);
+      aiAnalysis = await analyzeDocument(maskingResult.maskedText, {
+        detectionText: extractedText,
+        rawText: extractedText,
+      });
     } catch (error) {
       if (!isQuotaOrRateLimitError(error)) {
         throw error;
       }
 
       console.warn("[documentController] Gemini quota exceeded, using local fallback for uploaded document");
-      aiAnalysis = buildFallbackDocumentAnalysis(maskingResult.maskedText);
+      aiAnalysis = buildFallbackDocumentAnalysis(extractedText);
     }
 
     const response = buildDocumentResponse({
@@ -421,14 +448,17 @@ export const analyzeTextOnly = async (req, res) => {
     const maskingResult = maskSensitiveData(trimmedText);
     let aiAnalysis;
     try {
-      aiAnalysis = await analyzeDocument(maskingResult.maskedText);
+      aiAnalysis = await analyzeDocument(maskingResult.maskedText, {
+        detectionText: trimmedText,
+        rawText: trimmedText,
+      });
     } catch (error) {
       if (!isQuotaOrRateLimitError(error)) {
         throw error;
       }
 
       console.warn("[documentController] Gemini quota exceeded, using local fallback for text analysis");
-      aiAnalysis = buildFallbackDocumentAnalysis(maskingResult.maskedText);
+      aiAnalysis = buildFallbackDocumentAnalysis(trimmedText);
     }
     const legacyRisks = aiAnalysis.legacyRisks || [];
     const riskStats = buildRiskStatistics(legacyRisks);

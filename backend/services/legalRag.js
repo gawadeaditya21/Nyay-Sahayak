@@ -45,6 +45,28 @@ function normalizeSearchResult(result) {
   };
 }
 
+function extractTokens(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 4);
+}
+
+function hasQueryOverlap(queryText, candidateText) {
+  if (!queryText) {
+    return true;
+  }
+
+  const queryTokens = new Set(extractTokens(queryText));
+  if (queryTokens.size === 0) {
+    return true;
+  }
+
+  return extractTokens(candidateText).some((token) => queryTokens.has(token));
+}
+
 function runPythonSearch(query) {
   return new Promise((resolve, reject) => {
     const pythonProcess = spawn(PYTHON_BIN, [ML_SCRIPT_PATH, query], {
@@ -90,9 +112,29 @@ function runPythonSearch(query) {
   });
 }
 
-function filterRelevantResults(results, threshold = RAG_SIMILARITY_THRESHOLD, limit = MAX_CONTEXT_RESULTS) {
+function filterRelevantResults(results, options = {}) {
+  let queryText = "";
+  let threshold = RAG_SIMILARITY_THRESHOLD;
+  let limit = MAX_CONTEXT_RESULTS;
+
+  if (typeof options === "string") {
+    queryText = options;
+  } else if (typeof options === "number") {
+    threshold = options;
+  } else if (options && typeof options === "object") {
+    queryText = options.queryText || "";
+    threshold = Number.isFinite(options.threshold) ? options.threshold : threshold;
+    limit = Number.isFinite(options.limit) ? options.limit : limit;
+  }
+
   return results
-    .filter((result) => result.text && Number.isFinite(result.score) && result.score > threshold)
+    .filter(
+      (result) =>
+        result.text &&
+        Number.isFinite(result.score) &&
+        result.score > threshold &&
+        hasQueryOverlap(queryText, result.text)
+    )
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }

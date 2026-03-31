@@ -123,7 +123,7 @@ export function formatAnalysisResponse(response) {
     const riskLevel = structured.risk_level || "MEDIUM";
     const keyWarning = Array.isArray(structured.warnings) && structured.warnings.length > 0
       ? structured.warnings[0]
-      : "Review the document carefully before signing.";
+      : "Review the document carefully.";
 
     message += "Decision Summary\n";
     message += `Decision: ${decision}\n`;
@@ -158,6 +158,25 @@ export function formatAnalysisResponse(response) {
       if (structured.law_reference.simple_explanation) {
         message += `${structured.law_reference.simple_explanation}\n`;
       }
+      message += "\n";
+    }
+
+    if (Array.isArray(structured.quantified_impact) && structured.quantified_impact.length > 0) {
+      message += "Quantified Impact\n";
+      structured.quantified_impact.forEach((impact) => {
+        message += `- ${impact}\n`;
+      });
+      message += "\n";
+    }
+
+    if (Array.isArray(structured.legal_validity_flags) && structured.legal_validity_flags.length > 0) {
+      message += "Legal Validity Flags\n";
+      structured.legal_validity_flags.forEach((flag) => {
+        const parts = [flag.type, flag.clause, flag.law, flag.explanation]
+          .filter(Boolean)
+          .join(" | ");
+        message += `- ${parts}\n`;
+      });
       message += "\n";
     }
 
