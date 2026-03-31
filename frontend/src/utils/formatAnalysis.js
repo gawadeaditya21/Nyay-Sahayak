@@ -142,10 +142,47 @@ export function formatAnalysisResponse(response) {
       message += `${structured.smart_difference_explanation}\n\n`;
     }
 
+    if (structured.simple_explanation) {
+      message += "Simple Explanation\n";
+      message += `${structured.simple_explanation}\n\n`;
+    }
+
+    if (Array.isArray(structured.key_rules) && structured.key_rules.length > 0) {
+      message += "Key Rules\n";
+      structured.key_rules.forEach((rule) => {
+        message += `- ${rule}\n`;
+      });
+      message += "\n";
+    }
+
+    if (Array.isArray(structured.common_mistakes) && structured.common_mistakes.length > 0) {
+      message += "Common Mistakes\n";
+      structured.common_mistakes.forEach((mistake) => {
+        message += `- ${mistake}\n`;
+      });
+      message += "\n";
+    }
+
+    if (Array.isArray(structured.consequences) && structured.consequences.length > 0) {
+      message += "Real-Life Consequences\n";
+      structured.consequences.forEach((item) => {
+        message += `- ${item}\n`;
+      });
+      message += "\n";
+    }
+
     if (Array.isArray(structured.what_user_should_do) && structured.what_user_should_do.length > 0) {
       message += "What User Should Do\n";
       structured.what_user_should_do.forEach((action) => {
         message += `- ${action}\n`;
+      });
+      message += "\n";
+    }
+
+    if (Array.isArray(structured.positive_signals) && structured.positive_signals.length > 0) {
+      message += "Positive Signals\n";
+      structured.positive_signals.forEach((signal) => {
+        message += `- ${signal}\n`;
       });
       message += "\n";
     }

@@ -225,8 +225,10 @@ function buildGuidanceForChat(docTypeKey, classification) {
 
   if (docTypeKey === "ticket") {
     return [
-      "Start the journey within the allowed window (often 1 hour for local tickets).",
-      "Check ticket validity date/time; many tickets expire by midnight.",
+      "Start the journey within the printed validity window; for unreserved/local tickets this is often within about 1 hour.",
+      "Check ticket validity date/time and class; many tickets expire by midnight if not used.",
+      "Travel on the permitted route and avoid breaking the journey unless the ticket explicitly allows it.",
+      "Do not exit and re-enter mid-journey; a detour may require a new ticket.",
       "Carry required ID proof and follow boarding rules.",
     ];
   }
@@ -241,7 +243,9 @@ function buildGuidanceForChat(docTypeKey, classification) {
 
   if (isSignableDocumentKey(docTypeKey)) {
     return [
-      "Review clauses carefully before signing.",
+      "Verify parties, dates, and payment schedule before signing.",
+      "Check termination, penalty, and refund clauses for one-sided terms.",
+      "Confirm dispute resolution/jurisdiction terms are acceptable.",
       "Negotiate one-sided or high-penalty terms.",
       "Consult a legal expert if risk is high.",
     ];

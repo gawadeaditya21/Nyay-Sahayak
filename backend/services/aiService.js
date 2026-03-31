@@ -317,6 +317,10 @@ function detectDocumentType(text) {
   const normalized = normalizeForMatching(text);
   const compact = normalized.replace(/\s+/g, "");
 
+  if (isLikelyTicket(normalized)) {
+    return "ticket";
+  }
+
   const scores = {
     resume: 0,
     legal: 0,
@@ -553,10 +557,6 @@ function detectDocumentType(text) {
     return "ticket";
   }
 
-  if (isLikelyTicket(normalized)) {
-    return "ticket";
-  }
-
   if (propertySignalCount >= 3 && rentalSignalCount === 0) {
     return "property_document";
   }
@@ -627,8 +627,8 @@ function detectDocumentType(text) {
 
   if (
     topEntry[0] !== "ticket" &&
-    ticketSignalCount >= 2 &&
-    scores.ticket >= Math.max(topEntry[1] - 1, 2)
+    (ticketSignalCount >= 2 || isLikelyTicket(normalized)) &&
+    scores.ticket >= Math.max(topEntry[1] - 1, 1)
   ) {
     return "ticket";
   }
@@ -640,16 +640,41 @@ function isLikelyTicket(text) {
   const normalized = normalizeForMatching(text);
   const compact = normalized.replace(/\s+/g, "");
 
-  const patternSignals = [
-    /pnr\s*[:#-]?\s*\d{8,12}/i,
-    /train\s*(no|number)?\s*[:#-]?\s*\d{4,6}/i,
-    /journey\s*date|boarding\s*station|from\s*station|to\s*station/i,
-    /irctc|e\s*-?ticket|reservation|coach|berth|quota|class/i,
-    /uts|unreserved|railway\s*ticket/i,
-    /\d{2}[\/-]\d{2}[\/-]\d{2,4}/,
+  const strongSignals = [
+    /railway/i,
+    /irctc/i,
+    /pnr/i,
+    /train\s*(no|number)?/i,
+    /coach/i,
+    /berth/i,
+    /platform/i,
+    /uts/i,
+    /unreserved/i,
+    /reservation/i,
   ];
 
-  const signalCount = patternSignals.reduce(
+  const supportSignals = [
+    /journey\s*date/i,
+    /boarding\s*station/i,
+    /from\s*station/i,
+    /to\s*station/i,
+    /source\s*station/i,
+    /destination\s*station/i,
+    /valid\s*(upto|up\s*to|till|until)/i,
+    /class/i,
+    /fare/i,
+    /adult/i,
+    /child/i,
+    /single\s*journey/i,
+    /return\s*journey/i,
+    /ticket\s*no/i,
+  ];
+
+  const strongCount = strongSignals.reduce(
+    (count, pattern) => (pattern.test(normalized) ? count + 1 : count),
+    0
+  );
+  const supportCount = supportSignals.reduce(
     (count, pattern) => (pattern.test(normalized) ? count + 1 : count),
     0
   );
@@ -658,7 +683,11 @@ function isLikelyTicket(text) {
     return true;
   }
 
-  return signalCount >= 2;
+  if (strongCount >= 1 && supportCount >= 1) {
+    return true;
+  }
+
+  return strongCount + supportCount >= 3;
 }
 
 function getDocumentTypeLabel(documentType) {
@@ -939,6 +968,53 @@ function normalizeRiskEntries(value) {
     .filter((risk) => risk.description || risk.impact);
 }
 
+function extractClauseReference(snippet) {
+  const match = String(snippet || "").match(/clause\s*\d+[A-Za-z]?|section\s*\d+[A-Za-z]?/i);
+  return match ? match[0] : "";
+}
+
+function extractClauseSnippet(text, pattern, maxLen = 160) {
+  if (!text) {
+    return "";
+  }
+
+  const match = String(text).match(pattern);
+  if (!match || match.index == null) {
+    return "";
+  }
+
+  const start = Math.max(0, match.index - 60);
+  const end = Math.min(text.length, match.index + maxLen);
+  const snippet = text.slice(start, end).replace(/\s+/g, " ").trim();
+  return snippet.length > maxLen ? `${snippet.slice(0, maxLen)}...` : snippet;
+}
+
+function buildClauseRisk({ type, description, impact, pattern, text }) {
+  const snippet = extractClauseSnippet(text, pattern);
+  const clauseRef = extractClauseReference(snippet);
+  const clauseLabel = clauseRef ? ` (${clauseRef})` : "";
+
+  return {
+    type: `${type}${clauseLabel}`.trim(),
+    description: snippet ? `${description} Snippet: "${snippet}"` : description,
+    impact,
+  };
+}
+
+function isRiskSpecific(risk) {
+  const combined = `${risk.type} ${risk.description} ${risk.impact}`.toLowerCase();
+  if (/clause|section/.test(combined)) {
+    return true;
+  }
+  if (/₹|rs\.?|inr/.test(combined)) {
+    return true;
+  }
+  if (/(\d{1,3}(?:\.\d+)?)%/.test(combined)) {
+    return true;
+  }
+  return combined.length >= 60;
+}
+
 function detectIllegalSignals(text) {
   const normalized = normalizeForMatching(text);
   const signals = [];
@@ -951,6 +1027,8 @@ function detectIllegalSignals(text) {
     /no\s+court\s+remedy/i,
     /no\s+legal\s+recourse/i,
     /only\s+arbitration\s+and\s+no\s+court/i,
+    /exclusive\s+jurisdiction/i,
+    /only\s+builder\s+jurisdiction/i,
   ];
 
   if (illegalPatterns.some((pattern) => pattern.test(normalized))) {
@@ -1029,6 +1107,201 @@ function detectQuantifiedImpacts(text) {
   return impacts.slice(0, 2);
 }
 
+function detectPositiveSignals(text, documentType) {
+  if (documentType !== "offer_letter" && documentType !== "legal") {
+    return [];
+  }
+
+  const normalized = normalizeForMatching(text);
+  const signals = [];
+
+  const hasSalaryKeywords = /salary|ctc|compensation|stipend|pay\s*scale|gross\s*salary|net\s*salary/i.test(
+    normalized
+  );
+  const hasSalaryAmount = /(₹|\brs\b|\binr\b|\d{4,})/i.test(normalized);
+  const hasSalaryUncertainty = /subject\s+to|discretion|to\s+be\s+decided|variable/i.test(normalized);
+
+  if (hasSalaryKeywords && hasSalaryAmount && !hasSalaryUncertainty) {
+    signals.push("Clear salary defined.");
+  }
+
+  if (/no\s+fees?\s+required|no\s+fee\b/i.test(normalized)) {
+    signals.push("No fees required.");
+  }
+
+  if (
+    /no\s+(payment|fee|fees|charge|security\s+deposit|deposit)/i.test(normalized) ||
+    /no\s+onboarding\s+fee|no\s+registration\s+fee/i.test(normalized)
+  ) {
+    signals.push("No payment required.");
+  }
+
+  if (/no\s+security\s+deposit/i.test(normalized)) {
+    signals.push("No security deposit.");
+  }
+
+  if (
+    /either\s+party\s+(?:may|can)\s+terminate/i.test(normalized) ||
+    /mutual\s+notice|both\s+parties\s+.*notice/i.test(normalized)
+  ) {
+    signals.push("Either party may terminate with notice.");
+  }
+
+  if (/mutual\s+agreement/i.test(normalized)) {
+    signals.push("Mutual agreement terms are stated.");
+  }
+
+  if (/working\s+hours|shift\s+timing|hours\s+per\s+week|\b9\s*am\b|\b6\s*pm\b/i.test(normalized)) {
+    signals.push("Standard working conditions are defined.");
+  }
+
+  if (/probation|confidentiality|code\s+of\s+conduct|hr\s+policy|leave\s+policy/i.test(normalized)) {
+    signals.push("Standard HR policies are mentioned.");
+  }
+
+  if (!/within\s+24\s*hours|urgent|immediate|act\s+now|limited\s+time/i.test(normalized)) {
+    signals.push("No urgency pressure detected.");
+  }
+
+  return [...new Set(signals)].slice(0, 5);
+}
+
+function buildContradictionContext(positiveSignals, text) {
+  const normalizedText = normalizeForMatching(text);
+  const normalizedSignals = normalizeStringArray(positiveSignals).map((signal) =>
+    normalizeForMatching(signal)
+  );
+  const signalText = normalizedSignals.join(" ");
+
+  const hasNoPaymentSignal =
+    /no\s+payment\s+required|no\s+fees\s+required|no\s+security\s+deposit/i.test(signalText) ||
+    /no\s+(payment|fee|fees|charge|security\s+deposit|deposit|registration\s+fee|processing\s+fee)/i.test(
+      normalizedText
+    );
+
+  const hasMutualTerminationSignal =
+    /either\s+party\s+(?:may|can)\s+terminate|mutual\s+notice|both\s+parties\s+.*notice/i.test(
+      normalizedText
+    ) ||
+    /either\s+party\s+may\s+terminate|mutual\s+notice/i.test(signalText);
+
+  const hasClearSalarySignal =
+    /clear\s+salary|salary\s+defined|clear\s+compensation/i.test(signalText) ||
+    (/salary|ctc|compensation|stipend|pay\s*scale|gross\s*salary|net\s*salary/i.test(
+      normalizedText
+    ) &&
+      /(₹|\brs\b|\binr\b|\d{4,})/i.test(normalizedText) &&
+      !/subject\s+to|discretion|to\s+be\s+decided|variable/i.test(normalizedText));
+
+  const hasStandardPolicySignals =
+    /standard\s+hr\s+policies|working\s+conditions|working\s+hours/i.test(signalText) ||
+    /probation|confidentiality|code\s+of\s+conduct|hr\s+policy|leave\s+policy|working\s+hours|shift\s+timing|hours\s+per\s+week/i.test(
+      normalizedText
+    );
+
+  return {
+    hasNoPaymentSignal,
+    hasMutualTerminationSignal,
+    hasClearSalarySignal,
+    hasStandardPolicySignals,
+  };
+}
+
+function filterNegativeSignalsByContradictions(signals, context) {
+  if (!Array.isArray(signals)) {
+    return [];
+  }
+
+  return signals.filter((signal) => {
+    if (context.hasNoPaymentSignal && signal.label === "Payment requested before joining") {
+      return false;
+    }
+    if (context.hasMutualTerminationSignal && signal.label === "One-sided termination rights") {
+      return false;
+    }
+    if (context.hasClearSalarySignal && signal.label === "Salary or payment uncertainty") {
+      return false;
+    }
+    return true;
+  });
+}
+
+function filterContradictions(risks, positiveSignals, text) {
+  if (!Array.isArray(risks)) {
+    return [];
+  }
+
+  const context = buildContradictionContext(positiveSignals, text);
+
+  return risks.filter((risk) => {
+    const combined = `${risk?.type || ""} ${risk?.description || ""} ${risk?.impact || ""}`.toLowerCase();
+
+    if (
+      context.hasNoPaymentSignal &&
+      /(advance\s+payment|payment\s+before|registration\s+fee|processing\s+fee|security\s+deposit|training\s+fee|pay.*join|financial\s+scam|payment\s+demand)/i.test(
+        combined
+      )
+    ) {
+      return false;
+    }
+
+    if (
+      context.hasMutualTerminationSignal &&
+      /(one\-sided\s+termination|termination\s+clause|termination\s+rights|terminate\s+at\s+any\s+time|sole\s+discretion|without\s+notice)/i.test(
+        combined
+      )
+    ) {
+      return false;
+    }
+
+    if (
+      context.hasClearSalarySignal &&
+      /(salary\s+uncertainty|payment\s+uncertainty|salary.*subject\s+to|payment.*discretion|amount\s+to\s+be\s+decided)/i.test(
+        combined
+      )
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function detectNegativeSignals(text, documentType) {
+  if (documentType !== "offer_letter" && documentType !== "legal") {
+    return [];
+  }
+
+  const normalized = normalizeForMatching(text);
+  const signals = [];
+
+  if (/registration\s+fee|processing\s+fee|pay.*join|security\s+deposit|advance\s+payment|training\s+fee/i.test(normalized)) {
+    signals.push({ label: "Payment requested before joining", weight: 2 });
+  }
+
+  if (/within\s+24\s*hours|urgent|immediate|act\s+now|limited\s+time/i.test(normalized)) {
+    signals.push({ label: "Urgency pressure to act quickly", weight: 2 });
+  }
+
+  if (/otp|cvv|password|bank\s+details|upi\s*pin/i.test(normalized)) {
+    signals.push({ label: "Sensitive data requested", weight: 2 });
+  }
+
+  if (/terminate\s+at\s+any\s+time|sole\s+discretion|without\s+notice/i.test(normalized)) {
+    signals.push({ label: "One-sided termination rights", weight: 1 });
+  }
+
+  if (/salary.*subject\s+to|amount\s+to\s+be\s+decided|payment.*discretion/i.test(normalized)) {
+    signals.push({ label: "Salary or payment uncertainty", weight: 1 });
+  }
+
+  if (/bond|liquidated\s+damages|penalty|fine|pay\s+back\s+training/i.test(normalized)) {
+    signals.push({ label: "High penalty or bond obligations", weight: 2 });
+  }
+
+  return signals;
+}
+
 function formatInrAmount(value) {
   if (!Number.isFinite(value)) {
     return "";
@@ -1044,6 +1317,7 @@ function extractQuantifiedImpactStrings(text) {
   const percentMatches = [...cleaned.matchAll(/(\d{1,3}(?:\.\d+)?)\s*%/g)];
   const amountMatches = [...cleaned.matchAll(/(₹|rs\.?|inr)\s*([0-9][0-9,]{2,})/gi)];
   const keywordRegex = /(payment|deposit|fee|penalt|fine|charge|cancellation|forfeit|loss|deduct|refund)/i;
+  const penaltyWindowRegex = /(cancellation|forfeit|penalt|deduct|refund)[\s\S]{0,80}/i;
 
   for (const amountMatch of amountMatches) {
     const amount = Number(String(amountMatch[2]).replace(/,/g, ""));
@@ -1077,7 +1351,19 @@ function extractQuantifiedImpactStrings(text) {
     if (nearest && Math.abs(nearest.index - percentMatch.index) <= 80) {
       const loss = (nearest.amount * percent) / 100;
       impacts.push(
-        `${percent}% on ${formatInrAmount(nearest.amount)} equals approx ${formatInrAmount(loss)}.`
+        `If you cancel, you may lose ${formatInrAmount(loss)} (${percent}% of ${formatInrAmount(nearest.amount)}).`
+      );
+    }
+  }
+
+  const penaltyWindowMatch = cleaned.match(penaltyWindowRegex);
+  if (penaltyWindowMatch && percentMatches.length > 0 && amountMatches.length > 0) {
+    const percent = Number(percentMatches[0][1]);
+    const amount = Number(String(amountMatches[0][2]).replace(/,/g, ""));
+    if (Number.isFinite(percent) && Number.isFinite(amount)) {
+      const loss = (amount * percent) / 100;
+      impacts.push(
+        `Penalty clause indicates a possible loss of ${formatInrAmount(loss)} (${percent}% of ${formatInrAmount(amount)}).`
       );
     }
   }
@@ -1094,6 +1380,7 @@ function extractQuantifiedImpactStrings(text) {
 function detectIllegalClauses(text) {
   const normalized = normalizeForMatching(text);
   const flags = [];
+  const rawText = String(text || "");
 
   const courtPatterns = [
     /no\s+legal\s+action/i,
@@ -1106,18 +1393,20 @@ function detectIllegalClauses(text) {
   ];
 
   if (courtPatterns.some((pattern) => pattern.test(normalized))) {
+    const snippet = extractClauseSnippet(rawText, /(no\s+legal\s+action|cannot\s+(?:go|approach)\s+court|no\s+right\s+to\s+sue|waive\s+(?:your|the)?\s*right\s+to\s+sue|no\s+court\s+remedy|no\s+legal\s+recourse|only\s+arbitration\s+and\s+no\s+court|exclusive\s+jurisdiction|only\s+builder\s+jurisdiction)/i);
     flags.push({
       type: "ILLEGAL",
-      clause: "Restriction on legal recourse detected.",
+      clause: snippet || "Restriction on legal recourse detected.",
       law: "Section 28, Indian Contract Act",
       explanation: "Clauses that block access to courts are generally unenforceable.",
     });
   }
 
   if (/owner\s+can\s+enter\s+anytime|landlord\s+can\s+enter\s+anytime/i.test(normalized)) {
+    const snippet = extractClauseSnippet(rawText, /(owner\s+can\s+enter\s+anytime|landlord\s+can\s+enter\s+anytime)/i);
     flags.push({
       type: "ILLEGAL",
-      clause: "Unrestricted entry without notice detected.",
+      clause: snippet || "Unrestricted entry without notice detected.",
       law: "Model Tenancy Act / State Rent Act",
       explanation: "Tenancy laws usually require reasonable notice before entry.",
     });
@@ -1186,8 +1475,10 @@ function buildGuidance(documentType, classification, riskLevel) {
 
   if (documentType === "ticket") {
     return [
-      "Start the journey within the allowed window (often 1 hour for local tickets).",
-      "Check ticket validity date/time; many tickets expire by midnight.",
+      "Start the journey within the printed validity window; for unreserved/local tickets this is often within about 1 hour.",
+      "Check ticket validity date/time and class; many tickets expire by midnight if not used.",
+      "Travel on the permitted route and avoid breaking the journey unless the ticket explicitly allows it.",
+      "Do not exit and re-enter mid-journey; a detour may require a new ticket.",
       "Carry required ID proof and follow boarding rules.",
     ];
   }
@@ -1202,7 +1493,9 @@ function buildGuidance(documentType, classification, riskLevel) {
 
   if (isSignableDocument(documentType)) {
     return [
-      "Review clauses carefully before signing.",
+      "Verify parties, dates, and payment schedule before signing.",
+      "Check termination, penalty, and refund clauses for one-sided terms.",
+      "Confirm dispute resolution/jurisdiction terms are acceptable.",
       "Negotiate one-sided or high-penalty terms.",
       "Consult a legal expert if risk is high.",
     ];
@@ -1212,6 +1505,31 @@ function buildGuidance(documentType, classification, riskLevel) {
     "Verify key obligations, deadlines, and penalties before acting.",
     "Keep a copy of the document and related communications.",
   ];
+}
+
+function buildTicketDetails() {
+  return {
+    simple_explanation:
+      "This ticket allows you to travel on the route and time shown on the ticket. It is valid only within the printed validity window.",
+    key_warning:
+      "Ensure your journey starts within the allowed time (often around 1 hour for local tickets). If you delay or take long breaks, the ticket can become invalid.",
+    key_rules: [
+      "Start the journey within the printed validity window (for many local tickets this is roughly 1 hour).",
+      "Complete travel within the validity period or before the ticket expires (often by midnight).",
+      "Board from the correct station and travel on the permitted route/class.",
+      "Carry the ticket/QR or booking proof and ID if required.",
+    ],
+    common_mistakes: [
+      "Breaking the journey with long gaps (e.g., Dombivli → Vidyavihar → Sion → CSMT after delays) when the ticket does not allow it.",
+      "Traveling after the ticket validity has expired.",
+      "Boarding from a different station or taking a different route than printed.",
+    ],
+    consequences: [
+      "Ticket can be treated as invalid by the TC.",
+      "You may have to buy a new ticket plus pay a penalty/fine.",
+      "You can be deboarded or asked to pay excess fare.",
+    ],
+  };
 }
 
 function detectFraudSignals(text, documentType) {
@@ -1274,43 +1592,45 @@ function detectUnfairRiskSignals(text, documentType) {
   const normalized = normalizeForMatching(text);
   const signals = [];
 
+  const rawText = String(text || "");
+
   const signalRules = [
     {
-      type: "One-sided Penalty",
-      description: "The document imposes heavy penalty or liability mainly on the user.",
-      impact: "User may face unfair financial burden.",
-      patterns: [/penalt(?:y|ies)/i, /liable to pay/i, /fine of/i],
+      type: "Penalty Clause",
+      description: "A penalty or charge clause applies to the user.",
+      impact: "May cause direct financial loss or additional charges.",
+      patterns: [/cancellation\s*charge/i, /penalt(?:y|ies)/i, /liable to pay/i, /fine of/i, /forfeit/i],
       onlyFor: ["legal", "property_document", "rental_agreement", "offer_letter"],
       severity: "MEDIUM",
     },
     {
-      type: "Builder Delay Risk",
-      description: "The builder or seller appears protected against delays while buyer risk remains high.",
-      impact: "User may face delay, extra cost, or reduced remedies.",
-      patterns: [/delay/i, /possession/i, /builder/i, /developer/i],
+      type: "Delay/Possession Clause",
+      description: "Delay or possession timelines favor the other party.",
+      impact: "May cause possession delays or limited remedies.",
+      patterns: [/delay/i, /possession/i, /handover/i, /builder/i, /developer/i],
       onlyFor: ["property_document"],
       severity: "MEDIUM",
     },
     {
-      type: "One-sided Termination",
-      description: "The other party can terminate or change terms with limited protection for the user.",
-      impact: "User may lose rights, housing, or employment security suddenly.",
-      patterns: [/terminate at any time/i, /sole discretion/i, /without notice/i],
+      type: "Termination Clause",
+      description: "Termination or change-of-terms rights are one-sided.",
+      impact: "User may lose rights or face sudden termination.",
+      patterns: [/terminate at any time/i, /sole discretion/i, /without notice/i, /termination/i],
       onlyFor: ["legal", "rental_agreement", "offer_letter", "policy"],
       severity: "MEDIUM",
     },
     {
-      type: "Salary or Payment Uncertainty",
-      description: "Payment, salary, or reimbursement terms are vague or discretionary.",
-      impact: "User may commit time or money without guaranteed compensation.",
+      type: "Payment Uncertainty Clause",
+      description: "Payment terms are vague or discretionary.",
+      impact: "User may not receive guaranteed payments.",
       patterns: [/salary.*subject to/i, /payment.*discretion/i, /amount to be decided/i],
       onlyFor: ["offer_letter", "legal", "bank_financial"],
       severity: "MEDIUM",
     },
     {
-      type: "Strict Validity or Penalty Condition",
-      description: "The ticket or transport document contains strict timing or penalty conditions.",
-      impact: "User may lose travel rights or pay extra charges if they miss the rule.",
+      type: "Ticket Validity Condition",
+      description: "Ticket validity or timing conditions are strict.",
+      impact: "Ticket may become invalid if rules are missed.",
       patterns: [/valid/i, /boarding/i, /departure/i, /cancellation charge/i, /penalt(?:y|ies)/i],
       onlyFor: ["ticket"],
       severity: "LOW",
@@ -1319,13 +1639,22 @@ function detectUnfairRiskSignals(text, documentType) {
 
   for (const rule of signalRules) {
     const typeAllowed = !rule.onlyFor || rule.onlyFor.includes(documentType);
-    if (typeAllowed && rule.patterns.some((pattern) => pattern.test(normalized))) {
+    for (const pattern of rule.patterns) {
+      if (!typeAllowed || !pattern.test(normalized)) {
+        continue;
+      }
+
       signals.push({
-        type: rule.type,
-        description: rule.description,
-        impact: rule.impact,
+        ...buildClauseRisk({
+          type: rule.type,
+          description: rule.description,
+          impact: rule.impact,
+          pattern,
+          text: rawText,
+        }),
         severity: rule.severity,
       });
+      break;
     }
   }
 
@@ -1383,7 +1712,7 @@ function buildLawReference(
   } else if (documentType === "ticket") {
     laws.push("Indian Railways Rules");
     simpleExplanation =
-      "Tickets and travel documents should be checked for validity, timing, and penalty conditions before travel.";
+      "Indian Railways rules require passengers to start and complete travel within allowed time limits. Breaking journey or delaying travel may invalidate the ticket.";
   } else if (documentType === "government_rule") {
     laws.push("Applicable Government Rules");
     simpleExplanation =
@@ -1413,9 +1742,23 @@ function buildLawReference(
 
 function applyDecisionPolicy(structured, documentType, documentText) {
   const inferredTicket = documentType !== "ticket" && isLikelyTicket(documentText);
-  const policyDocumentType = inferredTicket ? "ticket" : documentType;
-  const fraudSignals = detectFraudSignals(documentText, policyDocumentType);
-  const unfairSignals = detectUnfairRiskSignals(documentText, policyDocumentType);
+  let policyDocumentType = inferredTicket ? "ticket" : documentType;
+  const structuredTypeHint = normalizeDocumentType(structured.document_type);
+  if (["ticket", "resume"].includes(structuredTypeHint)) {
+    policyDocumentType = structuredTypeHint;
+  }
+  const positiveSignals = detectPositiveSignals(documentText, policyDocumentType);
+  const contradictionContext = buildContradictionContext(positiveSignals, documentText);
+  const fraudSignals = filterContradictions(
+    detectFraudSignals(documentText, policyDocumentType),
+    positiveSignals,
+    documentText
+  );
+  const unfairSignals = filterContradictions(
+    detectUnfairRiskSignals(documentText, policyDocumentType),
+    positiveSignals,
+    documentText
+  );
   const illegalSignals = detectIllegalSignals(documentText);
   const illegalFlags = detectIllegalClauses(documentText);
   const quantifiedImpacts = detectQuantifiedImpacts(documentText);
@@ -1440,7 +1783,7 @@ function applyDecisionPolicy(structured, documentType, documentText) {
   }
 
   const hasFraudSignals = fraudSignals.length > 0;
-  const hasIllegalSignals = illegalSignals.length > 0;
+  const hasIllegalSignals = illegalSignals.length > 0 || illegalFlags.length > 0;
   const isContractType = ["legal", "property_document", "rental_agreement"].includes(policyDocumentType);
   const isTicketType = policyDocumentType === "ticket";
   const currentRiskLevel = normalizeRiskLevel(structured.risk_level || "LOW");
@@ -1452,6 +1795,18 @@ function applyDecisionPolicy(structured, documentType, documentText) {
     structured.reason_for_decision || "Review the document carefully before taking any action."
   );
   let lawyerSuggestion = flattenObjectToString(structured.lawyer_suggestion || "");
+  const negativeSignals = filterNegativeSignalsByContradictions(
+    detectNegativeSignals(documentText, policyDocumentType),
+    contradictionContext
+  );
+  const negativeScore = negativeSignals.reduce((sum, item) => sum + item.weight, 0);
+  const positiveScore = positiveSignals.length;
+  const balanceScore = positiveScore - negativeScore;
+  const hasStrongFraudSignals = negativeSignals.some((signal) =>
+    ["Payment requested before joining", "Urgency pressure to act quickly", "Sensitive data requested"].includes(
+      signal.label
+    )
+  );
 
   if (hasIllegalSignals) {
     classification = "ILLEGAL";
@@ -1467,6 +1822,8 @@ function applyDecisionPolicy(structured, documentType, documentText) {
     reasonForDecision =
       "This appears to be a ticket or travel document with no strong fraud indicators. Follow validity rules before travel.";
     lawyerSuggestion = "";
+    const ticketDetails = buildTicketDetails();
+    warnings = [ticketDetails.key_warning, ...warnings];
     warnings = warnings.filter(
       (item) =>
         !/this document shows signs of fraud|do not make payment|do not share personal details/i.test(item)
@@ -1504,6 +1861,38 @@ function applyDecisionPolicy(structured, documentType, documentText) {
     lawyerSuggestion = "";
   }
 
+  if (policyDocumentType === "offer_letter" && !hasIllegalSignals) {
+    if (negativeScore >= 3 && hasStrongFraudSignals) {
+      classification = "FRAUD";
+      riskLevel = "HIGH";
+    } else if (balanceScore >= 2) {
+      classification = "NORMAL";
+      riskLevel = "LOW";
+    } else {
+      classification = "UNFAIR";
+      riskLevel = riskLevel === "LOW" ? "MEDIUM" : riskLevel;
+    }
+
+    if (!hasStrongFraudSignals && classification === "FRAUD") {
+      classification = "UNFAIR";
+      riskLevel = "MEDIUM";
+    }
+  }
+
+  if (
+    contradictionContext.hasStandardPolicySignals &&
+    ["offer_letter", "legal", "policy"].includes(policyDocumentType) &&
+    !hasIllegalSignals &&
+    !hasStrongFraudSignals
+  ) {
+    if (classification === "FRAUD") {
+      classification = "UNFAIR";
+    }
+    if (riskLevel === "HIGH") {
+      riskLevel = "MEDIUM";
+    }
+  }
+
   if (documentType === "resume") {
     classification = riskLevel === "LOW" ? "NORMAL" : "UNFAIR";
     reasonForDecision =
@@ -1523,7 +1912,15 @@ function applyDecisionPolicy(structured, documentType, documentText) {
     );
   }
 
-  const topRisks = filterGroundedRisks(dedupeRisks(risks), documentText).slice(0, 5);
+  const cleanedRisks = filterContradictions(risks, positiveSignals, documentText);
+  const specificRisks = filterGroundedRisks(dedupeRisks(cleanedRisks), documentText)
+    .filter((risk) => isRiskSpecific(risk));
+  const topRisks = (
+    specificRisks.length > 0
+      ? specificRisks
+      : filterGroundedRisks(dedupeRisks(cleanedRisks), documentText)
+  )
+    .slice(0, 5);
   const mergedSuspiciousClauses = filterGroundedClauses(
     [...new Set(suspiciousClauses.filter(Boolean))],
     documentText
@@ -1549,6 +1946,7 @@ function applyDecisionPolicy(structured, documentType, documentText) {
 
   const finalWarnings = [...new Set(warnings.filter(Boolean))].slice(0, 5);
   const legalValidityFlags = classification === "ILLEGAL" ? illegalFlags : [];
+  const ticketDetails = isTicketType ? buildTicketDetails() : null;
 
   const resolvedDocumentType =
     structured.document_type && String(structured.document_type).toLowerCase() !== "unknown"
@@ -1565,6 +1963,10 @@ function applyDecisionPolicy(structured, documentType, documentText) {
     final_decision: finalDecision,
     should_user_sign: shouldUserSign,
     reason_for_decision: reasonForDecision,
+    simple_explanation: ticketDetails?.simple_explanation,
+    key_rules: ticketDetails?.key_rules,
+    common_mistakes: ticketDetails?.common_mistakes,
+    consequences: ticketDetails?.consequences,
     smart_difference_explanation: smartDifferenceExplanation,
     confidence_score: confidenceScore,
     escalation,
@@ -1573,6 +1975,7 @@ function applyDecisionPolicy(structured, documentType, documentText) {
     law_reference: lawReference,
     quantified_impact: quantifiedImpactStrings,
     legal_validity_flags: legalValidityFlags,
+    positive_signals: positiveSignals,
     note_for_user:
       "This is AI guidance. For serious matters, consult a legal expert.",
   };

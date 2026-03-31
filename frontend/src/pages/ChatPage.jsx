@@ -221,6 +221,20 @@ function StructuredReply({ content }) {
       {Array.isArray(content.user_guidance) && content.user_guidance.length > 0 && (
         <SectionList title="What You Should Do" items={content.user_guidance} />
       )}
+      {Array.isArray(content.quantified_impact) && content.quantified_impact.length > 0 && (
+        <SectionList title="Quantified Impact" items={content.quantified_impact} />
+      )}
+      {Array.isArray(content.legal_validity_flags) && content.legal_validity_flags.length > 0 && (
+        <SectionList
+          title="Legal Validity"
+          items={content.legal_validity_flags.map((flag) => {
+            const parts = [flag.type, flag.clause, flag.law, flag.explanation]
+              .filter(Boolean)
+              .join(" | ");
+            return parts;
+          })}
+        />
+      )}
     </div>
   );
 }
