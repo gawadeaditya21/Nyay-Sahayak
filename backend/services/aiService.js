@@ -112,6 +112,74 @@ const FRAUD_WARNING_MESSAGES = [
   "Do NOT make any payment",
   "Do NOT share personal details",
 ];
+const PIPELINE_DEBUG = String(process.env.PIPELINE_DEBUG || "").toLowerCase() === "true";
+const CLASSIFICATION_CONFIDENCE_THRESHOLD = Number(
+  process.env.CLASSIFICATION_CONFIDENCE_THRESHOLD || 50
+);
+const CLASSIFICATION_MAX_INPUT = Number(process.env.CLASSIFICATION_MAX_INPUT || 6000);
+const DOCUMENT_TYPE_LABELS = {
+  ticket: "Ticket",
+  offer_letter: "Offer Letter",
+  legal_agreement: "Legal Agreement",
+  identity_document: "Identity Document",
+  financial_document: "Financial Document",
+  other: "Other",
+};
+const DOCUMENT_TYPE_KEYS = Object.fromEntries(
+  Object.entries(DOCUMENT_TYPE_LABELS).map(([key, label]) => [label, key])
+);
+const LAW_REFERENCE_DETAILS = {
+  "Indian Railways Rules":
+    "Ticket validity and travel conditions are governed by Indian Railways rules.",
+  "Indian Contract Act": "Ensures agreements are fair, lawful, and mutually accepted.",
+  "Indian Contract Act (Section 28)":
+    "Bars clauses that restrict legal remedies or access to courts.",
+  "RERA Act": "Regulates property developer obligations and buyer protections.",
+  "Model Tenancy Act / State Rent Act":
+    "Governs rights and obligations of landlords and tenants.",
+  "Relevant Labour Laws": "Protects employee rights and fair employment practices.",
+  "RBI Guidelines": "Protects banking customers and prohibits sharing OTP/CVV/password.",
+  "IPC 420": "Covers cheating and fraud-related offenses.",
+  "Consumer Protection Act": "Prevents unfair trade practices and protects consumers.",
+  "Applicable Government Rules": "Requires compliance with official government notifications.",
+};
+const DOCUMENT_KEYWORDS = {
+  ticket: {
+    strong: ["pnr", "irctc", "railway", "train", "platform", "coach", "berth"],
+    support: ["ticket", "journey", "departure", "arrival", "boarding", "class", "fare"],
+  },
+  offer_letter: {
+    strong: ["offer letter", "appointment letter", "ctc", "joining date", "probation"],
+    support: ["salary", "designation", "position", "employment", "benefits"],
+  },
+  legal_agreement: {
+    strong: ["agreement", "contract", "whereas", "arbitration", "jurisdiction", "clause"],
+    support: ["section", "party", "indemnity", "termination", "liability"],
+  },
+  identity_document: {
+    strong: ["aadhaar", "aadhar", "pan", "passport", "driver", "voter id"],
+    support: ["dob", "date of birth", "address", "id number", "gender"],
+  },
+  financial_document: {
+    strong: ["account number", "ifsc", "statement", "loan", "emi", "balance"],
+    support: ["bank", "transaction", "amount", "interest", "upi"],
+  },
+  other: {
+    strong: [],
+    support: [],
+  },
+};
+const RISK_PHRASE_MAP = {
+  "Cost Escalation Risk": "cost escalation",
+  "Hidden Charges Risk": "hidden charges",
+  "Legal Disadvantage Risk": "jurisdiction limitations",
+  "Cancellation Loss Risk": "cancellation deductions",
+  "Delay Without Penalty": "delay without penalty",
+  "High Penalty Clause": "high penalties",
+  "Cancellation Deduction High": "high cancellation deductions",
+  "Penalty Clause": "penalty clause",
+  "Delay Clause": "delay clauses",
+};
 
 function chunkText(text, chunkSize = MAX_CHUNK_SIZE) {
   const chunks = [];
@@ -197,6 +265,552 @@ function inferLanguageInstruction(text) {
   return hasHindiScript || hasHinglishMarkers
     ? "Respond in simple Hinglish."
     : "Respond in simple English.";
+}
+
+function logPipeline(step, payload) {
+  if (!PIPELINE_DEBUG) {
+    return;
+  }
+
+  const safePayload = { ...payload };
+  if (safePayload && typeof safePayload === "object") {
+    delete safePayload.text;
+    delete safePayload.rawText;
+  }
+
+  console.log(`[pipeline] ${step}`, safePayload || "");
+}
+
+function cleanExtractedText(text) {
+  let cleaned = String(text || "").normalize("NFKC");
+  cleaned = cleaned.replace(/[\u0000-\u001f]/g, " ");
+  cleaned = cleaned.replace(/[\s\u00a0]+/g, " ").trim();
+  return cleaned;
+}
+
+function normalizeGeminiDocumentType(value) {
+  const normalized = String(value || "").toLowerCase();
+
+  if (normalized.includes("ticket") || normalized.includes("rail")) {
+    return "Ticket";
+  }
+  if (normalized.includes("offer") || normalized.includes("appointment")) {
+    return "Offer Letter";
+  }
+  if (normalized.includes("legal") || normalized.includes("agreement") || normalized.includes("contract")) {
+    return "Legal Agreement";
+  }
+  if (
+    normalized.includes("identity") ||
+    normalized.includes("aadhaar") ||
+    normalized.includes("aadhar") ||
+    normalized.includes("pan") ||
+    normalized.includes("passport") ||
+    normalized.includes("driver")
+  ) {
+    return "Identity Document";
+  }
+  if (
+    normalized.includes("financial") ||
+    normalized.includes("bank") ||
+    normalized.includes("statement") ||
+    normalized.includes("loan") ||
+    normalized.includes("invoice")
+  ) {
+    return "Financial Document";
+  }
+
+  return "Other";
+}
+
+function clampNumber(value, min, max) {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  return Math.min(max, Math.max(min, value));
+}
+
+function buildClassificationPrompt(extractedText) {
+  return `Classify the following document into one of these categories:
+
+1. Ticket
+2. Offer Letter
+3. Legal Agreement
+4. Identity Document
+5. Financial Document
+6. Other
+
+Return ONLY JSON:
+{
+"document_type": "...",
+"confidence": 0-100,
+"reason": "short explanation"
+}
+
+If unsure or the text is noisy, choose "Other".
+
+Text:
+${extractedText}`;
+}
+
+function parseClassificationResponse(raw = {}) {
+  const documentType = normalizeGeminiDocumentType(raw.document_type);
+  const confidence = clampNumber(Number(raw.confidence), 0, 100);
+  const reason = flattenObjectToString(raw.reason || raw.explanation || "");
+
+  return {
+    document_type: documentType,
+    confidence,
+    reason,
+  };
+}
+
+async function classifyDocumentWithGemini(extractedText) {
+  const trimmed = cleanExtractedText(extractedText);
+  const shortened = truncateText(trimmed, CLASSIFICATION_MAX_INPUT);
+  const prompt = buildClassificationPrompt(shortened || "(empty)");
+
+  const raw = await generateStructuredJson(prompt);
+  const parsed = parseClassificationResponse(raw);
+
+  if (parsed.confidence < CLASSIFICATION_CONFIDENCE_THRESHOLD) {
+    return {
+      document_type: "Other",
+      confidence: parsed.confidence,
+      reason: parsed.reason || "Low confidence classification",
+    };
+  }
+
+  return parsed;
+}
+
+function documentTypeLabelToKey(label) {
+  return DOCUMENT_TYPE_KEYS[label] || "other";
+}
+
+function countKeywordHits(text, keywords) {
+  if (!keywords || keywords.length === 0) {
+    return 0;
+  }
+  return keywords.reduce((count, keyword) => count + (hasKeyword(text, keyword) ? 1 : 0), 0);
+}
+
+function computeKeywordStrength(text, documentTypeKey) {
+  const normalized = normalizeForMatching(text);
+  const keywords = DOCUMENT_KEYWORDS[documentTypeKey] || DOCUMENT_KEYWORDS.other;
+  const strongHits = countKeywordHits(normalized, keywords.strong);
+  const supportHits = countKeywordHits(normalized, keywords.support);
+  const maxScore = keywords.strong.length * 2 + keywords.support.length;
+
+  if (maxScore === 0) {
+    return 0.2;
+  }
+
+  const score = (strongHits * 2 + supportHits) / maxScore;
+  return clampNumber(score, 0, 1);
+}
+
+function computeStructureClarity(text, documentTypeKey) {
+  const normalized = normalizeForMatching(text);
+  const rawText = String(text || "");
+
+  let checks = [];
+  switch (documentTypeKey) {
+    case "ticket":
+      checks = [
+        /\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{1,2}\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec))\b/i.test(
+          rawText
+        ),
+        /\b\d{1,2}:\d{2}\b/.test(rawText),
+        /(from\s+\w+\s+to\s+\w+|source\s+station|destination\s+station|boarding\s+station)/i.test(
+          rawText
+        ),
+        /(pnr|train\s*(no|number)|coach|berth|irctc|uts)/i.test(normalized),
+      ];
+      break;
+    case "offer_letter":
+      checks = [
+        /offer letter|appointment letter/i.test(normalized),
+        /ctc|salary|compensation/i.test(normalized),
+        /joining date|start date|date of joining/i.test(normalized),
+        /designation|position|role/i.test(normalized),
+      ];
+      break;
+    case "legal_agreement":
+      checks = [
+        /agreement|contract|deed/i.test(normalized),
+        /clause|section|whereas/i.test(normalized),
+        /jurisdiction|arbitration|governing law/i.test(normalized),
+        /party of the first part|party of the second part|authorized signatory/i.test(normalized),
+      ];
+      break;
+    case "identity_document":
+      checks = [
+        /aadhaar|aadhar|pan|passport|voter id|driving/i.test(normalized),
+        /dob|date of birth/i.test(normalized),
+        /address/i.test(normalized),
+        /\b\d{4}\s*\d{4}\s*\d{4}\b|\b[A-Z]{5}\d{4}[A-Z]\b/i.test(rawText),
+      ];
+      break;
+    case "financial_document":
+      checks = [
+        /account\s*number|ifsc|statement|loan|emi/i.test(normalized),
+        /balance|credit|debit|transaction/i.test(normalized),
+        /\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/.test(rawText),
+        /(bank|branch|statement|ledger)/i.test(normalized),
+      ];
+      break;
+    default:
+      checks = [/\btitle\b|\bsection\b|\bsummary\b/i.test(normalized)];
+  }
+
+  if (checks.length === 0) {
+    return 0.2;
+  }
+
+  const score = checks.filter(Boolean).length / checks.length;
+  return clampNumber(score, 0, 1);
+}
+
+function computeTextClarityScore(text) {
+  const raw = String(text || "");
+  if (!raw) {
+    return 0.2;
+  }
+
+  const alphaNum = raw.match(/[A-Za-z0-9]/g) || [];
+  const total = raw.length || 1;
+  const ratio = alphaNum.length / total;
+
+  if (ratio < 0.4) {
+    return 0.6;
+  }
+  if (ratio < 0.55) {
+    return 0.8;
+  }
+  return 1;
+}
+
+function cleanOcrNoise(text) {
+  return String(text || "")
+    .replace(/\n/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/[^\w\s.,;:!?%()₹\-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function countWords(text) {
+  return String(text || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+function extractRelevantSentence(text, keywordOrPattern) {
+  const cleanedText = cleanOcrNoise(text);
+  const sentences = cleanedText.split(/[.!?]/).map((sentence) => sentence.trim()).filter(Boolean);
+  const isRegex = keywordOrPattern instanceof RegExp;
+
+  for (let i = 0; i < sentences.length; i += 1) {
+    const sentence = sentences[i];
+    const matched = isRegex
+      ? keywordOrPattern.test(sentence)
+      : sentence.toLowerCase().includes(String(keywordOrPattern || "").toLowerCase());
+
+    if (!matched) {
+      continue;
+    }
+
+    let candidate = sentence;
+
+    if (countWords(candidate) < 8) {
+      const next = sentences[i + 1] ? ` ${sentences[i + 1]}` : "";
+      const prev = sentences[i - 1] ? `${sentences[i - 1]} ` : "";
+      candidate = countWords(prev + candidate) >= 8 ? `${prev}${candidate}` : `${candidate}${next}`;
+    }
+
+    if (countWords(candidate) >= 8) {
+      return candidate.trim();
+    }
+  }
+
+  return "Relevant clause detected but full sentence not found in OCR text.";
+}
+
+function dedupeDetectedRisks(risks) {
+  if (!Array.isArray(risks)) {
+    return [];
+  }
+
+  const seen = new Set();
+  return risks.filter((risk) => {
+    const key = `${risk.type}|${risk.reason}`.toLowerCase();
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function findPercentNearKeywords(text, keywords) {
+  const raw = String(text || "");
+  const normalized = raw.toLowerCase();
+  const matches = [...normalized.matchAll(/(\d{1,2})\s*%/g)];
+  let maxPercent = null;
+
+  for (const match of matches) {
+    const percent = Number(match[1]);
+    if (!Number.isFinite(percent)) {
+      continue;
+    }
+
+    const start = Math.max(0, match.index - 40);
+    const end = Math.min(normalized.length, match.index + 40);
+    const window = normalized.slice(start, end);
+
+    if (keywords.some((keyword) => window.includes(keyword))) {
+      maxPercent = maxPercent == null ? percent : Math.max(maxPercent, percent);
+    }
+  }
+
+  return maxPercent;
+}
+
+function detectClauseRisks(text) {
+  const normalized = normalizeForMatching(text);
+  const rawText = String(text || "");
+  const risks = [];
+
+  if (/increase\s+cost|final\s+cost\s+may\s+increase/i.test(normalized)) {
+    risks.push(
+      createRisk(
+        "Cost Escalation Risk",
+        "Cost escalation terms detected.",
+        "HIGH",
+        extractClauseSnippet(rawText, /increase\s+cost|final\s+cost\s+may\s+increase/i)
+      )
+    );
+  }
+
+  if (/maintenance|hidden\s+cost/i.test(normalized)) {
+    risks.push(
+      createRisk(
+        "Hidden Charges Risk",
+        "Hidden or maintenance charges are referenced.",
+        "MEDIUM",
+        extractClauseSnippet(rawText, /maintenance|hidden\s+cost/i)
+      )
+    );
+  }
+
+  if (/jurisdiction|only\s+court/i.test(normalized)) {
+    risks.push(
+      createRisk(
+        "Legal Disadvantage Risk",
+        "Jurisdiction restrictions detected.",
+        "MEDIUM",
+        extractClauseSnippet(rawText, /jurisdiction|only\s+court/i)
+      )
+    );
+  }
+
+  if (/deduct|cancellation\s+charges/i.test(normalized)) {
+    risks.push(
+      createRisk(
+        "Cancellation Loss Risk",
+        "Cancellation deductions are mentioned.",
+        "MEDIUM",
+        extractClauseSnippet(rawText, /deduct|cancellation\s+charges/i)
+      )
+    );
+  }
+
+  if (/delay/i.test(normalized) && /no\s+penalty|without\s+penalty|no\s+compensation/i.test(normalized)) {
+    risks.push(
+      createRisk(
+        "Delay Without Penalty",
+        "Delay clauses appear without penalty or compensation.",
+        "HIGH",
+        extractClauseSnippet(
+          rawText,
+          /delay[\s\S]{0,80}(no\s+penalty|without\s+penalty|no\s+compensation)/i
+        )
+      )
+    );
+  }
+
+  const penaltyPercent = findPercentNearKeywords(rawText, ["penalty", "penalties", "charge", "charges"]);
+  if (penaltyPercent != null && penaltyPercent >= 15) {
+    risks.push(
+      createRisk(
+        "High Penalty Clause",
+        `Penalty of ${penaltyPercent}% detected (>= 15%).`,
+        "HIGH",
+        extractClauseSnippet(rawText, /penalt|charges?/i)
+      )
+    );
+  }
+
+  const cancellationPercent = findPercentNearKeywords(rawText, ["cancellation", "deduct", "deduction"]);
+  if (cancellationPercent != null && cancellationPercent >= 20) {
+    risks.push(
+      createRisk(
+        "Cancellation Deduction High",
+        `Cancellation deduction of ${cancellationPercent}% detected (>= 20%).`,
+        "HIGH",
+        extractClauseSnippet(rawText, /cancellation|deduct|deduction/i)
+      )
+    );
+  }
+
+  return risks;
+}
+
+function computeRiskLevelFromDetectedRisks(detectedRisks) {
+  const highCount = detectedRisks.filter((risk) => risk.level === "HIGH").length;
+  const mediumCount = detectedRisks.filter((risk) => risk.level === "MEDIUM").length;
+  const totalRisks = detectedRisks.length;
+
+  if (highCount >= 2 || totalRisks >= 4) {
+    return "HIGH";
+  }
+  if (mediumCount >= 2) {
+    return "MEDIUM";
+  }
+  return "LOW";
+}
+
+function buildRiskSummaryPhrases(detectedRisks) {
+  return detectedRisks
+    .map((risk) => RISK_PHRASE_MAP[risk.type] || String(risk.type || "").toLowerCase())
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
+function buildKeyWarningFromRisks(detectedRisks, documentLabel) {
+  if (!Array.isArray(detectedRisks) || detectedRisks.length === 0) {
+    return "No major risk clauses detected, but review key terms before acting.";
+  }
+
+  const phrases = buildRiskSummaryPhrases(detectedRisks);
+  if (phrases.length === 0) {
+    return "Multiple risk indicators detected. Review before signing or acting.";
+  }
+
+  const prefix = documentLabel && documentLabel.toLowerCase().includes("agreement")
+    ? "The agreement grants"
+    : "This document includes";
+
+  return `${prefix} ${phrases.join(", ")} - your protections look limited.`;
+}
+
+function buildSmartExplanationFromRisks(detectedRisks, documentLabel) {
+  if (!Array.isArray(detectedRisks) || detectedRisks.length === 0) {
+    return "No strong one-sided or high-impact clauses were detected in the available text.";
+  }
+
+  const phrases = buildRiskSummaryPhrases(detectedRisks);
+  const subject = documentLabel && documentLabel.toLowerCase().includes("agreement")
+    ? "The agreement"
+    : "The document";
+  const detail = phrases.length > 0 ? `such as ${phrases.join(", ")}` : "multiple risk clauses";
+
+  return `${subject} contains ${detail}. These indicate an imbalance of power that may reduce your protections.`;
+}
+
+function computeConfidenceScore(rawConfidence, text, documentTypeKey) {
+  const llmScore = clampNumber(Number(rawConfidence), 0, 100);
+  const keywordStrength = computeKeywordStrength(text, documentTypeKey);
+  const structureClarity = computeStructureClarity(text, documentTypeKey);
+  const clarityScore = computeTextClarityScore(text);
+  const length = String(text || "").length;
+
+  let score =
+    llmScore * 0.5 +
+    keywordStrength * 100 * 0.3 +
+    structureClarity * 100 * 0.2;
+
+  if (length < 200) {
+    score -= 6;
+  }
+  if (length < 80) {
+    score -= 12;
+  }
+
+  if (clarityScore < 1) {
+    score *= clarityScore;
+  }
+
+  return Math.round(clampNumber(score, 0, 100));
+}
+
+function detectHybridHints(text) {
+  const raw = String(text || "");
+  const normalized = raw.toLowerCase();
+  const hasCurrency = /(₹|rs\.?|inr)/i.test(raw);
+  const hasDeposit = /deposit|advance payment|security deposit|refundable deposit/i.test(normalized);
+  const legalHint = /agreement|clause|section|contract/i.test(normalized);
+
+  return {
+    financialDeposit: hasCurrency && hasDeposit,
+    legalHint,
+  };
+}
+
+function createRisk(type, reason, level = "MEDIUM", snippet = "") {
+  return {
+    level: String(level || "MEDIUM").toUpperCase(),
+    type: String(type || "Risk"),
+    reason: String(reason || ""),
+    snippet: String(snippet || ""),
+  };
+}
+
+function buildTopRisks(detectedRisks) {
+  if (!Array.isArray(detectedRisks) || detectedRisks.length === 0) {
+    return [];
+  }
+
+  const seen = new Set();
+  const topRisks = [];
+
+  for (const risk of detectedRisks) {
+    const rawLabel = String(risk?.type || risk?.reason || "").trim();
+    const label = RISK_PHRASE_MAP[rawLabel] || rawLabel;
+    if (!label || seen.has(label.toLowerCase())) {
+      continue;
+    }
+    seen.add(label.toLowerCase());
+    topRisks.push(label);
+    if (topRisks.length >= 5) {
+      break;
+    }
+  }
+
+  return topRisks;
+}
+
+function buildLawReferenceObjects(laws, fallbackDescription) {
+  if (!Array.isArray(laws)) {
+    return [];
+  }
+
+  return laws.map((law) => {
+    const description = LAW_REFERENCE_DETAILS[law] || fallbackDescription || "Relevant legal guidance applies.";
+    return { law, description };
+  });
+}
+
+function decisionFromRisk(riskLevel) {
+  if (riskLevel === "HIGH") {
+    return "DO_NOT_SIGN";
+  }
+  if (riskLevel === "MEDIUM") {
+    return "REVIEW_CAUTION";
+  }
+  return "SAFE_TO_USE";
 }
 
 function normalizeRiskLevel(value) {
@@ -973,20 +1587,12 @@ function extractClauseReference(snippet) {
   return match ? match[0] : "";
 }
 
-function extractClauseSnippet(text, pattern, maxLen = 160) {
+function extractClauseSnippet(text, pattern) {
   if (!text) {
     return "";
   }
 
-  const match = String(text).match(pattern);
-  if (!match || match.index == null) {
-    return "";
-  }
-
-  const start = Math.max(0, match.index - 60);
-  const end = Math.min(text.length, match.index + maxLen);
-  const snippet = text.slice(start, end).replace(/\s+/g, " ").trim();
-  return snippet.length > maxLen ? `${snippet.slice(0, maxLen)}...` : snippet;
+  return extractRelevantSentence(text, pattern);
 }
 
 function buildClauseRisk({ type, description, impact, pattern, text }) {
@@ -2367,92 +2973,656 @@ function normalizeGenericAnalysis(rawAnalysis = {}, detectedType) {
   };
 }
 
-async function analyzeDocument(documentText, options = {}) {
-  if (!documentText || !documentText.trim()) {
-    throw new Error("Document text cannot be empty");
-  }
+function buildTicketAnalysis(documentText, languageInstruction) {
+  const normalized = normalizeForMatching(documentText);
+  const rawText = String(documentText || "");
+  const isHinglish = languageInstruction.includes("Hinglish");
 
-  const cleanText = documentText.trim();
-  const rawText = String(options.rawText || "").trim();
-  const detectionSource = String(options.detectionText || rawText || cleanText).trim();
-  const representativeText = truncateText(cleanText);
-  const detectionText = detectionSource ? truncateText(detectionSource) : representativeText;
-  const detectedType = options.detectedTypeOverride || detectDocumentType(detectionText);
-  const chunks = chunkText(cleanText);
-  const languageInstruction = inferLanguageInstruction(cleanText);
-  const rag = await retrieveLegalContext(representativeText.slice(0, 2000), detectedType);
+  const hasDate = /\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{1,2}\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec))\b/i.test(
+    rawText
+  );
+  const hasTime = /\b\d{1,2}:\d{2}\b/.test(rawText);
+  const hasRoute = /(from\s+\w+\s+to\s+\w+|source\s+station|destination\s+station|boarding\s+station)/i.test(
+    rawText
+  );
+  const hasTrain = /(pnr|train\s*(no|number)|coach|berth|irctc|uts)/i.test(normalized);
 
-  let prompt;
-  let normalizer;
-
-  if (detectedType === "resume") {
-    prompt = buildResumePrompt({
-      documentText: representativeText,
-      languageInstruction,
-    });
-    normalizer = normalizeResumeAnalysis;
-  } else if (detectedType === "ticket") {
-    prompt = buildTicketPrompt({
-      documentText: representativeText,
-      context: rag.context,
-      languageInstruction,
-    });
-    normalizer = normalizeTicketAnalysis;
-  } else if (detectedType === "legal") {
-    prompt = buildLegalPrompt({
-      documentText: representativeText,
-      context: rag.context,
-      languageInstruction,
-    });
-    normalizer = normalizeLegalAnalysis;
-  } else {
-    prompt = buildGenericPrompt({
-      documentText: representativeText,
-      documentType: detectedType,
-      languageInstruction,
-    });
-    normalizer = (rawAnalysis) => normalizeGenericAnalysis(rawAnalysis, detectedType);
-  }
-
-  try {
-    const rawAnalysis = await generateStructuredJson(prompt);
-    const normalized = normalizer(rawAnalysis);
-    const policyText = rawText || cleanText;
-    normalized.structured = applyDecisionPolicy(
-      normalized.structured,
-      normalized.documentType,
-      policyText
+  const detectedRisks = [];
+  if (!hasDate || !hasTime) {
+    detectedRisks.push(
+      createRisk(
+        "Missing Travel Timing",
+        "Travel date/time is not clearly visible.",
+        "MEDIUM"
+      )
     );
-    const structuredType = normalizeDocumentType(normalized.structured.document_type);
-    if (normalized.documentType === "unknown" && structuredType !== "unknown") {
-      normalized.documentType = structuredType;
-    }
-    normalized.legacyRisks = normalized.structured.top_risks.map((risk) => ({
-      clause: risk.type || "Document Risk",
-      severity: normalized.structured.risk_level || "MEDIUM",
-      reason: `${risk.description} Impact: ${risk.impact}`.trim(),
-    }));
-    normalized.summary =
-      normalized.structured.reason_for_decision ||
-      normalized.summary;
-
-    const finalDetectedType =
-      detectedType === "unknown" && normalized.documentType !== "unknown"
-        ? normalized.documentType
-        : detectedType;
-
-    return {
-      ...normalized,
-      detectedType: finalDetectedType,
-      contextUsed: rag.contextUsed,
-      contextCount: rag.contextCount,
-      chunksProcessed: chunks.length,
-      totalRisksFound: normalized.legacyRisks.length,
-    };
-  } catch (error) {
-    console.error("[aiService] Error in analyzeDocument:", error.message);
-    throw new Error(`Gemini API error: ${error.message}`);
   }
+  if (!hasRoute) {
+    detectedRisks.push(
+      createRisk(
+        "Missing Route Details",
+        "Source/destination stations are not clearly stated.",
+        "MEDIUM"
+      )
+    );
+  }
+  if (!hasTrain) {
+    detectedRisks.push(
+      createRisk(
+        "Ticket Identifiers Missing",
+        "PNR/train/coach identifiers are not clearly visible.",
+        "MEDIUM"
+      )
+    );
+  }
+
+  const riskLevel = detectedRisks.length > 0 ? "MEDIUM" : "LOW";
+  const decision = decisionFromRisk(riskLevel);
+  const mandatoryTicketWarning =
+    "Journey should start within ~1 hour (for many local tickets). Ticket validity rules apply (Indian Railways).";
+  const keyWarning = detectedRisks.length > 0
+    ? `Ticket details look incomplete. ${mandatoryTicketWarning}`
+    : mandatoryTicketWarning;
+  const simpleExplanation = isHinglish
+    ? "Ye travel ticket lag raha hai. Date, time aur route verify karna zaroori hai."
+    : "This looks like a travel ticket. Verify date, time, and route before travel.";
+  const smartExplanation = detectedRisks.length > 0
+    ? "Some core ticket fields are missing or unclear, so validity cannot be fully confirmed."
+    : "Ticket fields appear present; follow printed validity and route conditions.";
+
+  return {
+    document_type: "Ticket",
+    risk_level: riskLevel,
+    decision,
+    classification: detectedRisks.length > 0 ? "UNFAIR" : "NORMAL",
+    key_warning: keyWarning,
+    simple_explanation: simpleExplanation,
+    smart_explanation: smartExplanation,
+    detected_risks: detectedRisks,
+    what_user_should_do: [
+      "Start the journey within ~1 hour for many local tickets.",
+      "Follow Indian Railways ticket validity rules.",
+      "Check ticket validity date/time and class.",
+      "Confirm source and destination stations match your journey.",
+      "Carry booking proof and any required ID.",
+      "Avoid breaking the journey unless explicitly allowed.",
+    ],
+    law_reference: buildLawReferenceObjects(
+      ["Indian Railways Rules"],
+      "Ticket validity and travel conditions are governed by Indian Railways rules."
+    ),
+    law_reference_explanation:
+      "Railway tickets are governed by Indian Railways rules. Travel must follow printed validity conditions.",
+  };
+}
+
+function buildOfferLetterAnalysis(documentText, languageInstruction) {
+  const normalized = normalizeForMatching(documentText);
+  const rawText = String(documentText || "");
+  const isHinglish = languageInstruction.includes("Hinglish");
+
+  const detectedRisks = [];
+  const hasUpfrontPayment = /registration\s+fee|processing\s+fee|security\s+deposit|advance\s+payment|pay.*before\s+joining|training\s+fee/i.test(
+    normalized
+  );
+  const hasBondClause = /bond|service\s+agreement|liquidated\s+damages|pay\s*back\s*training/i.test(
+    normalized
+  );
+  const hasNoNoticeTermination = /terminate.*without\s+notice|termination.*at\s+any\s+time|sole\s+discretion/i.test(
+    normalized
+  );
+
+  if (hasUpfrontPayment) {
+    detectedRisks.push(
+      createRisk(
+        "Upfront Payment Demand",
+        "Detected payment-before-joining terms (fee/deposit).",
+        "HIGH",
+        extractClauseSnippet(
+          rawText,
+          /registration\s+fee|processing\s+fee|security\s+deposit|advance\s+payment|pay.*before\s+joining|training\s+fee/i
+        )
+      )
+    );
+  }
+
+  if (hasBondClause) {
+    detectedRisks.push(
+      createRisk(
+        "Bond / Penalty Clause",
+        "Bond or penalty clause detected.",
+        "MEDIUM",
+        extractClauseSnippet(
+          rawText,
+          /bond|service\s+agreement|liquidated\s+damages|pay\s*back\s*training/i
+        )
+      )
+    );
+  }
+
+  if (hasNoNoticeTermination) {
+    detectedRisks.push(
+      createRisk(
+        "One-Sided Termination",
+        "Termination without notice is mentioned.",
+        "MEDIUM",
+        extractClauseSnippet(
+          rawText,
+          /terminate.*without\s+notice|termination.*at\s+any\s+time|sole\s+discretion/i
+        )
+      )
+    );
+  }
+
+  let riskLevel = "LOW";
+  let classification = "NORMAL";
+  if (hasUpfrontPayment) {
+    riskLevel = "HIGH";
+    classification = "FRAUD";
+  } else if (hasBondClause || hasNoNoticeTermination) {
+    riskLevel = "MEDIUM";
+    classification = "UNFAIR";
+  }
+
+  const decision = decisionFromRisk(riskLevel);
+  const keyWarning = hasUpfrontPayment
+    ? "Payment before joining is a strong fraud indicator."
+    : hasBondClause || hasNoNoticeTermination
+    ? "Offer has restrictive clauses that need review."
+    : "Offer letter looks standard, but verify employer details.";
+  const simpleExplanation = isHinglish
+    ? "Offer letter mein risky clauses ho sakte hain. Payment demand ya bond par dhyan dein."
+    : "Check the offer for payment demands, bonds, or one-sided termination terms.";
+  const smartExplanation = hasUpfrontPayment
+    ? "Upfront payment is a high-risk fraud signal in job offers."
+    : detectedRisks.length > 0
+    ? "Contract clauses may be one-sided or create penalties."
+    : "No major fraud or penalty signals detected in the offer text.";
+
+  return {
+    document_type: "Offer Letter",
+    risk_level: riskLevel,
+    decision,
+    classification,
+    key_warning: keyWarning,
+    simple_explanation: simpleExplanation,
+    smart_explanation: smartExplanation,
+    detected_risks: detectedRisks,
+    what_user_should_do: [
+      "Verify employer identity and official email domain.",
+      "Avoid paying any fee before joining.",
+      "Ask for clear notice period and termination terms.",
+      "Get written clarification on bond or penalty clauses.",
+    ],
+    law_reference: buildLawReferenceObjects(
+      ["Indian Contract Act", "Relevant Labour Laws"],
+      "Offer letters are contracts. Review unfair or payment-before-joining terms under contract and labour law."
+    ),
+    law_reference_explanation:
+      "Offer letters are contracts. Unfair or payment-before-joining terms should be reviewed under contract and labour law.",
+  };
+}
+
+function buildLegalAgreementAnalysis(documentText, languageInstruction) {
+  const normalized = normalizeForMatching(documentText);
+  const rawText = String(documentText || "");
+  const isHinglish = languageInstruction.includes("Hinglish");
+
+  const detectedRisks = [];
+  let illegalClauseFound = false;
+
+  if (/no\s+legal\s+action|no\s+right\s+to\s+sue|cannot\s+go\s+to\s+court|exclusive\s+jurisdiction|only\s+arbitration\s+and\s+no\s+court/i.test(normalized)) {
+    illegalClauseFound = true;
+    detectedRisks.push(
+      createRisk(
+        "Illegal Restriction",
+        "Agreement restricts access to courts or legal remedies.",
+        "HIGH",
+        extractClauseSnippet(
+          rawText,
+          /no\s+legal\s+action|no\s+right\s+to\s+sue|cannot\s+go\s+to\s+court|exclusive\s+jurisdiction|only\s+arbitration\s+and\s+no\s+court/i
+        )
+      )
+    );
+  }
+
+  if (/penalty|liquidated\s+damages|forfeit|cancellation\s+charge/i.test(normalized)) {
+    const snippet = extractClauseSnippet(
+      rawText,
+      /penalty|liquidated\s+damages|forfeit|cancellation\s+charge/i
+    );
+    detectedRisks.push(
+      createRisk(
+        "Penalty Clause",
+        snippet ? `Penalty clause found: "${snippet}"` : "Penalty clause detected.",
+        "MEDIUM",
+        snippet
+      )
+    );
+  }
+
+  if (/escalation|price\s+increase|cost\s+increase|rate\s+increase/i.test(normalized)) {
+    detectedRisks.push(
+      createRisk(
+        "Cost Escalation",
+        "Cost/price escalation clause detected.",
+        "MEDIUM",
+        extractClauseSnippet(rawText, /escalation|price\s+increase|cost\s+increase|rate\s+increase/i)
+      )
+    );
+  }
+
+  if (/delay|possession|handover|delivery\s+delay/i.test(normalized)) {
+    detectedRisks.push(
+      createRisk(
+        "Delay Clause",
+        "Delay or possession timeline clause detected.",
+        "MEDIUM",
+        extractClauseSnippet(rawText, /delay|possession|handover|delivery\s+delay/i)
+      )
+    );
+  }
+
+  const clauseRisks = detectClauseRisks(rawText);
+  detectedRisks.push(...clauseRisks);
+  const mergedRisks = dedupeDetectedRisks(detectedRisks);
+
+  const propertyKeywords = /builder|developer|rera|possession|allotment|flat|plot|sale\s+deed/i.test(
+    normalized
+  );
+
+  let riskLevel = computeRiskLevelFromDetectedRisks(mergedRisks);
+  let classification = riskLevel === "LOW" ? "NORMAL" : "UNFAIR";
+
+  if (illegalClauseFound) {
+    riskLevel = "HIGH";
+    classification = "ILLEGAL";
+  }
+
+  const decision = illegalClauseFound ? "DO_NOT_SIGN" : decisionFromRisk(riskLevel);
+  const keyWarning = illegalClauseFound
+    ? "Agreement restricts legal remedies. Do not sign without legal review."
+    : buildKeyWarningFromRisks(mergedRisks, "Legal Agreement");
+  const simpleExplanation = isHinglish
+    ? "Ye legal agreement hai. Kuch clauses one-sided ya risky ho sakte hain."
+    : "This is a legal agreement. Some clauses may be one-sided or risky.";
+  const smartExplanation = illegalClauseFound
+    ? "Clauses restricting court access can be unenforceable under Indian Contract Act Section 28."
+    : buildSmartExplanationFromRisks(mergedRisks, "Legal Agreement");
+
+  const lawReference = ["Indian Contract Act"];
+  if (propertyKeywords) {
+    lawReference.push("RERA Act");
+  }
+
+  return {
+    document_type: "Legal Agreement",
+    risk_level: riskLevel,
+    decision,
+    classification,
+    key_warning: keyWarning,
+    simple_explanation: simpleExplanation,
+    smart_explanation: smartExplanation,
+    detected_risks: mergedRisks,
+    what_user_should_do: [
+      "Review penalty, termination, and escalation clauses closely.",
+      "Ask for clarifications on timelines and responsibilities.",
+      "Negotiate one-sided terms if possible.",
+      "Consult a legal expert before signing if risk is medium/high.",
+    ],
+    law_reference: buildLawReferenceObjects(
+      lawReference,
+      "Legal agreements are governed by contract law; property agreements can also fall under RERA."
+    ),
+    law_reference_explanation:
+      "Legal agreements are governed by contract law; property agreements can also fall under RERA.",
+  };
+}
+
+function buildIdentityDocumentAnalysis(documentText, languageInstruction) {
+  const isHinglish = languageInstruction.includes("Hinglish");
+
+  return {
+    document_type: "Identity Document",
+    risk_level: "LOW",
+    decision: "SAFE_TO_USE",
+    classification: "NORMAL",
+    key_warning: "Do not share ID numbers or OTPs unnecessarily.",
+    simple_explanation: isHinglish
+      ? "Ye identity document lag raha hai. Sirf trusted jagah par share karein."
+      : "This appears to be an identity document. Share it only with trusted parties.",
+    smart_explanation:
+      "Identity documents should be protected from unauthorized sharing or OTP requests.",
+    detected_risks: [],
+    what_user_should_do: [
+      "Mask ID numbers before sharing.",
+      "Avoid sharing OTPs or full ID details over chat or email.",
+      "Store the document securely."
+    ],
+    law_reference: [],
+    law_reference_explanation: "",
+  };
+}
+
+function buildFinancialDocumentAnalysis(documentText, languageInstruction) {
+  const normalized = normalizeForMatching(documentText);
+  const isHinglish = languageInstruction.includes("Hinglish");
+  const detectedRisks = [];
+
+  if (/otp|cvv|password|upi\s*pin/i.test(normalized)) {
+    detectedRisks.push(
+      createRisk(
+        "Sensitive Data Request",
+        "Document asks for OTP/CVV/password or UPI PIN.",
+        "HIGH",
+        extractClauseSnippet(String(documentText || ""), /otp|cvv|password|upi\s*pin/i)
+      )
+    );
+  }
+
+  if (/deposit|advance\s+payment|security\s+deposit/i.test(normalized) && /(₹|rs\.?|inr)/i.test(documentText)) {
+    detectedRisks.push(
+      createRisk(
+        "Deposit Mentioned",
+        "A deposit or upfront payment is mentioned.",
+        "MEDIUM",
+        extractClauseSnippet(String(documentText || ""), /deposit|advance\s+payment|security\s+deposit/i)
+      )
+    );
+  }
+
+  const riskLevel = detectedRisks.length > 0 ? (detectedRisks.length > 1 ? "HIGH" : "MEDIUM") : "LOW";
+  const hasSensitiveDataRisk = detectedRisks.some((risk) => /Sensitive Data Request/i.test(risk.type));
+  const classification = hasSensitiveDataRisk
+    ? "FRAUD"
+    : detectedRisks.length > 0
+    ? "UNFAIR"
+    : "NORMAL";
+  const decision = decisionFromRisk(riskLevel);
+  const keyWarning = detectedRisks.length > 0
+    ? "Financial document contains payment or sensitive data risks."
+    : "Verify bank or financial details before action.";
+  const simpleExplanation = isHinglish
+    ? "Ye financial document lag raha hai. Payment aur OTP jaisi cheezein share na karein."
+    : "This looks like a financial document. Do not share OTPs or sensitive details.";
+  const smartExplanation = detectedRisks.length > 0
+    ? "Sensitive data requests or deposit mentions raise fraud risk in financial documents."
+    : "No strong fraud signals detected, but verify bank details independently.";
+
+  return {
+    document_type: "Financial Document",
+    risk_level: riskLevel,
+    decision,
+    classification,
+    key_warning: keyWarning,
+    simple_explanation: simpleExplanation,
+    smart_explanation: smartExplanation,
+    detected_risks: detectedRisks,
+    what_user_should_do: [
+      "Verify account/beneficiary details independently.",
+      "Never share OTP, CVV, or passwords.",
+      "Confirm payment requests with official channels."
+    ],
+    law_reference: buildLawReferenceObjects(
+      ["RBI Guidelines"],
+      "RBI guidelines advise against sharing OTPs, CVV, or passwords and require safe banking practices."
+    ),
+    law_reference_explanation:
+      "RBI guidelines advise against sharing OTPs, CVV, or passwords and require safe banking practices.",
+  };
+}
+
+function buildOtherDocumentAnalysis(languageInstruction) {
+  const isHinglish = languageInstruction.includes("Hinglish");
+
+  return {
+    document_type: "Other",
+    risk_level: "LOW",
+    decision: "SAFE_TO_USE",
+    classification: "NORMAL",
+    key_warning: "This document appears informational, not a legal or actionable document.",
+    simple_explanation: isHinglish
+      ? "Ye document legal/actionable nahi lagta. Ye informational lagta hai."
+      : "This document is not a legal or actionable document. It appears informational.",
+    smart_explanation:
+      "The document does not match legal, offer, ticket, identity, or financial patterns.",
+    detected_risks: [],
+    what_user_should_do: [
+      "If you expected a legal document, verify the source.",
+      "Share only with trusted parties if it contains personal data."
+    ],
+    law_reference: [],
+    law_reference_explanation: "",
+  };
+}
+
+function routeDocumentAnalysis(documentTypeKey, documentText, languageInstruction) {
+  switch (documentTypeKey) {
+    case "ticket":
+      return buildTicketAnalysis(documentText, languageInstruction);
+    case "offer_letter":
+      return buildOfferLetterAnalysis(documentText, languageInstruction);
+    case "legal_agreement":
+      return buildLegalAgreementAnalysis(documentText, languageInstruction);
+    case "identity_document":
+      return buildIdentityDocumentAnalysis(documentText, languageInstruction);
+    case "financial_document":
+      return buildFinancialDocumentAnalysis(documentText, languageInstruction);
+    default:
+      return buildOtherDocumentAnalysis(languageInstruction);
+  }
+}
+
+function applyHybridHintsToAnalysis(analysis, hints, documentTypeKey) {
+  const updated = { ...analysis };
+  const detectedRisks = [...(updated.detected_risks || [])];
+  let warningOverride = "";
+
+  if (hints.financialDeposit) {
+    detectedRisks.push(
+      createRisk(
+        "Financial Deposit Mentioned",
+        "Deposit with currency value detected.",
+        "MEDIUM"
+      )
+    );
+    warningOverride = warningOverride || "Deposit mentioned. Verify legitimacy before payment.";
+    if (updated.risk_level === "LOW") {
+      updated.risk_level = "MEDIUM";
+    }
+  }
+
+  if (hints.legalHint && documentTypeKey === "other") {
+    detectedRisks.push(
+      createRisk(
+        "Legal Terminology Detected",
+        "Terms like agreement or clause appear in the document.",
+        "MEDIUM"
+      )
+    );
+    warningOverride = warningOverride || "Legal terms detected. Review if rights or payments are involved.";
+    if (updated.risk_level === "LOW") {
+      updated.risk_level = "MEDIUM";
+    }
+  }
+
+  updated.detected_risks = detectedRisks;
+  updated.decision = decisionFromRisk(updated.risk_level);
+  if (warningOverride) {
+    updated.key_warning = warningOverride;
+  }
+  return updated;
+}
+
+function buildStructuredPipelineOutput({
+  analysis,
+  documentTypeLabel,
+  confidenceScore,
+}) {
+  const resolvedDecision = analysis.decision || decisionFromRisk(analysis.risk_level);
+  const warnings = [];
+  if (analysis.key_warning) {
+    warnings.push(analysis.key_warning);
+  }
+  const detectedRisks = Array.isArray(analysis.detected_risks) ? analysis.detected_risks : [];
+  const topRisks = buildTopRisks(detectedRisks);
+  const lawReferenceObjects = Array.isArray(analysis.law_reference)
+    ? analysis.law_reference
+    : buildLawReferenceObjects(
+        analysis.law_reference || [],
+        analysis.law_reference_explanation
+      );
+
+  return {
+    document_type: documentTypeLabel,
+    classification: analysis.classification || "NORMAL",
+    decision: resolvedDecision,
+    risk_level: analysis.risk_level,
+    confidence_score: confidenceScore,
+    key_warning: analysis.key_warning,
+    simple_explanation: analysis.simple_explanation,
+    smart_explanation: analysis.smart_explanation,
+    top_risks: topRisks,
+    detected_risks: detectedRisks,
+    what_user_should_do: analysis.what_user_should_do || [],
+    law_reference: lawReferenceObjects,
+  };
+}
+
+function buildLegacyRisksFromDetected(risks, riskLevel) {
+  if (!Array.isArray(risks)) {
+    return [];
+  }
+
+  const severity = riskLevel === "HIGH" ? "HIGH" : riskLevel === "MEDIUM" ? "MEDIUM" : "LOW";
+  return risks.map((risk) => ({
+    clause: risk.type || "Risk",
+    severity: risk.level || severity,
+    reason: [risk.reason, risk.snippet].filter(Boolean).join(" ").trim(),
+  }));
+}
+
+function buildEmptyPipelineResult(documentText, languageInstruction) {
+  const analysis = buildOtherDocumentAnalysis(languageInstruction);
+  analysis.risk_level = "LOW";
+  analysis.decision = "REVIEW_CAUTION";
+  analysis.key_warning = "Insufficient text extracted. Please upload a clearer document.";
+  analysis.simple_explanation = languageInstruction.includes("Hinglish")
+    ? "Text extraction bahut kam hai. Clear document upload karein."
+    : "Text extraction is too small. Please upload a clearer document.";
+
+  return analysis;
+}
+
+async function analyzeDocument(documentText, options = {}) {
+  const rawText = String(options.rawText || documentText || "");
+  const maskedText = String(documentText || "");
+  const cleanedMaskedText = cleanExtractedText(maskedText);
+  const languageInstruction = inferLanguageInstruction(rawText || cleanedMaskedText);
+
+  if (!cleanedMaskedText || cleanedMaskedText.length < 20) {
+    const analysis = buildEmptyPipelineResult(rawText, languageInstruction);
+    const structured = buildStructuredPipelineOutput({
+      analysis,
+      documentTypeLabel: "Other",
+      confidenceScore: 0,
+    });
+    const legacyRisks = buildLegacyRisksFromDetected(structured.detected_risks, structured.risk_level);
+    return {
+      documentType: "Other",
+      detectedType: "other",
+      summary: structured.simple_explanation || structured.key_warning,
+      structured,
+      legacyRisks,
+      risks: legacyRisks,
+      chunksProcessed: 1,
+      contextUsed: false,
+      contextCount: 0,
+      totalRisksFound: legacyRisks.length,
+    };
+  }
+
+  let classification;
+  try {
+    classification = await classifyDocumentWithGemini(cleanedMaskedText);
+  } catch (error) {
+    console.error("[aiService] Gemini classification failed:", error.message);
+    classification = {
+      document_type: "Other",
+      confidence: 0,
+      reason: "Classification unavailable",
+    };
+  }
+
+  let documentTypeLabel = classification.document_type || "Other";
+  let documentTypeKey = documentTypeLabelToKey(documentTypeLabel);
+  const initialConfidence = computeConfidenceScore(
+    classification.confidence,
+    cleanedMaskedText,
+    documentTypeKey
+  );
+
+  if (initialConfidence < 50) {
+    documentTypeLabel = "Other";
+    documentTypeKey = "other";
+  }
+
+  const analysisBase = routeDocumentAnalysis(
+    documentTypeKey,
+    rawText || cleanedMaskedText,
+    languageInstruction
+  );
+  const hints = detectHybridHints(rawText || cleanedMaskedText);
+  const analysis = applyHybridHintsToAnalysis(analysisBase, hints, documentTypeKey);
+  if (Array.isArray(analysis.detected_risks)) {
+    analysis.detected_risks = dedupeDetectedRisks(analysis.detected_risks);
+    analysis.risk_level = computeRiskLevelFromDetectedRisks(analysis.detected_risks);
+  }
+  const confidenceScore = computeConfidenceScore(
+    classification.confidence,
+    cleanedMaskedText,
+    documentTypeKey
+  );
+
+  let structured = buildStructuredPipelineOutput({
+    analysis,
+    documentTypeLabel,
+    confidenceScore,
+  });
+
+  if (classification.reason) {
+    structured.smart_explanation = `${structured.smart_explanation} Classification reason: ${classification.reason}`;
+  }
+
+  if (initialConfidence < 50) {
+    structured.smart_explanation = `${structured.smart_explanation} Confidence is low, so the document is treated as Other.`;
+  }
+
+  const legacyRisks = buildLegacyRisksFromDetected(structured.detected_risks, structured.risk_level);
+  logPipeline("classification", {
+    documentTypeLabel,
+    confidence: classification.confidence,
+    reason: classification.reason,
+  });
+  logPipeline("routing", {
+    documentTypeKey,
+    riskLevel: structured.risk_level,
+    decision: structured.decision,
+  });
+  logPipeline("hybrid", { hints, riskLevel: structured.risk_level });
+
+  return {
+    documentType: documentTypeLabel,
+    detectedType: documentTypeKey,
+    summary: structured.simple_explanation || structured.smart_explanation,
+    structured,
+    legacyRisks,
+    risks: legacyRisks,
+    chunksProcessed: 1,
+    contextUsed: false,
+    contextCount: 0,
+    totalRisksFound: legacyRisks.length,
+  };
 }
 
 function shouldUseLegalDatasetForQuery(queryText) {

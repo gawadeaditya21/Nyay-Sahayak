@@ -1,7 +1,191 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, FileText, Loader2, Upload, X, Shield, AlertCircle } from "lucide-react";
+import {
+  ArrowUp,
+  FileText,
+  Loader2,
+  Upload,
+  X,
+  Shield,
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Info,
+  Sparkles,
+} from "lucide-react";
 import { analyzeDocument, analyzeText } from "../services/api";
 import { formatAnalysisResponse } from "../utils/formatAnalysis";
+
+const riskBadgeStyles = {
+  LOW: "bg-emerald-500/15 text-emerald-200 border-emerald-500/30",
+  MEDIUM: "bg-amber-500/15 text-amber-200 border-amber-500/30",
+  HIGH: "bg-rose-500/15 text-rose-200 border-rose-500/30",
+};
+
+const warningStyles = {
+  LOW: "border-emerald-500/30 bg-emerald-500/10 text-emerald-100",
+  MEDIUM: "border-amber-500/30 bg-amber-500/10 text-amber-100",
+  HIGH: "border-rose-500/30 bg-rose-500/10 text-rose-100",
+};
+
+const AIAnalysisCard = ({ analysis }) => {
+  const [expanded, setExpanded] = useState(false);
+  const riskLevel = String(analysis?.risk_level || "LOW").toUpperCase();
+  const badgeClass = riskBadgeStyles[riskLevel] || riskBadgeStyles.LOW;
+  const warningClass = warningStyles[riskLevel] || warningStyles.LOW;
+  const topRisks = Array.isArray(analysis?.top_risks) ? analysis.top_risks : [];
+  const detectedRisks = Array.isArray(analysis?.detected_risks) ? analysis.detected_risks : [];
+  const lawReferences = Array.isArray(analysis?.law_reference) ? analysis.law_reference : [];
+  const actions = Array.isArray(analysis?.what_user_should_do)
+    ? analysis.what_user_should_do
+    : [];
+
+  return (
+    <div className="w-full rounded-2xl border border-white/10 bg-[#121215] p-5 shadow-xl">
+      <div className="flex items-center gap-2 text-slate-200">
+        <Sparkles className="text-indigo-400" size={18} />
+        <span className="font-semibold">AI Analysis</span>
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className="rounded-2xl border border-white/10 bg-[#0f0f12] p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-slate-200">
+            <FileText size={16} className="text-indigo-300" />
+            <span className="font-semibold">Document Info</span>
+          </div>
+          <div className="mt-3 space-y-2 text-sm text-slate-300">
+            <div>
+              Type: <span className="text-white font-semibold">{analysis.document_type}</span>
+            </div>
+            <div>
+              Classification: <span className="text-white font-semibold">{analysis.classification}</span>
+            </div>
+            <div>
+              Decision: <span className="text-white font-semibold">{analysis.decision}</span>
+            </div>
+            <div>
+              Confidence: <span className="text-white font-semibold">{analysis.confidence_score}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className={`rounded-2xl border p-4 shadow-sm ${warningClass}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={16} />
+              <span className="font-semibold">Key Warning</span>
+            </div>
+            <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${badgeClass}`}>
+              {riskLevel} RISK
+            </span>
+          </div>
+          <p className="mt-3 text-sm">{analysis.key_warning}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-white/10 bg-[#0f0f12] p-4 shadow-sm">
+        <div className="flex items-center gap-2 text-slate-200">
+          <Sparkles size={16} className="text-indigo-300" />
+          <span className="font-semibold">Smart Explanation</span>
+        </div>
+        <p className="mt-3 text-sm text-slate-300">{analysis.smart_explanation}</p>
+        {analysis.simple_explanation && (
+          <p className="mt-3 text-sm text-slate-400">Simple: {analysis.simple_explanation}</p>
+        )}
+      </div>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className="rounded-2xl border border-white/10 bg-[#0f0f12] p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-slate-200">
+            <CheckCircle2 size={16} className="text-emerald-400" />
+            <span className="font-semibold">Top Risks</span>
+          </div>
+          <ul className="mt-3 space-y-2 text-sm text-slate-300">
+            {topRisks.length === 0 ? (
+              <li>No major risks detected.</li>
+            ) : (
+              topRisks.map((risk, index) => <li key={index}>- {risk}</li>)
+            )}
+          </ul>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#0f0f12] p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-slate-200">
+            <CheckCircle2 size={16} className="text-emerald-400" />
+            <span className="font-semibold">What To Do</span>
+          </div>
+          <ul className="mt-3 space-y-2 text-sm text-slate-300">
+            {actions.length === 0 ? (
+              <li>No action items provided.</li>
+            ) : (
+              actions.map((step, index) => (
+                <li key={index} className="flex items-start gap-2">
+                  <CheckCircle2 size={14} className="text-emerald-400 mt-0.5" />
+                  <span>{step}</span>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-white/10 bg-[#0f0f12] p-4 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setExpanded((prev) => !prev)}
+          className="flex w-full items-center justify-between text-slate-200"
+        >
+          <span className="font-semibold">Detailed Risks</span>
+          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </button>
+        {expanded && (
+          <div className="mt-4 space-y-3 text-sm text-slate-300">
+            {detectedRisks.length === 0 ? (
+              <p>No detailed risks found.</p>
+            ) : (
+              detectedRisks.map((risk, index) => (
+                <div key={index} className="rounded-xl border border-white/10 bg-[#121215] p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-slate-100">{risk.type}</span>
+                    <span className="text-xs font-semibold text-slate-400">{risk.level}</span>
+                  </div>
+                  <p className="mt-2 text-sm text-slate-300">{risk.reason}</p>
+                  {risk.snippet && (
+                    <p className="mt-2 text-xs italic text-slate-500">Snippet: {risk.snippet}</p>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-white/10 bg-[#0f0f12] p-4 shadow-sm">
+        <div className="flex items-center gap-2 text-slate-200">
+          <Info size={16} className="text-indigo-300" />
+          <span className="font-semibold">Law Reference</span>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-3">
+          {lawReferences.length === 0 ? (
+            <span className="text-sm text-slate-400">No legal references detected.</span>
+          ) : (
+            lawReferences.map((law, index) => (
+              <div key={index} className="group relative">
+                <span className="inline-flex items-center gap-2 rounded-full bg-[#121215] px-3 py-1 text-xs font-semibold text-slate-100 border border-white/10">
+                  {law.law}
+                </span>
+                <div className="absolute left-0 top-8 z-10 hidden w-60 rounded-xl bg-[#0a0a0b] px-3 py-2 text-xs text-white shadow-lg group-hover:block">
+                  {law.description}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function AnalyzePage() {
   const [file, setFile] = useState(null);
@@ -21,8 +205,8 @@ export default function AnalyzePage() {
     setChatHistory((prev) => [...prev, { role: "user", content, hasFile }]);
   };
 
-  const addAIMessage = (content, isError = false) => {
-    setChatHistory((prev) => [...prev, { role: "ai", content, isError }]);
+  const addAIMessage = (content, isError = false, structured = null) => {
+    setChatHistory((prev) => [...prev, { role: "ai", content, isError, structured }]);
   };
 
   const removeFile = () => {
@@ -104,7 +288,12 @@ export default function AnalyzePage() {
         response = await analyzeText(currentText);
       }
 
-      addAIMessage(formatAnalysisResponse(response));
+      const structured = response?.data?.analysis?.structured || null;
+      if (structured) {
+        addAIMessage("", false, structured);
+      } else {
+        addAIMessage(formatAnalysisResponse(response));
+      }
     } catch (error) {
       addAIMessage(error.message || "Analysis failed. Please try again.", true);
     } finally {
@@ -130,23 +319,38 @@ export default function AnalyzePage() {
           ) : (
             <div className="space-y-6 pb-10">
               {chatHistory.map((msg, index) => (
-                <div key={`${msg.role}-${index}`} className={`flex gap-4 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  key={`${msg.role}-${index}`}
+                  className={`flex gap-4 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                >
                   {msg.role === "ai" && (
-                    <div className={`mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${msg.isError ? "bg-red-500/20" : "bg-indigo-600/90"}`}>
-                      {msg.isError ? <AlertCircle size={18} className="text-red-300" /> : <Shield size={18} className="text-white" />}
+                    <div
+                      className={`mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                        msg.isError ? "bg-red-500/20" : "bg-indigo-600/90"
+                      }`}
+                    >
+                      {msg.isError ? (
+                        <AlertCircle size={18} className="text-red-300" />
+                      ) : (
+                        <Shield size={18} className="text-white" />
+                      )}
                     </div>
                   )}
-                  <div
-                    className={`max-w-[85%] rounded-2xl p-4 text-sm leading-7 ${
-                      msg.role === "user"
-                        ? "rounded-tr-none bg-indigo-600 text-white"
-                        : msg.isError
+                  {msg.role === "ai" && msg.structured ? (
+                    <AIAnalysisCard analysis={msg.structured} />
+                  ) : (
+                    <div
+                      className={`max-w-[85%] rounded-2xl p-4 text-sm leading-7 ${
+                        msg.role === "user"
+                          ? "rounded-tr-none bg-indigo-600 text-white"
+                          : msg.isError
                           ? "border border-red-500/20 bg-red-500/10 text-red-100"
                           : "rounded-tl-none border border-white/5 bg-[#121215] text-slate-300"
-                    }`}
-                  >
-                    <div className="whitespace-pre-wrap break-words">{msg.content}</div>
-                  </div>
+                      }`}
+                    >
+                      <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                    </div>
+                  )}
                 </div>
               ))}
 

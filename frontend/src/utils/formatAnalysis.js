@@ -119,27 +119,28 @@ export function formatAnalysisResponse(response) {
   }
 
   if (structured) {
-    const decision = structured.final_decision || "REVIEW_CAUTION";
+    const decision = structured.decision || structured.final_decision || "REVIEW_CAUTION";
     const riskLevel = structured.risk_level || "MEDIUM";
-    const keyWarning = Array.isArray(structured.warnings) && structured.warnings.length > 0
-      ? structured.warnings[0]
-      : "Review the document carefully.";
+    const keyWarning = structured.key_warning ||
+      (Array.isArray(structured.warnings) && structured.warnings.length > 0
+        ? structured.warnings[0]
+        : "Review the document carefully.");
 
     message += "Decision Summary\n";
+    if (structured.document_type) {
+      message += `Document Type: ${structured.document_type}\n`;
+    }
     message += `Decision: ${decision}\n`;
     message += `Classification: ${structured.classification || "UNFAIR"}\n`;
     message += `Risk Level: ${riskLevel}\n`;
     if (structured.confidence_score) {
       message += `Confidence Score: ${structured.confidence_score}\n`;
     }
-    if (structured.escalation) {
-      message += `Escalation: ${structured.escalation}\n`;
-    }
     message += `Key Warning: ${keyWarning}\n\n`;
 
-    if (structured.smart_difference_explanation) {
+    if (structured.smart_explanation) {
       message += "Smart Explanation\n";
-      message += `${structured.smart_difference_explanation}\n\n`;
+      message += `${structured.smart_explanation}\n\n`;
     }
 
     if (structured.simple_explanation) {
@@ -179,40 +180,14 @@ export function formatAnalysisResponse(response) {
       message += "\n";
     }
 
-    if (Array.isArray(structured.positive_signals) && structured.positive_signals.length > 0) {
-      message += "Positive Signals\n";
-      structured.positive_signals.forEach((signal) => {
-        message += `- ${signal}\n`;
-      });
-      message += "\n";
-    }
-
-    if (Array.isArray(structured.law_reference?.laws) && structured.law_reference.laws.length > 0) {
+    if (Array.isArray(structured.law_reference) && structured.law_reference.length > 0) {
       message += "Law Reference\n";
-      structured.law_reference.laws.forEach((law) => {
-        message += `- ${law}\n`;
-      });
-      if (structured.law_reference.simple_explanation) {
-        message += `${structured.law_reference.simple_explanation}\n`;
-      }
-      message += "\n";
-    }
-
-    if (Array.isArray(structured.quantified_impact) && structured.quantified_impact.length > 0) {
-      message += "Quantified Impact\n";
-      structured.quantified_impact.forEach((impact) => {
-        message += `- ${impact}\n`;
-      });
-      message += "\n";
-    }
-
-    if (Array.isArray(structured.legal_validity_flags) && structured.legal_validity_flags.length > 0) {
-      message += "Legal Validity Flags\n";
-      structured.legal_validity_flags.forEach((flag) => {
-        const parts = [flag.type, flag.clause, flag.law, flag.explanation]
-          .filter(Boolean)
-          .join(" | ");
-        message += `- ${parts}\n`;
+      structured.law_reference.forEach((lawEntry) => {
+        if (lawEntry && typeof lawEntry === "object") {
+          message += `- ${lawEntry.law}: ${lawEntry.description || ""}\n`;
+        } else {
+          message += `- ${lawEntry}\n`;
+        }
       });
       message += "\n";
     }
@@ -220,7 +195,17 @@ export function formatAnalysisResponse(response) {
     if (Array.isArray(structured.top_risks) && structured.top_risks.length > 0) {
       message += "Top Risks\n";
       structured.top_risks.forEach((risk) => {
-        message += `- Type: ${risk.type || "General Risk"}, Description: ${risk.description || ""}, Impact: ${risk.impact || ""}\n`;
+        message += `- ${risk}\n`;
+      });
+      message += "\n";
+    }
+
+    if (Array.isArray(structured.detected_risks) && structured.detected_risks.length > 0) {
+      message += "Detected Risks\n";
+      structured.detected_risks.forEach((risk) => {
+        const level = risk.level ? `(${risk.level}) ` : "";
+        const snippet = risk.snippet ? ` Snippet: ${risk.snippet}` : "";
+        message += `- ${level}${risk.type || "General Risk"}: ${risk.reason || ""}${snippet}\n`;
       });
       message += "\n";
     }
