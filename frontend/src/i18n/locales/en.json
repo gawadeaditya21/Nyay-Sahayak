@@ -12,9 +12,9 @@
     "language": "Language"
   },
   "chat": {
-    "title": "RAG Legal Chatbot",
-    "subtitle": "TF-IDF retrieval + Gemini response + legal action suggestions",
-    "example": "Example: \"Mera mobile chori ho gaya kya karu?\"",
+    "title": "Nyay Sahayak Legal Assistant",
+    "subtitle": "AI legal guidance, document analysis, and FIR support in one place",
+    "example": "Example: \"My phone was stolen. What should I do?\"",
     "initialExplanation": "Hello. I am your legal assistant. You can ask about railway rules, property agreements, or stolen items.",
     "initialRule1": "Ask a clear and specific question.",
     "initialRule2": "You will get practical guidance for the Indian context.",
