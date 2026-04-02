@@ -1,6 +1,12 @@
 import mammoth from "mammoth";
 import { geminiModel, genAI } from "../config/gemini.js";
 import {
+  ensureSupportedLanguage,
+  getLanguageInstruction,
+  getLanguageLabel,
+  resolveLanguage,
+} from "../config/languages.js";
+import {
   buildContextString,
   filterRelevantResults,
   runPythonSearch,
@@ -261,8 +267,67 @@ function normalizeForMatching(text) {
   return cleanOcrText(text).toLowerCase();
 }
 
-function inferLanguageInstruction(text) {
-  return "Respond in simple English.";
+function inferLanguageInstruction(language) {
+  const resolvedLanguage = ensureSupportedLanguage(language);
+  return getLanguageInstruction(resolvedLanguage);
+}
+
+function hasDevanagariText(text) {
+  return /[\u0900-\u097F]/.test(String(text || ""));
+}
+
+function extractNumericTokens(text, limit = 12) {
+  const normalized = String(text || "");
+  const matches = normalized.match(/(?:₹\s*)?\d+(?:,\d{3})*(?:\.\d+)?%?/g) || [];
+  const unique = [...new Set(matches.map((item) => item.trim()).filter(Boolean))];
+  return unique.slice(0, limit);
+}
+
+function hasPlaceholders(text) {
+  return /_{2,}/.test(String(text || ""));
+}
+
+function hasMissingNumericTokens(text, requiredTokens = []) {
+  if (!requiredTokens.length) {
+    return false;
+  }
+
+  const haystack = String(text || "");
+  return requiredTokens.some((token) => !haystack.includes(token));
+}
+
+function isMixedLanguage(text, language) {
+  const resolvedLanguage = ensureSupportedLanguage(language);
+  if (resolvedLanguage === "en") {
+    return false;
+  }
+
+  let content = String(text || "");
+  if (content.includes(":")) {
+    content = content.replace(/"[^"]+"\s*:/g, " ");
+  }
+  const devanagariCount = (content.match(/[\u0900-\u097F]/g) || []).length;
+  const latinCount = (content.match(/[A-Za-z]/g) || []).length;
+  const totalLetters = devanagariCount + latinCount;
+
+  if (totalLetters === 0) {
+    return false;
+  }
+
+  const englishHeadings = /(Top Risks|What To Do|Warnings|Reason for decision|Law Reference|Legal Grounds|Suggested Actions|Important Notes|Request|Subject)/i.test(
+    content
+  );
+  const latinRatio = latinCount / totalLetters;
+
+  return englishHeadings || (latinCount > 20 && latinRatio > 0.28);
+}
+
+function isLanguageMismatch(text, language) {
+  const resolvedLanguage = ensureSupportedLanguage(language);
+  if (resolvedLanguage === "hi" || resolvedLanguage === "mr") {
+    return !hasDevanagariText(text);
+  }
+  return false;
 }
 
 function logPipeline(step, payload) {
@@ -2836,18 +2901,83 @@ async function generateStructuredJson(prompt) {
   return parseJSONResponse(removeMarkdownFormatting(responseText));
 }
 
+function buildStructuredTranslationPrompt(structured, languageLabel) {
+  const payload = JSON.stringify(structured);
+  return `You are a translation engine for legal guidance.
+Translate all user-facing text values to ${languageLabel}.
+Write as if the text was originally authored in ${languageLabel}, not translated.
+Use very simple, conversational language for common/rural users.
+
+Rules (strict):
+1. Return only valid JSON.
+2. Preserve keys, structure, arrays, and ordering.
+3. Do NOT translate enum values for these keys: classification, risk_level, final_decision, should_user_sign, decision, confidence_score, escalation.
+4. Do NOT translate law_reference.laws; keep all law names, IPC sections, and statute names in English.
+5. Never remove or alter numbers, percentages, durations, or monetary values.
+6. Keep numbers, dates, and placeholders (e.g., __________) unchanged.
+7. Do not use blanks or placeholders like "____" unless already present in the input.
+8. If a string is already in ${languageLabel}, keep it as-is.
+
+JSON input:
+${payload}`;
+}
+
+async function translateStructuredOutput(structured, language) {
+  const resolvedLanguage = ensureSupportedLanguage(language);
+  if (resolvedLanguage === "en") {
+    return structured;
+  }
+
+  const languageLabel = getLanguageLabel(resolvedLanguage);
+  const prompt = buildStructuredTranslationPrompt(structured, languageLabel);
+  const requiredTokens = extractNumericTokens(JSON.stringify(structured));
+
+  try {
+    let translated = await generateStructuredJson(prompt);
+    const translatedText = JSON.stringify(translated);
+    const hasNumberLoss = hasMissingNumericTokens(translatedText, requiredTokens);
+    const hasBlank = hasPlaceholders(translatedText);
+    const mixedLanguage = isMixedLanguage(translatedText, resolvedLanguage);
+
+    if (isLanguageMismatch(translatedText, resolvedLanguage) || hasNumberLoss || hasBlank || mixedLanguage) {
+      const strictPrompt = `${prompt}\n\nIMPORTANT: Output MUST be only in ${languageLabel}. Do not use any other language.`;
+      translated = await generateStructuredJson(strictPrompt);
+    }
+    const finalText = JSON.stringify(translated);
+    const stillMissingNumbers = hasMissingNumericTokens(finalText, requiredTokens);
+    const stillMixed = isMixedLanguage(finalText, resolvedLanguage);
+    const stillBlank = hasPlaceholders(finalText);
+
+    if (isLanguageMismatch(finalText, resolvedLanguage) || stillMissingNumbers || stillMixed || stillBlank) {
+      console.warn("[aiService] Translation quality check failed; falling back to English output.");
+      return structured;
+    }
+
+    return translated;
+  } catch (error) {
+    console.warn("[aiService] Structured translation failed, using English output:", error.message);
+    return structured;
+  }
+}
+
 function buildSharedGuardrails(languageInstruction) {
   return `
 ${languageInstruction}
 Critical rules:
-1. Return only valid JSON.
-2. No markdown, no commentary, no extra text.
-3. Never include unrelated context.
-4. Use retrieved context only if it clearly matches the document or query.
-5. If context mismatches, ignore it completely.
-6. Do not hallucinate laws, penalties, or clauses.
-7. Use only masked document text.
-8. Detect realistic risks only. Do not force risks where none exist.
+1. Respond only in the language specified above. Do not mix languages.
+2. Return only valid JSON.
+3. No markdown, no commentary, no extra text.
+4. Never include unrelated context.
+5. Use retrieved context only if it clearly matches the document or query.
+6. If context mismatches, ignore it completely.
+7. Do not hallucinate laws, penalties, or clauses.
+8. Use only masked document text.
+9. Detect realistic risks only. Do not force risks where none exist.
+10. Never remove or alter numbers, percentages, durations, or monetary values from the input.
+11. Do not use blanks or placeholders like "____"; always keep exact values.
+12. Use very simple, conversational language for common/rural users.
+13. For each risk, include real-life impact (money/time/property loss).
+14. Write naturally as if originally authored in the selected language.
 `.trim();
 }
 
@@ -2891,6 +3021,9 @@ Return STRICT JSON:
   "lawyer_suggestion": "",
   "note_for_user": "This is AI guidance. For serious matters, consult a legal expert."
 }
+
+Impact rule:
+For each top_risks item, the "impact" must describe real-life loss (money/time/property) and keep any numbers exact.
 
 Decision rules:
 1. If any of these appear, set classification to FRAUD and risk_level to HIGH: upfront payment before service/joining, urgency pressure, personal data requests, or unrealistic job conditions.
@@ -2943,6 +3076,9 @@ Return STRICT JSON:
   "lawyer_suggestion": "",
   "note_for_user": "This is AI guidance. For serious matters, consult a legal expert."
 }
+
+Impact rule:
+For each top_risks item, the "impact" must describe real-life loss (money/time/property) and keep any numbers exact.
 `.trim();
 }
 
@@ -2987,6 +3123,9 @@ Return STRICT JSON:
   "lawyer_suggestion": "",
   "note_for_user": "This is AI guidance. For serious matters, consult a legal expert."
 }
+
+Impact rule:
+For each top_risks item, the "impact" must describe real-life loss (money/time/property) and keep any numbers exact.
 `.trim();
 }
 
@@ -3027,6 +3166,9 @@ Return STRICT JSON:
   "lawyer_suggestion": "",
   "note_for_user": "This is AI guidance. For serious matters, consult a legal expert."
 }
+
+Impact rule:
+For each top_risks item, the "impact" must describe real-life loss (money/time/property) and keep any numbers exact.
 `.trim();
 }
 
@@ -3049,6 +3191,11 @@ Return STRICT JSON:
   "penalties": [],
   "user_guidance": []
 }
+
+Guidance rules:
+1. Use very simple language.
+2. If any numbers or time limits are mentioned, repeat them exactly.
+3. Every guidance point must mention real-life impact (money/time/property).
 `.trim();
 }
 
@@ -3839,7 +3986,11 @@ async function analyzeDocument(documentText, options = {}) {
   const rawText = String(options.rawText || documentText || "");
   const maskedText = String(documentText || "");
   const cleanedMaskedText = cleanExtractedText(maskedText);
-  const languageInstruction = inferLanguageInstruction(rawText || cleanedMaskedText);
+  const resolvedLanguage = ensureSupportedLanguage(options.language);
+  const languageInstruction = getLanguageInstruction(resolvedLanguage);
+  console.log(
+    `[aiService] analyzeDocument language raw="${options.language}" resolved="${resolvedLanguage}" instruction="${languageInstruction}"`
+  );
 
   if (!cleanedMaskedText || cleanedMaskedText.length < 20) {
     const analysis = buildEmptyPipelineResult(rawText, languageInstruction);
@@ -3848,12 +3999,16 @@ async function analyzeDocument(documentText, options = {}) {
       documentTypeLabel: "Other",
       confidenceScore: 0,
     });
-    const legacyRisks = buildLegacyRisksFromDetected(structured.detected_risks, structured.risk_level);
+    const localizedStructured = await translateStructuredOutput(structured, resolvedLanguage);
+    const legacyRisks = buildLegacyRisksFromDetected(
+      localizedStructured.detected_risks,
+      localizedStructured.risk_level
+    );
     return {
       documentType: "Other",
       detectedType: "other",
-      summary: structured.simple_explanation || structured.key_warning,
-      structured,
+      summary: localizedStructured.simple_explanation || localizedStructured.key_warning,
+      structured: localizedStructured,
       legacyRisks,
       risks: legacyRisks,
       chunksProcessed: 1,
@@ -3919,7 +4074,11 @@ async function analyzeDocument(documentText, options = {}) {
     structured.smart_explanation = `${structured.smart_explanation} Confidence is low, so the document is treated as Other.`;
   }
 
-  const legacyRisks = buildLegacyRisksFromDetected(structured.detected_risks, structured.risk_level);
+  const localizedStructured = await translateStructuredOutput(structured, resolvedLanguage);
+  const legacyRisks = buildLegacyRisksFromDetected(
+    localizedStructured.detected_risks,
+    localizedStructured.risk_level
+  );
   logPipeline("classification", {
     documentTypeLabel,
     confidence: classification.confidence,
@@ -3935,8 +4094,8 @@ async function analyzeDocument(documentText, options = {}) {
   return {
     documentType: documentTypeLabel,
     detectedType: documentTypeKey,
-    summary: structured.simple_explanation || structured.smart_explanation,
-    structured,
+    summary: localizedStructured.simple_explanation || localizedStructured.smart_explanation,
+    structured: localizedStructured,
     legacyRisks,
     risks: legacyRisks,
     chunksProcessed: 1,
@@ -3964,24 +4123,66 @@ function normalizeQueryAnalysis(rawAnalysis = {}) {
   };
 }
 
-async function analyzeLegalQuery(queryText) {
+async function analyzeLegalQuery(queryText, options = {}) {
   if (!queryText || !queryText.trim()) {
     throw new Error("Query text cannot be empty");
   }
 
   const cleanedQuery = queryText.trim();
+  const resolvedLanguage = ensureSupportedLanguage(options.language);
+  const languageInstruction = getLanguageInstruction(resolvedLanguage);
+  console.log(
+    `[aiService] analyzeLegalQuery language raw="${options.language}" resolved="${resolvedLanguage}" instruction="${languageInstruction}"`
+  );
   const rag = shouldUseLegalDatasetForQuery(cleanedQuery)
     ? await retrieveLegalContext(cleanedQuery, "legal")
     : { context: "", contextUsed: false, contextCount: 0 };
 
   try {
-    const rawAnalysis = await generateStructuredJson(
+    let rawAnalysis = await generateStructuredJson(
       buildQueryPrompt({
         query: cleanedQuery,
         context: rag.context,
-        languageInstruction: inferLanguageInstruction(cleanedQuery),
+        languageInstruction,
       })
     );
+    const requiredTokens = extractNumericTokens(cleanedQuery);
+    const rawText = JSON.stringify(rawAnalysis);
+    const needsRetry =
+      isLanguageMismatch(rawText, resolvedLanguage) ||
+      isMixedLanguage(rawText, resolvedLanguage) ||
+      hasPlaceholders(rawText) ||
+      hasMissingNumericTokens(rawText, requiredTokens);
+
+    if (needsRetry) {
+      console.warn("[aiService] Query language mismatch detected. Retrying with strict language enforcement.");
+      const strictInstruction = `${languageInstruction} IMPORTANT: Respond ONLY in the specified language.`;
+      rawAnalysis = await generateStructuredJson(
+        buildQueryPrompt({
+          query: cleanedQuery,
+          context: rag.context,
+          languageInstruction: strictInstruction,
+        })
+      );
+    }
+
+    const retryText = JSON.stringify(rawAnalysis);
+    const stillBad =
+      isLanguageMismatch(retryText, resolvedLanguage) ||
+      isMixedLanguage(retryText, resolvedLanguage) ||
+      hasPlaceholders(retryText) ||
+      hasMissingNumericTokens(retryText, requiredTokens);
+
+    if (stillBad) {
+      console.warn("[aiService] Query language mismatch after retry; falling back to English output.");
+      rawAnalysis = await generateStructuredJson(
+        buildQueryPrompt({
+          query: cleanedQuery,
+          context: rag.context,
+          languageInstruction: getLanguageInstruction("en"),
+        })
+      );
+    }
 
     return {
       ...normalizeQueryAnalysis(rawAnalysis),
@@ -3994,10 +4195,14 @@ async function analyzeLegalQuery(queryText) {
   }
 }
 
-function buildFirPrompt(userInput) {
+function buildFirPrompt(userInput, language) {
+  const resolvedLanguage = ensureSupportedLanguage(language);
+  const languageLabel = getLanguageLabel(resolvedLanguage).toUpperCase();
   return `You are an experienced Indian legal assistant trained in drafting FIRs and complaints used in real police stations and by advocates in India.
 
 This is a generation task. Do NOT ask questions. Do NOT request missing data.
+
+Language preference: ${languageLabel}. You MUST respond only in this language for the FIR body. Keep law names in English. Keep the Request sentence in English exactly.
 
 Critical legal corrections (mandatory):
 - NEVER use the words "refund", "recover", "recovery", "facilitate refund", or "return my money" anywhere.
@@ -4023,7 +4228,7 @@ Name: __________
 Address: __________
 
 Output rules:
-Use clean plain text only. Do NOT use markdown, separators, or artificial headings. Use English only. Keep the tone human and practical.
+Use clean plain text only. Do NOT use markdown, separators, or artificial headings. Keep the tone human and practical.
 
 Smart case detection (adapt FIR accordingly):
 Theft/Lost Property (IPC 379/IPC 403), Fraud/Cheating (IPC 420), Breach of Trust (IPC 406), Cyber Fraud (IT Act + IPC), Job Scam, Property/Builder Issue (RERA + Contract Act), Harassment/Threat, Salary/Employment Issue (Labour Laws).
@@ -4398,17 +4603,33 @@ function sanitizeFirOutput(rawText) {
   return cleaned;
 }
 
-async function generateFirDraft(userInput) {
+async function generateFirDraft(userInput, options = {}) {
   const cleanedInput = String(userInput || "").trim();
   if (!cleanedInput) {
     throw new Error("User input is required");
   }
 
-  const prompt = buildFirPrompt(cleanedInput);
+  const resolvedLanguage = ensureSupportedLanguage(options.language);
+  const languageInstruction = getLanguageInstruction(resolvedLanguage);
+  console.log(
+    `[aiService] generateFirDraft language raw="${options.language}" resolved="${resolvedLanguage}" instruction="${languageInstruction}"`
+  );
+  const prompt = buildFirPrompt(cleanedInput, resolvedLanguage);
 
   try {
-    const result = await generateContentWithFallback(prompt);
-    return sanitizeFirOutput(result.response.text().trim());
+    let result = await generateContentWithFallback(prompt);
+    let responseText = result.response.text().trim();
+
+    if (isLanguageMismatch(responseText, resolvedLanguage) || isMixedLanguage(responseText, resolvedLanguage)) {
+      console.warn(
+        "[aiService] FIR language mismatch detected. Retrying with strict language enforcement."
+      );
+      const strictPrompt = `${prompt}\n\nIMPORTANT: Respond ONLY in ${resolvedLanguage.toUpperCase()} as specified. Do not use any other language.`;
+      result = await generateContentWithFallback(strictPrompt);
+      responseText = result.response.text().trim();
+    }
+
+    return sanitizeFirOutput(responseText);
   } catch (error) {
     console.error("[aiService] FIR generation failed:", error.message);
     return sanitizeFirOutput(buildFirFallback(cleanedInput));
@@ -4437,6 +4658,12 @@ export {
   detectDocumentType,
   extractTextFromDocx,
   generateFirDraft,
+  extractNumericTokens,
+  hasMissingNumericTokens,
+  hasPlaceholders,
+  isLanguageMismatch,
+  isMixedLanguage,
   parseJSONResponse,
   removeMarkdownFormatting,
+  translateStructuredOutput,
 };

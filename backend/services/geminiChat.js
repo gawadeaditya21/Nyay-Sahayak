@@ -1,5 +1,19 @@
 import { geminiModel } from "../config/gemini.js";
-import { parseJSONResponse, removeMarkdownFormatting } from "./aiService.js";
+import {
+  ensureSupportedLanguage,
+  getLanguageInstruction,
+  getLanguageLabel,
+} from "../config/languages.js";
+import {
+  extractNumericTokens,
+  hasMissingNumericTokens,
+  hasPlaceholders,
+  isLanguageMismatch,
+  isMixedLanguage,
+  parseJSONResponse,
+  removeMarkdownFormatting,
+  translateStructuredOutput,
+} from "./aiService.js";
 import {
   buildContextString,
   filterRelevantResults,
@@ -21,8 +35,55 @@ function buildSuggestions(query) {
   return [...new Set(suggestions)];
 }
 
-function inferLanguageInstruction(text) {
-  return "Respond in simple English.";
+function inferLanguageInstruction(language) {
+  const resolvedLanguage = ensureSupportedLanguage(language);
+  return getLanguageInstruction(resolvedLanguage);
+}
+
+function hasImpactPhrase(text, language) {
+  const normalized = String(text || "");
+  const resolvedLanguage = ensureSupportedLanguage(language);
+
+  if (resolvedLanguage === "hi") {
+    return /(नुकसान|पैसे|खर्च|जुर्माना|देरी|हानि|गमाव)/.test(normalized);
+  }
+
+  if (resolvedLanguage === "mr") {
+    return /(नुकसान|पैसे|खर्च|दंड|विलंब|हानी|गमाव)/.test(normalized);
+  }
+
+  return /(lose|loss|pay|penalty|delay|risk|harm|cost|money|property|time)/i.test(normalized);
+}
+
+function hasMissingImpactInRisks(topRisks, language) {
+  if (!Array.isArray(topRisks) || topRisks.length === 0) {
+    return false;
+  }
+
+  return topRisks.some((risk) => {
+    const value = String(risk || "").trim();
+    if (!value) {
+      return true;
+    }
+    if (value.includes(":")) {
+      return false;
+    }
+    return !hasImpactPhrase(value, language);
+  });
+}
+
+function ensureRiskImpactText(risk) {
+  const text = String(risk || "").trim();
+  if (!text) {
+    return text;
+  }
+  if (text.includes(":")) {
+    return text;
+  }
+  if (/(lose|loss|pay|penalty|delay|risk|harm|cost|money|property|time)/i.test(text)) {
+    return text;
+  }
+  return `${text}: May cause money loss, penalty, or delay.`;
 }
 
 function cleanTextForMatching(text) {
@@ -634,14 +695,16 @@ function normalizeQueryReply(rawReply = {}, queryText = "") {
   let top_risks = filterGroundedStrings(rawReply.top_risks, queryText);
   let suspicious_clauses = filterGroundedStrings(rawReply.suspicious_clauses, queryText);
 
-  const safeWarning = "This agreement appears balanced and does not contain major risks.";
-  const unfairWarning = "This document contains one-sided clauses that may disadvantage you.";
+  const safeWarning =
+    "This agreement looks balanced. Major money loss risk appears low, but keep a copy and proof.";
+  const unfairWarning =
+    "One-sided clauses can cause penalties, delays, or money loss. Review carefully.";
   const fraudWarning =
-    "This document shows strong signs of a job scam. Do NOT pay any money or share personal details.";
+    "Strong scam signs detected. You may lose money and your data can be misused. Do NOT pay or share details.";
   const fraudExplanation =
-    "This is a HIGH-RISK document with multiple fraud indicators such as upfront payment demand, urgency pressure, and lack of job security.";
+    "This is a HIGH-RISK document with fraud indicators like upfront payment or urgency. You may lose money or time.";
   const safeExplanation =
-    "No strong unfair or risky clauses detected. The agreement appears balanced.";
+    "No major unfair or risky clauses detected. Risk of money loss appears low if you follow terms.";
 
   if (balancedAgreement) {
     risk_level = "LOW";
@@ -651,10 +714,10 @@ function normalizeQueryReply(rawReply = {}, queryText = "") {
 
   if (fraudLikely) {
     const fraudTopRisks = [
-      "Upfront Payment Demand",
-      "Job Scam Indicator",
-      "Personal Data Risk",
-      "Urgency Pressure",
+      "Upfront Payment Demand: You may lose money before any service is delivered.",
+      "Job Scam Indicator: Fake promises can waste your time and money.",
+      "Personal Data Risk: Your identity or bank account may be misused.",
+      "Urgency Pressure: Rushed decisions can cause avoidable money loss.",
     ];
     top_risks = [...new Set([...fraudTopRisks, ...top_risks])].slice(0, 5);
   }
@@ -678,7 +741,7 @@ function normalizeQueryReply(rawReply = {}, queryText = "") {
       "Do NOT sign without legal review.",
     ];
     top_risks = [
-      "Clause appears to restrict access to courts or legal remedies.",
+      "Restriction on legal remedy: You may lose the right to go to court and waste time/money.",
       ...top_risks,
     ].slice(0, 5);
   }
@@ -706,7 +769,7 @@ function normalizeQueryReply(rawReply = {}, queryText = "") {
     warnings = [safeWarning];
   }
 
-  top_risks = top_risks.map((risk) => normalizeRiskLabel(risk));
+  top_risks = top_risks.map((risk) => ensureRiskImpactText(normalizeRiskLabel(risk)));
 
   const final_decision = resolveFinalDecision(docTypeKey, classification, risk_level);
   const totalRisks = top_risks.length + suspicious_clauses.length;
@@ -720,14 +783,14 @@ function normalizeQueryReply(rawReply = {}, queryText = "") {
   const legal_validity_flags = buildLegalValidityFlags(hasIllegalSignals);
   let reason_for_decision = String(
     rawReply.reason_for_decision ||
-      "Decision is based on detected clause risk, fairness, and scam indicators."
+      "Decision is based on clause risk and real-life impact on money, time, or legal rights."
   );
   if (classification === "FRAUD") {
     reason_for_decision = fraudExplanation;
   }
   if (classification === "UNFAIR") {
     reason_for_decision =
-      "The agreement contains multiple one-sided clauses such as penalty, delay, hidden charges, or cost escalation.";
+      "The agreement has one-sided clauses (penalty, delay, hidden charges) that can cause money loss or delays.";
   }
   if (classification === "NORMAL" && isSignableDocumentKey(docTypeKey)) {
     reason_for_decision = safeExplanation;
@@ -756,15 +819,28 @@ function normalizeQueryReply(rawReply = {}, queryText = "") {
   };
 }
 
-function buildChatPrompt({ query, context }) {
+function buildChatPrompt({
+  query,
+  context,
+  language,
+  enforceLanguage = false,
+  enforceQuality = false,
+}) {
   const safeContext =
     context ||
     "No retrieved legal context available. Give safe general advice without hallucinating.";
+  const resolvedLanguage = ensureSupportedLanguage(language);
+  const languageInstruction = inferLanguageInstruction(resolvedLanguage);
+  const languageLabel = getLanguageLabel(resolvedLanguage);
+  const languageDirective = enforceLanguage
+    ? `${languageInstruction}\nIMPORTANT: Respond ONLY in ${languageLabel}. Do not use any other language.`
+    : languageInstruction;
 
   return `
 You are Nyay Sahayak, an expert legal assistant for common people in India.
 You must act like a practical legal advisor, not an academic summarizer.
-${inferLanguageInstruction(query)}
+Selected output language: ${languageLabel}.
+${languageDirective}
 
 Retrieved legal context:
 ${safeContext}
@@ -778,8 +854,15 @@ Rules:
 3. If unsure, clearly suggest consulting a legal expert.
 4. Keep the guidance practical and useful for a normal person.
 5. Ignore context completely if it does not match the user's issue.
-6. Use English only.
+6. Follow the language instruction exactly and respond only in that language.
 7. Return only clean JSON.
+8. Never remove or alter numbers, percentages, durations, or monetary values from the input.
+9. Do not use blanks or placeholders like "____".
+10. Use very simple, conversational language for common/rural users.
+11. Each top_risks item must include real-life impact (money/time/property loss).
+12. Write naturally in ${languageLabel} (not literal translation).
+${enforceQuality ? "13. Before responding, verify there are no missing numbers or mixed language. Regenerate internally if needed." : ""}
+14. If any rule is violated, regenerate internally and correct it before output.
 
 Return this STRICT JSON only:
 {
@@ -824,17 +907,74 @@ Critical decision framework:
 `.trim();
 }
 
-async function generateGeminiReply({ query, context }) {
-  const prompt = buildChatPrompt({ query, context });
-  const result = await geminiModel.generateContent(prompt);
-  const responseText = result.response.text().trim();
-  const parsed = parseJSONResponse(removeMarkdownFormatting(responseText));
+async function generateGeminiReply({ query, context, language }) {
+  const resolvedLanguage = ensureSupportedLanguage(language);
+  const languageInstruction = getLanguageInstruction(resolvedLanguage);
+  console.log(
+    `[geminiChat] language raw="${language}" resolved="${resolvedLanguage}" instruction="${languageInstruction}"`
+  );
+
+  let outputLanguage = resolvedLanguage;
+  const requiredTokens = extractNumericTokens(query);
+
+  let prompt = buildChatPrompt({ query, context, language: resolvedLanguage });
+  let result = await geminiModel.generateContent(prompt);
+  let responseText = result.response.text().trim();
+  let parsed = parseJSONResponse(removeMarkdownFormatting(responseText));
+
+  const rawParsedText = JSON.stringify(parsed);
+  const needsRetry =
+    isLanguageMismatch(rawParsedText, resolvedLanguage) ||
+    isMixedLanguage(rawParsedText, resolvedLanguage) ||
+    hasPlaceholders(rawParsedText) ||
+    hasMissingNumericTokens(rawParsedText, requiredTokens) ||
+    hasMissingImpactInRisks(parsed.top_risks, resolvedLanguage);
+
+  if (needsRetry) {
+    console.warn("[geminiChat] Quality mismatch detected. Retrying with strict enforcement.");
+    prompt = buildChatPrompt({
+      query,
+      context,
+      language: resolvedLanguage,
+      enforceLanguage: true,
+      enforceQuality: true,
+    });
+    result = await geminiModel.generateContent(prompt);
+    responseText = result.response.text().trim();
+    parsed = parseJSONResponse(removeMarkdownFormatting(responseText));
+  }
+
+  const retryText = JSON.stringify(parsed);
+  const stillBad =
+    isLanguageMismatch(retryText, resolvedLanguage) ||
+    isMixedLanguage(retryText, resolvedLanguage) ||
+    hasPlaceholders(retryText) ||
+    hasMissingNumericTokens(retryText, requiredTokens) ||
+    hasMissingImpactInRisks(parsed.top_risks, resolvedLanguage);
+
+  if (stillBad && resolvedLanguage !== "en") {
+    console.warn("[geminiChat] Quality checks failed after retry; falling back to English output.");
+    outputLanguage = "en";
+    prompt = buildChatPrompt({
+      query,
+      context,
+      language: outputLanguage,
+      enforceLanguage: true,
+      enforceQuality: true,
+    });
+    result = await geminiModel.generateContent(prompt);
+    responseText = result.response.text().trim();
+    parsed = parseJSONResponse(removeMarkdownFormatting(responseText));
+  }
   
   // DEBUG: Log what Gemini returned
   console.log(`[generateGeminiReply] Raw Gemini response document_type: "${parsed.document_type}"`);
   console.log(`[generateGeminiReply] Raw Gemini classification: "${parsed.classification}"`);
   
-  const normalized = normalizeQueryReply(parsed, query);
+  let normalized = normalizeQueryReply(parsed, query);
+  if (outputLanguage !== "en") {
+    normalized = await translateStructuredOutput(normalized, outputLanguage);
+  }
   
   console.log(`[generateGeminiReply] After normalization - classification: "${normalized.classification}"`);
   
@@ -847,7 +987,7 @@ function shouldUseLegalContext(query) {
   );
 }
 
-export async function generateLegalChatResponse(query) {
+export async function generateLegalChatResponse(query, options = {}) {
   let context = "";
   let contextUsed = false;
 
@@ -865,7 +1005,7 @@ export async function generateLegalChatResponse(query) {
   let reply;
 
   try {
-    reply = await generateGeminiReply({ query, context });
+    reply = await generateGeminiReply({ query, context, language: options.language });
   } catch (error) {
     console.error("[geminiChat] Gemini generation failed:", error.message);
     reply = {

@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowUp, Bot, Loader2, User, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { sendChatMessage } from "../services/api";
+import { useLanguage } from "../context/LanguageContext.jsx";
 
 const ACTION_ROUTES = {
   "Generate FIR": "/fir",
@@ -10,23 +12,26 @@ const ACTION_ROUTES = {
 };
 
 export default function ChatPage() {
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [messages, setMessages] = useState([
-    {
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+  const initialMessage = useMemo(
+    () => ({
       role: "assistant",
       content: {
-        topic: "Nyay Sahayak",
-        simple_explanation:
-          "Namaste. Main aapka legal assistant hoon. Aap seedha sawaal pooch sakte hain, jaise railway rules, property agreement, ya mobile chori ke baare mein.",
-        rules: ["Simple sawaal poochiye.", "Indian context mein practical guidance milegi."],
+        topic: t("appName"),
+        simple_explanation: t("chat.initialExplanation"),
+        rules: [t("chat.initialRule1"), t("chat.initialRule2")],
         penalties: [],
-        user_guidance: ["Agar matter urgent ho to lawyer ya authority se turant contact karein."],
+        user_guidance: [t("chat.initialGuidance")],
       },
       suggestions: ["See Steps", "Analyze Document"],
       contextUsed: false,
-    },
-  ]);
+    }),
+    [t]
+  );
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [messages, setMessages] = useState([initialMessage]);
 
   const navigate = useNavigate();
   const messagesEndRef = useRef(null);
@@ -34,6 +39,10 @@ export default function ChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  useEffect(() => {
+    setMessages((prev) => (prev.length === 1 ? [initialMessage] : prev));
+  }, [initialMessage]);
 
   const submitMessage = async () => {
     const trimmedInput = input.trim();
@@ -46,7 +55,7 @@ export default function ChatPage() {
     setLoading(true);
 
     try {
-      const response = await sendChatMessage(trimmedInput);
+      const response = await sendChatMessage(trimmedInput, language);
 
       setMessages((prev) => [
         ...prev,
@@ -65,10 +74,10 @@ export default function ChatPage() {
           content: {
             topic: "Legal Guidance",
             simple_explanation:
-              error.message || "Assistant abhi available nahi hai. Thodi der baad phir try kijiye.",
+              error.message || t("chat.errorMessage"),
             rules: [],
             penalties: [],
-            user_guidance: ["Agar issue urgent hai to legal expert se consult karein."],
+            user_guidance: [t("chat.errorGuidance")],
           },
           suggestions: ["See Steps"],
           contextUsed: false,
@@ -90,14 +99,14 @@ export default function ChatPage() {
                 <Sparkles size={22} />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-white">RAG Legal Chatbot</h1>
+                <h1 className="text-3xl font-bold text-white">{t("chat.title")}</h1>
                 <p className="text-sm text-slate-400">
-                  TF-IDF retrieval + Gemini response + legal action suggestions
+                  {t("chat.subtitle")}
                 </p>
               </div>
             </div>
             <p className="max-w-2xl text-sm leading-7 text-slate-400">
-              Example: <span className="text-slate-200">"Mera mobile chori ho gaya kya karu?"</span>
+              {t("chat.example")}
             </p>
           </div>
 
@@ -157,7 +166,7 @@ export default function ChatPage() {
                   <Loader2 size={18} className="animate-spin" />
                 </div>
                 <div className="rounded-3xl rounded-tl-none border border-white/10 bg-[#121215] px-4 py-3 text-sm italic text-slate-400">
-                  Relevant legal context fetch karke answer prepare ho raha hai...
+                  {t("chat.loading")}
                 </div>
               </div>
             )}
@@ -173,7 +182,7 @@ export default function ChatPage() {
             <textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Apna legal sawaal yahan likhiye..."
+              placeholder={t("chat.placeholder")}
               className="max-h-40 flex-1 resize-none bg-transparent px-3 py-3 text-[15px] text-slate-100 outline-none placeholder:text-slate-600"
               rows={1}
               disabled={loading}
@@ -194,7 +203,7 @@ export default function ChatPage() {
           </div>
         </div>
         <p className="mt-4 text-center text-xs text-slate-600">
-          AI guidance ko final legal opinion na maanein. Urgent matter ho to local vakil ya police se turant contact karein.
+          {t("chat.disclaimer")}
         </p>
       </div>
     </div>

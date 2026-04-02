@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { analyzeDocument, analyzeText } from "../services/api";
+import { useLanguage } from "../context/LanguageContext.jsx";
 import { formatAnalysisResponse } from "../utils/formatAnalysis";
 
 const riskBadgeStyles = {
@@ -188,6 +189,7 @@ const AIAnalysisCard = ({ analysis }) => {
 };
 
 export default function AnalyzePage() {
+  const { language } = useLanguage();
   const [file, setFile] = useState(null);
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(false);
@@ -282,10 +284,10 @@ export default function AnalyzePage() {
           } else if (progress.stage === "completed") {
             setAnalysisProgress("Finalizing report...");
           }
-        });
+        }, language);
       } else {
         setAnalysisProgress("Analyzing text...");
-        response = await analyzeText(currentText);
+        response = await analyzeText(currentText, language);
       }
 
       const structured = response?.data?.analysis?.structured || null;

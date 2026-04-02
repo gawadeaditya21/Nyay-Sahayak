@@ -1,8 +1,13 @@
+import { ensureSupportedLanguage } from "../config/languages.js";
 import { generateFirDraft } from "../services/aiService.js";
 
 export async function generateFir(req, res) {
   try {
-    const { user_input } = req.body ?? {};
+    const { user_input, language: rawLanguage } = req.body ?? {};
+    const language = ensureSupportedLanguage(rawLanguage);
+    console.log(
+      `[firController] language raw="${rawLanguage}" resolved="${language}"`
+    );
 
     if (!user_input || typeof user_input !== "string" || !user_input.trim()) {
       return res.status(400).json({
@@ -12,7 +17,7 @@ export async function generateFir(req, res) {
       });
     }
 
-    const firText = await generateFirDraft(user_input.trim());
+    const firText = await generateFirDraft(user_input.trim(), { language });
 
     return res.status(200).json({
       success: true,

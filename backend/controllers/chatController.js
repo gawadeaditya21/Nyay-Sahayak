@@ -1,8 +1,13 @@
+import { ensureSupportedLanguage } from "../config/languages.js";
 import { generateLegalChatResponse } from "../services/geminiChat.js";
 
 export async function chatWithLegalAssistant(req, res) {
   try {
-    const { message } = req.body ?? {};
+    const { message, language: rawLanguage } = req.body ?? {};
+    const language = ensureSupportedLanguage(rawLanguage);
+    console.log(
+      `[chatController] language raw="${rawLanguage}" resolved="${language}"`
+    );
 
     if (!message || typeof message !== "string" || !message.trim()) {
       return res.status(503).json({
@@ -13,7 +18,7 @@ export async function chatWithLegalAssistant(req, res) {
         contextUsed: false,
       });
     }
-    const result = await generateLegalChatResponse(message.trim());
+    const result = await generateLegalChatResponse(message.trim(), { language });
     return res.status(200).json(result);
   } catch (error) {
     console.error("[chatController] Chat request failed:", error.message);

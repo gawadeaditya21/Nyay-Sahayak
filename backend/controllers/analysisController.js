@@ -51,6 +51,7 @@
 import { spawn } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
+import { ensureSupportedLanguage } from "../config/languages.js";
 import { analyzeDocument } from "../services/aiService.js";
 import { maskSensitiveData } from "../utils/dataMasking.js";
 
@@ -114,7 +115,11 @@ export const analyseText = (req, res) => {
  */
 export const analyzeWithGemini = async (req, res) => {
   try {
-    const { documentText } = req.body;
+    const { documentText, language: rawLanguage } = req.body;
+    const language = ensureSupportedLanguage(rawLanguage);
+    console.log(
+      `[analysisController] language raw="${rawLanguage}" resolved="${language}"`
+    );
 
     console.log("[Controller] Received analysis request with text length:", documentText?.length);
 
@@ -133,6 +138,7 @@ export const analyzeWithGemini = async (req, res) => {
     const analysis = await analyzeDocument(documentText, {
       detectionText: documentText,
       rawText: documentText,
+      language,
     });
 
     console.log("[Controller] Analysis complete. Sending response...");
@@ -180,7 +186,7 @@ export const analyzeWithGemini = async (req, res) => {
  */
 export const comprehensiveAnalysis = async (req, res) => {
   try {
-    const { documentText } = req.body;
+    const { documentText, language } = req.body;
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // VALIDATION
@@ -219,6 +225,7 @@ export const comprehensiveAnalysis = async (req, res) => {
     const geminiAnalysis = await analyzeDocument(maskedText, {
       detectionText: documentText,
       rawText: documentText,
+      language,
     });
     const risks = geminiAnalysis.risks || geminiAnalysis.legacyRisks || [];
 

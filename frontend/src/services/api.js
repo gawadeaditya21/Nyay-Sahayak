@@ -9,6 +9,8 @@
 //   - Type-safe responses
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+import { resolveLanguage } from "../config/languages";
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CONFIGURATION
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -16,12 +18,14 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
 
 // API endpoints
+
 const ENDPOINTS = {
   DOCUMENT_ANALYZE: `${API_BASE_URL}/document/analyze`,
   TEXT_ANALYZE: `${API_BASE_URL}/document/analyze-text`,
   HEALTH_CHECK: `${API_BASE_URL}/document/health`,
   CHAT: `${API_BASE_URL}/chat`,
   FIR_GENERATE: `${API_BASE_URL}/generate-fir`,
+  LANGUAGE_PREF: `${API_BASE_URL}/auth/language`,
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -82,6 +86,11 @@ function formatErrorMessage(error) {
   }
 }
 
+function getStoredLanguage() {
+  const stored = localStorage.getItem("nyaySahayakLanguage") || "en";
+  return resolveLanguage(stored);
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // API FUNCTIONS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -97,7 +106,7 @@ function formatErrorMessage(error) {
  * const result = await analyzeDocument(file);
  * console.log(result.data.analysis.summary);
  */
-export async function analyzeDocument(file, onProgress = null) {
+export async function analyzeDocument(file, onProgress = null, language = null) {
   try {
     // Validate file
     if (!file) {
@@ -107,6 +116,7 @@ export async function analyzeDocument(file, onProgress = null) {
     // Prepare form data
     const formData = new FormData();
     formData.append("document", file);
+    formData.append("language", language || getStoredLanguage());
     
     // Optional: Report upload start
     if (onProgress) {
@@ -155,7 +165,7 @@ export async function analyzeDocument(file, onProgress = null) {
  * const result = await analyzeText("This is my legal document text...");
  * console.log(result.data.analysis.risks);
  */
-export async function analyzeText(text) {
+export async function analyzeText(text, language = null) {
   try {
     // Validate input
     if (!text || text.trim().length === 0) {
@@ -172,7 +182,7 @@ export async function analyzeText(text) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, language: language || getStoredLanguage() }),
     });
     
     // Handle response
@@ -226,7 +236,7 @@ export async function checkHealth() {
  * @param {string} userInput - Problem description
  * @returns {Promise<Object>} FIR draft
  */
-export async function generateFir(userInput) {
+export async function generateFir(userInput, language = null) {
   try {
     if (!userInput || !userInput.trim()) {
       throw new Error("User input cannot be empty");
@@ -237,7 +247,10 @@ export async function generateFir(userInput) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ user_input: userInput.trim() }),
+      body: JSON.stringify({
+        user_input: userInput.trim(),
+        language: language || getStoredLanguage(),
+      }),
     });
 
     return await handleResponse(response);
@@ -251,7 +264,7 @@ export async function generateFir(userInput) {
   }
 }
 
-export async function sendChatMessage(message) {
+export async function sendChatMessage(message, language = null) {
   try {
     if (!message || !message.trim()) {
       throw new Error("Message cannot be empty");
@@ -262,7 +275,10 @@ export async function sendChatMessage(message) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ message: message.trim() }),
+      body: JSON.stringify({
+        message: message.trim(),
+        language: language || getStoredLanguage(),
+      }),
     });
 
     return await handleResponse(response);
@@ -288,5 +304,26 @@ const api = {
   checkHealth,
   sendChatMessage,
 };
+
+export async function updateLanguagePreference(userId, preferredLanguage) {
+  try {
+    if (!userId) {
+      throw new Error("User ID is required");
+    }
+
+    const response = await fetch(ENDPOINTS.LANGUAGE_PREF, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ userId, preferredLanguage }),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("[API] Language preference error:", error);
+    throw error;
+  }
+}
 
 export default api;

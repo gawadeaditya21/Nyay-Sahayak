@@ -8,6 +8,7 @@ import {
   extractTextFromDocx,
 } from "../services/aiService.js";
 import { maskSensitiveData } from "../utils/dataMasking.js";
+import { ensureSupportedLanguage } from "../config/languages.js";
 
 const require = createRequire(import.meta.url);
 const pdf = require("pdf-parse");
@@ -313,6 +314,11 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
   let filePath = null;
 
   try {
+    const { language: rawLanguage } = req.body ?? {};
+    const language = ensureSupportedLanguage(rawLanguage);
+    console.log(
+      `[documentController] upload language raw="${rawLanguage}" resolved="${language}"`
+    );
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -354,6 +360,7 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
       aiAnalysis = await analyzeDocument(maskingResult.maskedText, {
         detectionText: extractedText,
         rawText: extractedText,
+        language,
       });
     } catch (error) {
       if (!isQuotaOrRateLimitError(error)) {
@@ -408,7 +415,11 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
 
 export const analyzeTextOnly = async (req, res) => {
   try {
-    const { text } = req.body ?? {};
+    const { text, language: rawLanguage } = req.body ?? {};
+    const language = ensureSupportedLanguage(rawLanguage);
+    console.log(
+      `[documentController] analyzeText language raw="${rawLanguage}" resolved="${language}"`
+    );
 
     if (!text || !text.trim()) {
       return res.status(400).json({
@@ -423,7 +434,7 @@ export const analyzeTextOnly = async (req, res) => {
     if (isLikelyUserQuery(trimmedText)) {
       let queryAnalysis;
       try {
-        queryAnalysis = await analyzeLegalQuery(trimmedText);
+        queryAnalysis = await analyzeLegalQuery(trimmedText, { language });
       } catch (error) {
         if (!isQuotaOrRateLimitError(error)) {
           throw error;
@@ -455,6 +466,7 @@ export const analyzeTextOnly = async (req, res) => {
       aiAnalysis = await analyzeDocument(maskingResult.maskedText, {
         detectionText: trimmedText,
         rawText: trimmedText,
+        language,
       });
     } catch (error) {
       if (!isQuotaOrRateLimitError(error)) {
