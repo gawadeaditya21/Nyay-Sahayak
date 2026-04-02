@@ -108,9 +108,7 @@ const LEGAL_DATASET_ALLOWED_TYPES = new Set([
   "policy",
 ]);
 const FRAUD_WARNING_MESSAGES = [
-  "This document shows signs of fraud or exploitation",
-  "Do NOT make any payment",
-  "Do NOT share personal details",
+  "This document shows strong signs of a job scam. Do NOT pay any money or share personal details.",
 ];
 const PIPELINE_DEBUG = String(process.env.PIPELINE_DEBUG || "").toLowerCase() === "true";
 const CLASSIFICATION_CONFIDENCE_THRESHOLD = Number(
@@ -131,15 +129,15 @@ const DOCUMENT_TYPE_KEYS = Object.fromEntries(
 const LAW_REFERENCE_DETAILS = {
   "Indian Railways Rules":
     "Ticket validity and travel conditions are governed by Indian Railways rules.",
-  "Indian Contract Act": "Ensures agreements are fair, lawful, and mutually accepted.",
+  "Indian Contract Act": "Ensures agreements are fair and legally valid.",
   "Indian Contract Act (Section 28)":
     "Bars clauses that restrict legal remedies or access to courts.",
-  "RERA Act": "Regulates property developer obligations and buyer protections.",
+  "RERA Act": "Protects home buyers from builder-related issues.",
   "Model Tenancy Act / State Rent Act":
     "Governs rights and obligations of landlords and tenants.",
-  "Relevant Labour Laws": "Protects employee rights and fair employment practices.",
-  "RBI Guidelines": "Protects banking customers and prohibits sharing OTP/CVV/password.",
-  "IPC 420": "Covers cheating and fraud-related offenses.",
+  "Relevant Labour Laws": "Protect employees from unfair job conditions.",
+  "RBI Guidelines": "Protects customers from unsafe banking practices and sharing OTP/CVV/password.",
+  "IPC 420": "Addresses cheating and fraud-related offenses.",
   "Consumer Protection Act": "Prevents unfair trade practices and protects consumers.",
   "Applicable Government Rules": "Requires compliance with official government notifications.",
 };
@@ -170,15 +168,21 @@ const DOCUMENT_KEYWORDS = {
   },
 };
 const RISK_PHRASE_MAP = {
-  "Cost Escalation Risk": "cost escalation",
-  "Hidden Charges Risk": "hidden charges",
-  "Legal Disadvantage Risk": "jurisdiction limitations",
-  "Cancellation Loss Risk": "cancellation deductions",
-  "Delay Without Penalty": "delay without penalty",
-  "High Penalty Clause": "high penalties",
-  "Cancellation Deduction High": "high cancellation deductions",
-  "Penalty Clause": "penalty clause",
-  "Delay Clause": "delay clauses",
+  "Cost Escalation Risk": "Cost Escalation Risk",
+  "Hidden Charges Risk": "Hidden Charges",
+  "Legal Disadvantage Risk": "Jurisdiction Limitation",
+  "Cancellation Loss Risk": "Cancellation Deduction",
+  "Delay Without Penalty": "Delay Without Penalty",
+  "High Penalty Clause": "Penalty Clause",
+  "Cancellation Deduction High": "Cancellation Deduction",
+  "Penalty Clause": "Penalty Clause",
+  "Delay Clause": "Delay Clause",
+  "Upfront Payment Scam": "Upfront Payment Demand",
+  "Upfront Payment Demand": "Upfront Payment Demand",
+  "Job Scam Indicator": "Job Scam Indicator",
+  "Personal Data Risk": "Personal Data Risk",
+  "Urgency Pressure": "Urgency Pressure",
+  "Salary Delay Risk": "Salary Uncertainty",
 };
 
 function chunkText(text, chunkSize = MAX_CHUNK_SIZE) {
@@ -258,13 +262,7 @@ function normalizeForMatching(text) {
 }
 
 function inferLanguageInstruction(text) {
-  const hasHindiScript = /[\u0900-\u097F]/.test(text);
-  const hasHinglishMarkers =
-    /\b(kya|kaise|batao|samjhao|karu|hai|rules|penalty|agreement)\b/i.test(text);
-
-  return hasHindiScript || hasHinglishMarkers
-    ? "Respond in simple Hinglish."
-    : "Respond in simple English.";
+  return "Respond in simple English.";
 }
 
 function logPipeline(step, payload) {
@@ -641,6 +639,20 @@ function detectClauseRisks(text) {
     );
   }
 
+  if (/salary\s+may\s+be\s+delayed|salary\s+payment\s+may\s+be\s+delayed|salary\s+can\s+be\s+delayed|payment\s+of\s+salary\s+may\s+be\s+delayed/i.test(normalized)) {
+    risks.push(
+      createRisk(
+        "Salary Delay Risk",
+        "Salary payment is not guaranteed.",
+        "MEDIUM",
+        extractClauseSnippet(
+          rawText,
+          /salary\s+may\s+be\s+delayed|salary\s+payment\s+may\s+be\s+delayed|salary\s+can\s+be\s+delayed|payment\s+of\s+salary\s+may\s+be\s+delayed/i
+        )
+      )
+    );
+  }
+
   const penaltyPercent = findPercentNearKeywords(rawText, ["penalty", "penalties", "charge", "charges"]);
   if (penaltyPercent != null && penaltyPercent >= 15) {
     risks.push(
@@ -691,7 +703,13 @@ function buildRiskSummaryPhrases(detectedRisks) {
 
 function buildKeyWarningFromRisks(detectedRisks, documentLabel) {
   if (!Array.isArray(detectedRisks) || detectedRisks.length === 0) {
-    return "No major risk clauses detected, but review key terms before acting.";
+    if (documentLabel && documentLabel.toLowerCase().includes("agreement")) {
+      return "This agreement appears balanced and does not contain major risks.";
+    }
+    if (documentLabel && documentLabel.toLowerCase().includes("offer")) {
+      return "This agreement appears balanced and does not contain major risks.";
+    }
+    return "No major risk clauses detected in the available text.";
   }
 
   const phrases = buildRiskSummaryPhrases(detectedRisks);
@@ -708,6 +726,9 @@ function buildKeyWarningFromRisks(detectedRisks, documentLabel) {
 
 function buildSmartExplanationFromRisks(detectedRisks, documentLabel) {
   if (!Array.isArray(detectedRisks) || detectedRisks.length === 0) {
+    if (documentLabel && documentLabel.toLowerCase().includes("agreement")) {
+      return "No strong unfair or risky clauses detected. The agreement appears balanced.";
+    }
     return "No strong one-sided or high-impact clauses were detected in the available text.";
   }
 
@@ -715,7 +736,9 @@ function buildSmartExplanationFromRisks(detectedRisks, documentLabel) {
   const subject = documentLabel && documentLabel.toLowerCase().includes("agreement")
     ? "The agreement"
     : "The document";
-  const detail = phrases.length > 0 ? `such as ${phrases.join(", ")}` : "multiple risk clauses";
+  const detail = phrases.length > 0
+    ? `multiple one-sided clauses such as ${phrases.join(", ")}`
+    : "multiple one-sided clauses";
 
   return `${subject} contains ${detail}. These indicate an imbalance of power that may reduce your protections.`;
 }
@@ -746,16 +769,116 @@ function computeConfidenceScore(rawConfidence, text, documentTypeKey) {
   return Math.round(clampNumber(score, 0, 100));
 }
 
+function isRentalContext(normalized) {
+  return /rental|lease|tenant|landlord|rent|premises|tenancy/i.test(normalized);
+}
+
+function hasRefundableDeposit(normalized) {
+  return /refundable\s+deposit|deposit\s+is\s+refundable|fully\s+refundable|refundable\s+security\s+deposit/i.test(
+    normalized
+  );
+}
+
+function hasNonRefundableDeposit(normalized) {
+  return /non[-\s]?refundable\s+deposit|deposit\s+is\s+non[-\s]?refundable|deposit\s+not\s+refundable|no\s+refund\s+of\s+deposit/i.test(
+    normalized
+  );
+}
+
+function hasAdvancePaymentBeforeService(normalized) {
+  return (
+    /advance\s+payment\s+(?:before|prior)\s+(?:service|joining|delivery|work|activation|possession)/i.test(
+      normalized
+    ) ||
+    /pay(?:ment)?\s+before\s+(?:service|joining|delivery|work|activation|possession)/i.test(normalized)
+  );
+}
+
+function hasUpfrontFeeDemand(normalized) {
+  return /(registration\s+fee|processing\s+fee|training\s+fee|pay\s+to\s+join|fee\s+to\s+join)/i.test(
+    normalized
+  );
+}
+
+function getDepositRiskLevel(normalized) {
+  const hasDeposit = /deposit|security\s+deposit|advance\s+payment|booking\s+amount/i.test(normalized);
+  if (!hasDeposit && !hasAdvancePaymentBeforeService(normalized)) {
+    return "NONE";
+  }
+
+  if (hasNonRefundableDeposit(normalized) || hasAdvancePaymentBeforeService(normalized)) {
+    return "HIGH";
+  }
+
+  if (hasRefundableDeposit(normalized) && isRentalContext(normalized)) {
+    return "NONE";
+  }
+
+  return "NONE";
+}
+
+function hasUpfrontPaymentRisk(normalized) {
+  return getDepositRiskLevel(normalized) === "HIGH" || hasUpfrontFeeDemand(normalized);
+}
+
+function detectFraudIndicators(normalized) {
+  const upfrontPayment = hasUpfrontPaymentRisk(normalized);
+  const urgency = /within\s+24\s+hours|within\s+24\s*h|urgent|immediately|limited\s+time/i.test(
+    normalized
+  );
+  const personalData =
+    /aadhaar|pan\s*card|bank\s*details|otp|cvv|password|upi\s*pin|account\s*details/i.test(
+      normalized
+    );
+  const unrealistic =
+    /guaranteed\s+job|assured\s+job|too\s+good\s+to\s+be\s+true|no\s+experience\s+required|high\s+salary\s+without\s+experience|guaranteed\s+income|double\s+your\s+money|instant\s+joining/i.test(
+      normalized
+    );
+
+  return {
+    upfrontPayment,
+    urgency,
+    personalData,
+    unrealistic,
+  };
+}
+
+function isFraudLikely(indicators) {
+  return Boolean(
+    indicators.upfrontPayment || indicators.urgency || indicators.personalData || indicators.unrealistic
+  );
+}
+
+function detectBalancedAgreementSignals(normalized) {
+  const equalRights = /(both\s+parties|either\s+party|mutual|equal\s+rights)/i.test(normalized);
+  const equalNotice =
+    /notice\s+period\s+of\s+\d+\s+days?\s+for\s+both\s+parties|either\s+party\s+may\s+terminate\s+with\s+\d+\s+days?\s+notice|mutual\s+notice\s+period|same\s+notice\s+period\s+for\s+both\s+parties/i.test(
+      normalized
+    );
+  const noHiddenCharges = /(no\s+hidden\s+charges|no\s+extra\s+charges|no\s+additional\s+charges)/i.test(
+    normalized
+  );
+  const balancedResponsibilities = /(responsibilities\s+of\s+both\s+parties|each\s+party\s+is\s+responsible|mutual\s+obligations|shared\s+responsibilities)/i.test(
+    normalized
+  );
+
+  return equalRights && equalNotice && noHiddenCharges && balancedResponsibilities;
+}
+
 function detectHybridHints(text) {
   const raw = String(text || "");
   const normalized = raw.toLowerCase();
   const hasCurrency = /(₹|rs\.?|inr)/i.test(raw);
-  const hasDeposit = /deposit|advance payment|security deposit|refundable deposit/i.test(normalized);
+  const hasDeposit = /deposit|advance\s+payment|security\s+deposit|refundable\s+deposit|booking\s+amount/i.test(
+    normalized
+  );
   const legalHint = /agreement|clause|section|contract/i.test(normalized);
+  const depositRiskLevel = getDepositRiskLevel(normalized);
 
   return {
     financialDeposit: hasCurrency && hasDeposit,
     legalHint,
+    depositRiskLevel,
   };
 }
 
@@ -2039,10 +2162,16 @@ function resolveFinalDecision(documentType, classification, riskLevel) {
   }
 
   if (isSignableDocument(documentType)) {
-    return classification === "UNFAIR" || riskLevel !== "LOW" ? "REVIEW_CAUTION" : "SAFE_TO_SIGN";
+    if (classification === "UNFAIR") {
+      return "REVIEW_CAUTION";
+    }
+    if (classification === "NORMAL") {
+      return "SAFE_TO_USE";
+    }
+    return "REVIEW_CAUTION";
   }
 
-  return "REVIEW_CAUTION";
+  return classification === "NORMAL" ? "SAFE_TO_USE" : "REVIEW_CAUTION";
 }
 
 function resolveShouldUserSign(finalDecision) {
@@ -2062,11 +2191,9 @@ function resolveShouldUserSign(finalDecision) {
 function buildGuidance(documentType, classification, riskLevel) {
   if (classification === "FRAUD") {
     return [
-      "DO NOT SIGN THIS DOCUMENT",
-      "Do NOT make payment.",
+      "Do NOT pay any money before joining.",
       "Do NOT share personal details.",
-      "Verify the other party independently before any action.",
-      "Consult a legal expert immediately.",
+      "Verify company authenticity from official sources.",
     ];
   }
 
@@ -2098,6 +2225,14 @@ function buildGuidance(documentType, classification, riskLevel) {
   }
 
   if (isSignableDocument(documentType)) {
+    if (classification === "NORMAL") {
+      return [
+        "Ensure details (rent, deposit, duration) are correct.",
+        "Keep a signed copy safely.",
+        "Follow the agreed terms.",
+      ];
+    }
+
     return [
       "Verify parties, dates, and payment schedule before signing.",
       "Check termination, penalty, and refund clauses for one-sided terms.",
@@ -2144,16 +2279,18 @@ function detectFraudSignals(text, documentType) {
 
   const signalRules = [
     {
-      type: "Advance Payment Demand",
+      type: "Upfront Payment Demand",
       description: "Payment or deposit is demanded before service, joining, or benefit is provided.",
       impact: "User may lose money before receiving any legitimate service or job security.",
       patterns: [
-        /pay(?:ment)?\s+(?:before|prior)/i,
-        /security deposit/i,
-        /registration fee/i,
-        /advance payment/i,
-        /processing fee/i,
-        /pay.*to join/i,
+        /pay(?:ment)?\s+before\s+(?:service|joining|delivery|work|activation|possession)/i,
+        /advance\s+payment\s+(?:before|prior)\s+(?:service|joining|delivery|work|activation|possession)/i,
+        /non[-\s]?refundable\s+deposit/i,
+        /deposit\s+is\s+non[-\s]?refundable/i,
+        /registration\s+fee/i,
+        /processing\s+fee/i,
+        /training\s+fee/i,
+        /pay.*to\s+join/i,
       ],
       onlyFor: ["offer_letter", "legal", "unknown"],
     },
@@ -2165,11 +2302,26 @@ function detectFraudSignals(text, documentType) {
       onlyFor: ["offer_letter", "bank_financial", "legal", "unknown"],
     },
     {
-      type: "Sensitive Data Requested Early",
+      type: "Personal Data Risk",
       description: "Sensitive identity or financial details are requested too early in the process.",
       impact: "User may face identity theft or fraud.",
       patterns: [/aadhaar/i, /pan card/i, /bank details/i, /otp/i, /cvv/i, /password/i],
       onlyFor: ["offer_letter", "bank_financial", "legal", "unknown"],
+    },
+    {
+      type: "Job Scam Indicator",
+      description: "Unrealistic promises or guarantees are used to lure the user.",
+      impact: "Unrealistic claims are common in job scams and fake offers.",
+      patterns: [
+        /guaranteed\s+job/i,
+        /assured\s+job/i,
+        /no\s+experience\s+required/i,
+        /too\s+good\s+to\s+be\s+true/i,
+        /guaranteed\s+income/i,
+        /high\s+salary\s+without\s+experience/i,
+        /instant\s+joining/i,
+      ],
+      onlyFor: ["offer_letter", "legal", "unknown"],
     },
     {
       type: "Possible Banking Phishing Pattern",
@@ -2207,6 +2359,14 @@ function detectUnfairRiskSignals(text, documentType) {
       impact: "May cause direct financial loss or additional charges.",
       patterns: [/cancellation\s*charge/i, /penalt(?:y|ies)/i, /liable to pay/i, /fine of/i, /forfeit/i],
       onlyFor: ["legal", "property_document", "rental_agreement", "offer_letter"],
+      severity: "MEDIUM",
+    },
+    {
+      type: "Cost Escalation Risk",
+      description: "The agreement allows costs to increase after signing.",
+      impact: "User may face higher costs than originally agreed.",
+      patterns: [/increase\s+cost/i, /final\s+cost\s+may\s+increase/i, /price\s+increase/i, /cost\s+increase/i, /escalation/i],
+      onlyFor: ["legal", "property_document", "rental_agreement"],
       severity: "MEDIUM",
     },
     {
@@ -2285,36 +2445,36 @@ function buildLawReference(
     laws.push("IPC 420");
     laws.push("RBI / Cyber Fraud Guidelines");
     simpleExplanation =
-      "Fraud classification activates anti-cheating and cyber-fraud legal protections.";
+      "IPC 420 addresses cheating and fraud, while cyber fraud guidelines protect users from scams and unsafe payment requests.";
   } else if (documentType === "property_document" || documentType === "rental_agreement") {
     if (documentType === "property_document") {
       laws.push("RERA Act");
       laws.push("Indian Contract Act");
       simpleExplanation =
-        "Property agreements are governed by RERA and contract law. Review cost escalations, possession timelines, and dispute resolution clauses carefully.";
+        "RERA Act protects home buyers from builder-related issues, and the Indian Contract Act ensures agreements are fair and legally valid.";
     } else {
       laws.push("Model Tenancy Act / State Rent Act");
       laws.push("Indian Contract Act");
       simpleExplanation =
-        "Rental agreements are governed by tenancy laws and contract law. Review rent escalation, notice periods, and penalty clauses carefully.";
+        "Tenancy laws protect landlord-tenant rights, and the Indian Contract Act ensures agreements are fair and legally valid.";
     }
   } else if (documentType === "legal") {
     laws.push("Indian Contract Act");
     simpleExplanation =
-      "General agreements are governed by contract law; review unfair or one-sided clauses before signing.";
+      "The Indian Contract Act ensures agreements are fair and legally valid.";
   } else if (documentType === "offer_letter") {
     laws.push("Indian Contract Act");
     laws.push("Relevant Labour Laws");
     simpleExplanation =
-      "Job offers should have clear and fair terms. Payment-before-joining demands can be a serious red flag.";
+      "The Indian Contract Act ensures agreements are fair and legally valid, while labour laws protect employees from unfair job conditions.";
   } else if (documentType === "bank_financial") {
     laws.push("RBI Guidelines");
     simpleExplanation =
-      "Banks and financial entities should not ask for OTP, CVV, or passwords for verification in normal processing.";
+      "RBI guidelines protect customers from unsafe banking practices and sharing OTP/CVV/password.";
   } else if (documentType === "policy") {
     laws.push("Consumer Protection Act");
     simpleExplanation =
-      "Policy and rules documents should use fair terms and should not hide unfair burdens on the user.";
+      "Consumer Protection Act prevents unfair trade practices and protects consumers.";
   } else if (documentType === "ticket") {
     laws.push("Indian Railways Rules");
     simpleExplanation =
@@ -2374,6 +2534,14 @@ function applyDecisionPolicy(structured, documentType, documentText) {
   const suspiciousClauses = normalizeSuspiciousClauses(
     structured.suspicious_clauses || structured.hidden_conditions || structured.penalties
   );
+  const fraudWarning =
+    "This document shows strong signs of a job scam. Do NOT pay any money or share personal details.";
+  const unfairWarning = "This document contains one-sided clauses that may disadvantage you.";
+  const safeWarning = "This agreement appears balanced and does not contain major risks.";
+  const fraudIndicators = detectFraudIndicators(normalizeForMatching(documentText));
+  const fraudLikely =
+    isFraudLikely(fraudIndicators) ||
+    (fraudIndicators.urgency && fraudIndicators.personalData && fraudIndicators.unrealistic);
 
   for (const signal of fraudSignals) {
     risks.push(signal);
@@ -2388,7 +2556,7 @@ function applyDecisionPolicy(structured, documentType, documentText) {
     risks.push(impact);
   }
 
-  const hasFraudSignals = fraudSignals.length > 0;
+  const hasFraudSignals = fraudSignals.length > 0 || fraudLikely;
   const hasIllegalSignals = illegalSignals.length > 0 || illegalFlags.length > 0;
   const isContractType = ["legal", "property_document", "rental_agreement"].includes(policyDocumentType);
   const isTicketType = policyDocumentType === "ticket";
@@ -2408,11 +2576,7 @@ function applyDecisionPolicy(structured, documentType, documentText) {
   const negativeScore = negativeSignals.reduce((sum, item) => sum + item.weight, 0);
   const positiveScore = positiveSignals.length;
   const balanceScore = positiveScore - negativeScore;
-  const hasStrongFraudSignals = negativeSignals.some((signal) =>
-    ["Payment requested before joining", "Urgency pressure to act quickly", "Sensitive data requested"].includes(
-      signal.label
-    )
-  );
+  const hasStrongFraudSignals = fraudLikely;
 
   if (hasIllegalSignals) {
     classification = "ILLEGAL";
@@ -2434,41 +2598,30 @@ function applyDecisionPolicy(structured, documentType, documentText) {
       (item) =>
         !/this document shows signs of fraud|do not make payment|do not share personal details/i.test(item)
     );
-  } else if (isContractType) {
-    // ⚠️  HARD OVERRIDE: Property/Legal/Rental agreements are NEVER classified as FRAUD
-    console.log(`[applyDecisionPolicy] ⚠️  HARD OVERRIDE: ${documentType} contract detected - FORCING UNFAIR (never FRAUD)`);
-    classification = "UNFAIR";
-    // Contract/property agreements can be high-risk but are still UNFAIR (not FRAUD).
-    riskLevel = currentRiskLevel === "LOW" ? "MEDIUM" : currentRiskLevel;
-    reasonForDecision =
-      "This is a contract agreement with one-sided or high-penalty terms that require careful review before signing.";
-    if (!lawyerSuggestion) {
-      lawyerSuggestion = "Consult a legal expert before taking any action";
-    }
-    warnings.push("This agreement contains terms that heavily favor one party.");
   } else if (hasFraudSignals) {
     classification = "FRAUD";
     riskLevel = "HIGH";
     reasonForDecision =
-      "Fraud or exploitation signals were detected, including risky payment, pressure, penalty, or sensitive-data patterns.";
+      "This is a HIGH-RISK document with multiple fraud indicators such as upfront payment demand, urgency pressure, and lack of job security.";
     lawyerSuggestion = "Consult a legal expert before taking any action";
-    warnings.push(...FRAUD_WARNING_MESSAGES);
+    warnings = [fraudWarning, ...warnings];
   } else if (riskLevel === "HIGH") {
     classification = "UNFAIR";
     if (!lawyerSuggestion) {
       lawyerSuggestion = "Consult a legal expert before taking any action";
     }
-    warnings.push("This document contains strong one-sided or harmful terms");
+    warnings = [unfairWarning, ...warnings];
   } else if (riskLevel === "MEDIUM") {
     classification = "UNFAIR";
     lawyerSuggestion = lawyerSuggestion || "";
+    warnings = warnings.length > 0 ? warnings : [unfairWarning];
   } else {
     classification = "NORMAL";
     lawyerSuggestion = "";
   }
 
   if (policyDocumentType === "offer_letter" && !hasIllegalSignals) {
-    if (negativeScore >= 3 && hasStrongFraudSignals) {
+    if (hasStrongFraudSignals) {
       classification = "FRAUD";
       riskLevel = "HIGH";
     } else if (balanceScore >= 2) {
@@ -2508,25 +2661,82 @@ function applyDecisionPolicy(structured, documentType, documentText) {
     }
   }
 
+  if (classification === "UNFAIR") {
+    reasonForDecision =
+      "The agreement contains multiple one-sided clauses such as penalty, delay, hidden charges, or cost escalation.";
+  }
+
   finalDecision = resolveFinalDecision(policyDocumentType, classification, riskLevel);
   shouldUserSign = resolveShouldUserSign(finalDecision);
 
   if (classification !== "FRAUD") {
     warnings = warnings.filter(
       (item) =>
-        !/this document shows signs of fraud|do not make payment|do not share personal details/i.test(item)
+        !/this document shows (strong )?signs of (a job scam|a scam|fraud)|do not make payment|do not share personal details/i.test(
+          item
+        )
     );
+  }
+
+  if (classification === "NORMAL" && isSignableDocument(policyDocumentType)) {
+    warnings = warnings.length > 0 ? warnings : [safeWarning];
+    reasonForDecision = "No strong unfair or risky clauses detected. The agreement appears balanced.";
+  }
+
+  if (classification === "NORMAL" && warnings.length === 0) {
+    warnings = [safeWarning];
   }
 
   const cleanedRisks = filterContradictions(risks, positiveSignals, documentText);
   const specificRisks = filterGroundedRisks(dedupeRisks(cleanedRisks), documentText)
     .filter((risk) => isRiskSpecific(risk));
-  const topRisks = (
+  let topRisks = (
     specificRisks.length > 0
       ? specificRisks
       : filterGroundedRisks(dedupeRisks(cleanedRisks), documentText)
   )
     .slice(0, 5);
+  if (classification === "FRAUD") {
+    const requiredTopRisks = [
+      {
+        type: "Upfront Payment Demand",
+        description: "Payment or deposit is demanded before service or joining.",
+        impact: "User may lose money before receiving any legitimate service or job security.",
+      },
+      {
+        type: "Job Scam Indicator",
+        description: "Unrealistic promises or guarantees are used to lure the user.",
+        impact: "Unrealistic claims are common in job scams and fake offers.",
+      },
+      {
+        type: "Personal Data Risk",
+        description: "Sensitive personal or financial details are requested early.",
+        impact: "User may face identity theft or fraud.",
+      },
+      {
+        type: "Urgency Pressure",
+        description: "Document pressures the user to act within a very short deadline.",
+        impact: "Urgency can be used to stop the user from reading terms properly.",
+      },
+    ];
+    const existingTopRisks = topRisks.filter(
+      (risk) => !requiredTopRisks.some((required) => required.type === risk.type)
+    );
+    topRisks = dedupeRisks([...requiredTopRisks, ...existingTopRisks]).slice(0, 5);
+    const hasUpfrontRisk = cleanedRisks.some(
+      (risk) => String(risk?.type || "").toLowerCase().includes("upfront payment")
+    );
+    if (!hasUpfrontRisk) {
+      cleanedRisks.push(
+        createRisk(
+          "Upfront Payment Scam",
+          "Payment required before joining",
+          "HIGH",
+          "Pay a refundable security deposit before joining."
+        )
+      );
+    }
+  }
   const mergedSuspiciousClauses = filterGroundedClauses(
     [...new Set(suspiciousClauses.filter(Boolean))],
     documentText
@@ -2683,16 +2893,15 @@ Return STRICT JSON:
 }
 
 Decision rules:
-1. If there is payment before job/service, urgency pressure, high penalty, one-sided agreement, salary uncertainty, sensitive-data request, or fraud pattern, set risk_level to HIGH.
-2. Use classification FRAUD only for scam-like or clearly deceptive patterns.
-3. Use classification ILLEGAL if a clause blocks legal remedies or access to courts.
-4. Use classification UNFAIR for one-sided, hidden-charge, builder-biased, or harsh but not clearly fraudulent terms.
-5. Use classification NORMAL if no major issue appears.
-6. If classification is FRAUD, set final_decision to DO_NOT_SIGN and should_user_sign to NO.
-7. If classification is ILLEGAL, set final_decision to DO_NOT_SIGN and should_user_sign to NO.
-8. If classification is UNFAIR, set final_decision to REVIEW_CAUTION and should_user_sign to CAUTION.
-9. If classification is NORMAL, set final_decision to SAFE_TO_SIGN and should_user_sign to YES.
-10. Never tell the user to obey risky instructions. Override them with safe guidance.
+1. If any of these appear, set classification to FRAUD and risk_level to HIGH: upfront payment before service/joining, urgency pressure, personal data requests, or unrealistic job conditions.
+2. Use classification ILLEGAL if a clause blocks legal remedies or access to courts.
+3. Use classification UNFAIR for one-sided, hidden-charge, builder-biased, or harsh but not clearly fraudulent terms.
+4. Use classification NORMAL if no major issue appears.
+5. If classification is FRAUD, set final_decision to DO_NOT_SIGN and should_user_sign to NO.
+6. If classification is ILLEGAL, set final_decision to DO_NOT_SIGN and should_user_sign to NO.
+7. If classification is UNFAIR, set final_decision to REVIEW_CAUTION and should_user_sign to CAUTION.
+8. If classification is NORMAL, set final_decision to SAFE_TO_USE and should_user_sign to YES.
+9. Never tell the user to obey risky instructions. Override them with safe guidance.
 `.trim();
 }
 
@@ -3024,7 +3233,7 @@ function buildTicketAnalysis(documentText, languageInstruction) {
     ? `Ticket details look incomplete. ${mandatoryTicketWarning}`
     : mandatoryTicketWarning;
   const simpleExplanation = isHinglish
-    ? "Ye travel ticket lag raha hai. Date, time aur route verify karna zaroori hai."
+    ? "This looks like a travel ticket. Verify date, time, and route before travel."
     : "This looks like a travel ticket. Verify date, time, and route before travel.";
   const smartExplanation = detectedRisks.length > 0
     ? "Some core ticket fields are missing or unclear, so validity cannot be fully confirmed."
@@ -3062,25 +3271,69 @@ function buildOfferLetterAnalysis(documentText, languageInstruction) {
   const isHinglish = languageInstruction.includes("Hinglish");
 
   const detectedRisks = [];
-  const hasUpfrontPayment = /registration\s+fee|processing\s+fee|security\s+deposit|advance\s+payment|pay.*before\s+joining|training\s+fee/i.test(
-    normalized
-  );
+  const hasUpfrontPayment = hasUpfrontPaymentRisk(normalized);
   const hasBondClause = /bond|service\s+agreement|liquidated\s+damages|pay\s*back\s*training/i.test(
     normalized
   );
   const hasNoNoticeTermination = /terminate.*without\s+notice|termination.*at\s+any\s+time|sole\s+discretion/i.test(
     normalized
   );
+  const hasSalaryDelay = /salary\s+may\s+be\s+delayed|salary\s+payment\s+may\s+be\s+delayed|salary\s+can\s+be\s+delayed|payment\s+of\s+salary\s+may\s+be\s+delayed/i.test(
+    normalized
+  );
+  const fraudIndicators = detectFraudIndicators(normalized);
+  const hasUrgency = fraudIndicators.urgency;
+  const hasPersonalDataRequest = fraudIndicators.personalData;
+  const hasUnrealisticPromise = fraudIndicators.unrealistic;
+  const fraudLikely =
+    isFraudLikely(fraudIndicators) ||
+    (fraudIndicators.urgency && fraudIndicators.personalData && fraudIndicators.unrealistic);
 
   if (hasUpfrontPayment) {
     detectedRisks.push(
       createRisk(
-        "Upfront Payment Demand",
+        "Upfront Payment Scam",
         "Detected payment-before-joining terms (fee/deposit).",
         "HIGH",
         extractClauseSnippet(
           rawText,
-          /registration\s+fee|processing\s+fee|security\s+deposit|advance\s+payment|pay.*before\s+joining|training\s+fee/i
+          /registration\s+fee|processing\s+fee|training\s+fee|non[-\s]?refundable\s+deposit|deposit\s+is\s+non[-\s]?refundable|pay.*before\s+(?:service|joining|delivery|work|activation|possession)|advance\s+payment\s+(?:before|prior)\s+(?:service|joining|delivery|work|activation|possession)/i
+        )
+      )
+    );
+  }
+
+  if (hasUrgency) {
+    detectedRisks.push(
+      createRisk(
+        "Urgency Pressure",
+        "Urgent action is demanded in a short time window.",
+        "MEDIUM",
+        extractClauseSnippet(rawText, /within\s+24\s+hours|urgent|immediately|limited time/i)
+      )
+    );
+  }
+
+  if (hasPersonalDataRequest) {
+    detectedRisks.push(
+      createRisk(
+        "Personal Data Risk",
+        "Sensitive personal or financial details are requested early.",
+        "HIGH",
+        extractClauseSnippet(rawText, /aadhaar|pan\s*card|bank\s*details|otp|cvv|password|upi\s*pin/i)
+      )
+    );
+  }
+
+  if (hasUnrealisticPromise) {
+    detectedRisks.push(
+      createRisk(
+        "Job Scam Indicator",
+        "Unrealistic or guaranteed job promises are mentioned.",
+        "HIGH",
+        extractClauseSnippet(
+          rawText,
+          /guaranteed\s+job|assured\s+job|no\s+experience\s+required|too\s+good\s+to\s+be\s+true|guaranteed\s+income|high\s+salary\s+without\s+experience|instant\s+joining/i
         )
       )
     );
@@ -3114,30 +3367,68 @@ function buildOfferLetterAnalysis(documentText, languageInstruction) {
     );
   }
 
+  if (hasSalaryDelay) {
+    detectedRisks.push(
+      createRisk(
+        "Salary Delay Risk",
+        "Salary payment is not guaranteed.",
+        "MEDIUM",
+        extractClauseSnippet(
+          rawText,
+          /salary\s+may\s+be\s+delayed|salary\s+payment\s+may\s+be\s+delayed|salary\s+can\s+be\s+delayed|payment\s+of\s+salary\s+may\s+be\s+delayed/i
+        )
+      )
+    );
+  }
+
   let riskLevel = "LOW";
   let classification = "NORMAL";
-  if (hasUpfrontPayment) {
+  if (fraudLikely) {
     riskLevel = "HIGH";
     classification = "FRAUD";
-  } else if (hasBondClause || hasNoNoticeTermination) {
+  } else if (hasBondClause || hasNoNoticeTermination || hasSalaryDelay) {
     riskLevel = "MEDIUM";
     classification = "UNFAIR";
   }
 
-  const decision = decisionFromRisk(riskLevel);
-  const keyWarning = hasUpfrontPayment
-    ? "Payment before joining is a strong fraud indicator."
-    : hasBondClause || hasNoNoticeTermination
-    ? "Offer has restrictive clauses that need review."
-    : "Offer letter looks standard, but verify employer details.";
-  const simpleExplanation = isHinglish
-    ? "Offer letter mein risky clauses ho sakte hain. Payment demand ya bond par dhyan dein."
-    : "Check the offer for payment demands, bonds, or one-sided termination terms.";
-  const smartExplanation = hasUpfrontPayment
-    ? "Upfront payment is a high-risk fraud signal in job offers."
-    : detectedRisks.length > 0
-    ? "Contract clauses may be one-sided or create penalties."
-    : "No major fraud or penalty signals detected in the offer text.";
+  const decision =
+    classification === "FRAUD"
+      ? "DO_NOT_SIGN"
+      : classification === "UNFAIR"
+      ? "REVIEW_CAUTION"
+      : "SAFE_TO_USE";
+  const keyWarning =
+    classification === "FRAUD"
+      ? "This document shows strong signs of a job scam. Do NOT pay any money or share personal details."
+      : classification === "NORMAL"
+      ? "This agreement appears balanced and does not contain major risks."
+      : "This document contains one-sided clauses that may disadvantage you.";
+  const simpleExplanation = "Check the offer for payment demands, bonds, or one-sided termination terms.";
+  const smartExplanation =
+    classification === "FRAUD"
+      ? "This is a HIGH-RISK document with multiple fraud indicators such as upfront payment demand, urgency pressure, and lack of job security."
+      : classification === "NORMAL"
+      ? "No strong unfair or risky clauses detected. The agreement appears balanced."
+      : detectedRisks.length > 0
+      ? "The document contains multiple one-sided clauses such as penalties, termination limits, or salary uncertainty."
+      : "No major fraud or penalty signals detected in the offer text.";
+
+  const safeActions = [
+    "Ensure offer details (role, salary, start date) are correct.",
+    "Keep a signed copy safely.",
+    "Follow the agreed terms and notice period.",
+  ];
+  const fraudActions = [
+    "Do NOT pay any money before joining.",
+    "Do NOT share personal details.",
+    "Verify company authenticity from official sources.",
+  ];
+  const cautionActions = [
+    "Verify employer identity and official email domain.",
+    "Avoid paying any fee before joining.",
+    "Ask for clear notice period and termination terms.",
+    "Get written clarification on bond or penalty clauses.",
+  ];
 
   return {
     document_type: "Offer Letter",
@@ -3148,12 +3439,12 @@ function buildOfferLetterAnalysis(documentText, languageInstruction) {
     simple_explanation: simpleExplanation,
     smart_explanation: smartExplanation,
     detected_risks: detectedRisks,
-    what_user_should_do: [
-      "Verify employer identity and official email domain.",
-      "Avoid paying any fee before joining.",
-      "Ask for clear notice period and termination terms.",
-      "Get written clarification on bond or penalty clauses.",
-    ],
+    what_user_should_do:
+      classification === "FRAUD"
+        ? fraudActions
+        : classification === "NORMAL"
+        ? safeActions
+        : cautionActions,
     law_reference: buildLawReferenceObjects(
       ["Indian Contract Act", "Relevant Labour Laws"],
       "Offer letters are contracts. Review unfair or payment-before-joining terms under contract and labour law."
@@ -3226,6 +3517,7 @@ function buildLegalAgreementAnalysis(documentText, languageInstruction) {
   const clauseRisks = detectClauseRisks(rawText);
   detectedRisks.push(...clauseRisks);
   const mergedRisks = dedupeDetectedRisks(detectedRisks);
+  const balancedAgreement = detectBalancedAgreementSignals(normalized);
 
   const propertyKeywords = /builder|developer|rera|possession|allotment|flat|plot|sale\s+deed/i.test(
     normalized
@@ -3237,18 +3529,42 @@ function buildLegalAgreementAnalysis(documentText, languageInstruction) {
   if (illegalClauseFound) {
     riskLevel = "HIGH";
     classification = "ILLEGAL";
+  } else if (balancedAgreement && mergedRisks.length === 0) {
+    riskLevel = "LOW";
+    classification = "NORMAL";
   }
 
-  const decision = illegalClauseFound ? "DO_NOT_SIGN" : decisionFromRisk(riskLevel);
-  const keyWarning = illegalClauseFound
-    ? "Agreement restricts legal remedies. Do not sign without legal review."
-    : buildKeyWarningFromRisks(mergedRisks, "Legal Agreement");
-  const simpleExplanation = isHinglish
-    ? "Ye legal agreement hai. Kuch clauses one-sided ya risky ho sakte hain."
-    : "This is a legal agreement. Some clauses may be one-sided or risky.";
-  const smartExplanation = illegalClauseFound
-    ? "Clauses restricting court access can be unenforceable under Indian Contract Act Section 28."
-    : buildSmartExplanationFromRisks(mergedRisks, "Legal Agreement");
+  const decision =
+    classification === "ILLEGAL"
+      ? "DO_NOT_SIGN"
+      : classification === "UNFAIR"
+      ? "REVIEW_CAUTION"
+      : "SAFE_TO_USE";
+  const keyWarning =
+    classification === "ILLEGAL"
+      ? "Agreement restricts legal remedies. Do not sign without legal review."
+      : classification === "NORMAL"
+      ? "This agreement appears balanced and does not contain major risks."
+      : "This document contains one-sided clauses that may disadvantage you.";
+  const simpleExplanation = "This is a legal agreement. Some clauses may be one-sided or risky.";
+  const smartExplanation =
+    classification === "ILLEGAL"
+      ? "Clauses restricting court access can be unenforceable under Indian Contract Act Section 28."
+      : classification === "NORMAL"
+      ? "No strong unfair or risky clauses detected. The agreement appears balanced."
+      : buildSmartExplanationFromRisks(mergedRisks, "Legal Agreement");
+
+  const safeActions = [
+    "Ensure details (rent, deposit, duration) are correct.",
+    "Keep a signed copy safely.",
+    "Follow the agreed terms.",
+  ];
+  const cautionActions = [
+    "Review penalty, termination, and escalation clauses closely.",
+    "Ask for clarifications on timelines and responsibilities.",
+    "Negotiate one-sided terms if possible.",
+    "Consult a legal expert before signing if risk is medium/high.",
+  ];
 
   const lawReference = ["Indian Contract Act"];
   if (propertyKeywords) {
@@ -3264,12 +3580,7 @@ function buildLegalAgreementAnalysis(documentText, languageInstruction) {
     simple_explanation: simpleExplanation,
     smart_explanation: smartExplanation,
     detected_risks: mergedRisks,
-    what_user_should_do: [
-      "Review penalty, termination, and escalation clauses closely.",
-      "Ask for clarifications on timelines and responsibilities.",
-      "Negotiate one-sided terms if possible.",
-      "Consult a legal expert before signing if risk is medium/high.",
-    ],
+    what_user_should_do: classification === "NORMAL" ? safeActions : cautionActions,
     law_reference: buildLawReferenceObjects(
       lawReference,
       "Legal agreements are governed by contract law; property agreements can also fall under RERA."
@@ -3289,7 +3600,7 @@ function buildIdentityDocumentAnalysis(documentText, languageInstruction) {
     classification: "NORMAL",
     key_warning: "Do not share ID numbers or OTPs unnecessarily.",
     simple_explanation: isHinglish
-      ? "Ye identity document lag raha hai. Sirf trusted jagah par share karein."
+      ? "This appears to be an identity document. Share it only with trusted parties."
       : "This appears to be an identity document. Share it only with trusted parties.",
     smart_explanation:
       "Identity documents should be protected from unauthorized sharing or OTP requests.",
@@ -3312,7 +3623,7 @@ function buildFinancialDocumentAnalysis(documentText, languageInstruction) {
   if (/otp|cvv|password|upi\s*pin/i.test(normalized)) {
     detectedRisks.push(
       createRisk(
-        "Sensitive Data Request",
+        "Personal Data Risk",
         "Document asks for OTP/CVV/password or UPI PIN.",
         "HIGH",
         extractClauseSnippet(String(documentText || ""), /otp|cvv|password|upi\s*pin/i)
@@ -3320,33 +3631,44 @@ function buildFinancialDocumentAnalysis(documentText, languageInstruction) {
     );
   }
 
-  if (/deposit|advance\s+payment|security\s+deposit/i.test(normalized) && /(₹|rs\.?|inr)/i.test(documentText)) {
+  const depositRiskLevel = getDepositRiskLevel(normalized);
+  if (depositRiskLevel === "HIGH") {
     detectedRisks.push(
       createRisk(
-        "Deposit Mentioned",
-        "A deposit or upfront payment is mentioned.",
-        "MEDIUM",
-        extractClauseSnippet(String(documentText || ""), /deposit|advance\s+payment|security\s+deposit/i)
+        "Advance Payment Demand",
+        "Non-refundable or advance payment required before service.",
+        "HIGH",
+        extractClauseSnippet(
+          String(documentText || ""),
+          /non[-\s]?refundable\s+deposit|deposit\s+is\s+non[-\s]?refundable|pay.*before\s+(?:service|joining|delivery|work|activation|possession)|advance\s+payment\s+(?:before|prior)\s+(?:service|joining|delivery|work|activation|possession)/i
+        )
       )
     );
   }
 
-  const riskLevel = detectedRisks.length > 0 ? (detectedRisks.length > 1 ? "HIGH" : "MEDIUM") : "LOW";
-  const hasSensitiveDataRisk = detectedRisks.some((risk) => /Sensitive Data Request/i.test(risk.type));
+  const hasHighRisk = detectedRisks.some((risk) => risk.level === "HIGH");
+  const riskLevel = hasHighRisk ? "HIGH" : detectedRisks.length > 0 ? "MEDIUM" : "LOW";
+  const hasSensitiveDataRisk = detectedRisks.some((risk) => /Personal Data Risk/i.test(risk.type));
   const classification = hasSensitiveDataRisk
     ? "FRAUD"
     : detectedRisks.length > 0
     ? "UNFAIR"
     : "NORMAL";
   const decision = decisionFromRisk(riskLevel);
-  const keyWarning = detectedRisks.length > 0
-    ? "Financial document contains payment or sensitive data risks."
-    : "Verify bank or financial details before action.";
+  const keyWarning =
+    classification === "FRAUD"
+      ? "This document shows strong signs of a job scam. Do NOT pay any money or share personal details."
+      : detectedRisks.length > 0
+      ? "Financial document contains payment or sensitive data risks."
+      : "Verify bank or financial details before action.";
   const simpleExplanation = isHinglish
-    ? "Ye financial document lag raha hai. Payment aur OTP jaisi cheezein share na karein."
+    ? "This looks like a financial document. Do not share OTPs or sensitive details."
     : "This looks like a financial document. Do not share OTPs or sensitive details.";
-  const smartExplanation = detectedRisks.length > 0
-    ? "Sensitive data requests or deposit mentions raise fraud risk in financial documents."
+  const hasDepositRisk = depositRiskLevel === "HIGH";
+  const smartExplanation = hasSensitiveDataRisk
+    ? "Sensitive data requests are a high-risk fraud signal in financial documents."
+    : hasDepositRisk
+    ? "Advance payment before service is a high-risk fraud indicator in financial documents."
     : "No strong fraud signals detected, but verify bank details independently.";
 
   return {
@@ -3382,7 +3704,7 @@ function buildOtherDocumentAnalysis(languageInstruction) {
     classification: "NORMAL",
     key_warning: "This document appears informational, not a legal or actionable document.",
     simple_explanation: isHinglish
-      ? "Ye document legal/actionable nahi lagta. Ye informational lagta hai."
+      ? "This document is not a legal or actionable document. It appears informational."
       : "This document is not a legal or actionable document. It appears informational.",
     smart_explanation:
       "The document does not match legal, offer, ticket, identity, or financial patterns.",
@@ -3418,17 +3740,18 @@ function applyHybridHintsToAnalysis(analysis, hints, documentTypeKey) {
   const detectedRisks = [...(updated.detected_risks || [])];
   let warningOverride = "";
 
-  if (hints.financialDeposit) {
+  if (hints.depositRiskLevel === "HIGH") {
     detectedRisks.push(
       createRisk(
-        "Financial Deposit Mentioned",
-        "Deposit with currency value detected.",
-        "MEDIUM"
+        "Advance Payment Demand",
+        "Non-refundable or advance payment required before service.",
+        "HIGH"
       )
     );
-    warningOverride = warningOverride || "Deposit mentioned. Verify legitimacy before payment.";
-    if (updated.risk_level === "LOW") {
-      updated.risk_level = "MEDIUM";
+    warningOverride =
+      warningOverride || "Advance payment before service is a strong fraud indicator.";
+    if (updated.risk_level !== "HIGH") {
+      updated.risk_level = "HIGH";
     }
   }
 
@@ -3507,9 +3830,7 @@ function buildEmptyPipelineResult(documentText, languageInstruction) {
   analysis.risk_level = "LOW";
   analysis.decision = "REVIEW_CAUTION";
   analysis.key_warning = "Insufficient text extracted. Please upload a clearer document.";
-  analysis.simple_explanation = languageInstruction.includes("Hinglish")
-    ? "Text extraction bahut kam hai. Clear document upload karein."
-    : "Text extraction is too small. Please upload a clearer document.";
+  analysis.simple_explanation = "Text extraction is too small. Please upload a clearer document.";
 
   return analysis;
 }
@@ -3673,6 +3994,169 @@ async function analyzeLegalQuery(queryText) {
   }
 }
 
+function buildFirPrompt(userInput) {
+  return `You are an experienced Indian legal assistant trained in drafting FIRs and complaints used in real police stations and by advocates in India.
+
+This is a generation task. Do NOT ask questions. Do NOT request missing data.
+
+If details are missing, use fillable fields like:
+Name: __________
+Address: __________
+
+Output rules:
+- Use clean plain text only.
+- Do NOT use markdown or separators.
+- Use English only.
+- Keep the tone human and practical.
+
+Smart case detection:
+- Theft (IPC 379)
+- Lost property
+- Fraud / cheating (IPC 420)
+- Breach of trust (IPC 406)
+- Cyber fraud (IT Act + IPC)
+- Job scam
+- Property/builder issue (RERA)
+- Harassment / threat
+- Salary not paid (labour laws)
+
+Choose relevant laws based on the case. If uncertain, write: Possible sections may include...
+
+Follow this format strictly:
+
+Title:
+Complaint Regarding [Issue Type]
+
+To,
+The Station House Officer (SHO)
+[Police Station Name]
+[City]
+
+Date: __________
+Place: __________
+
+Subject:
+Complaint regarding [brief issue]
+
+Respected Sir/Madam,
+
+I, [Name: __________], residing at [Address: __________], would like to report the following:
+
+[Write the complaint clearly in simple language: what happened, when it happened, where it happened, who is involved (if known), and what loss occurred.]
+
+Include this line naturally in the complaint:
+"Due to this situation, I am facing financial loss and mental stress."
+
+Case-specific details (include only if relevant):
+- If mobile lost: Mention IMEI number: __________
+- If fraud: Payment details, transaction ID, bank/UPI, amount, date/time
+- If builder: Property details and payment history
+- If cyber fraud: Transaction/OTP misuse and platform used
+
+Legal Grounds:
+1) IPC 420 (Cheating): When someone deceives and causes financial loss
+2) IPC 406 (Criminal Breach of Trust): Misuse of entrusted money/property
+3) IPC 379 (Theft): Taking property without permission
+4) IT Act (Cyber Fraud): For online scams or OTP fraud
+5) RERA Act: Protects buyers in property-related issues
+
+(Include only relevant sections based on the case. If uncertain, start with: Possible sections may include...)
+
+Request:
+I kindly request you to register my complaint and take appropriate action as per law.
+If any misuse or criminal activity is found, kindly take strict legal action.
+
+Thanking you,
+
+Yours faithfully,
+[Name: __________]
+[Contact Number: __________]
+
+Signature: __________
+
+Suggested Actions:
+1) Visit the nearest police station
+2) Carry relevant proof (receipts, messages, documents)
+3) Keep ID proof ready
+
+Important Notes:
+1) FIR registration depends on police verification
+2) Some cases may be civil in nature
+3) You may approach higher authorities if FIR is not registered
+
+User Input:
+${userInput}`;
+}
+
+function buildFirFallback(userInput) {
+  return `Title:
+Complaint Regarding Cheating and Fraud
+
+To,
+The Station House Officer (SHO)
+[Police Station Name]
+[City]
+
+Date: __________
+Place: __________
+
+Subject:
+Complaint regarding cheating and financial loss
+
+Respected Sir/Madam,
+
+I, [Name: __________], residing at [Address: __________], would like to report the following:
+
+${userInput || "The incident details are not fully available in this draft."}
+
+Due to this situation, I am facing financial loss and mental stress.
+
+Legal Grounds:
+Possible sections may include:
+1) IPC 420 (Cheating): When someone deceives and causes financial loss
+2) IPC 406 (Criminal Breach of Trust): Misuse of entrusted money/property
+3) IT Act (Cyber Fraud): For online scams or OTP fraud
+
+Request:
+I kindly request you to register my complaint and take appropriate action as per law.
+If any misuse or criminal activity is found, kindly take strict legal action.
+
+Thanking you,
+
+Yours faithfully,
+[Name: __________]
+[Contact Number: __________]
+
+Signature: __________
+
+Suggested Actions:
+1) Visit the nearest police station
+2) Carry relevant proof (receipts, messages, documents)
+3) Keep ID proof ready
+
+Important Notes:
+1) FIR registration depends on police verification
+2) Some cases may be civil in nature
+3) You may approach higher authorities if FIR is not registered`;
+}
+
+async function generateFirDraft(userInput) {
+  const cleanedInput = String(userInput || "").trim();
+  if (!cleanedInput) {
+    throw new Error("User input is required");
+  }
+
+  const prompt = buildFirPrompt(cleanedInput);
+
+  try {
+    const result = await generateContentWithFallback(prompt);
+    return result.response.text().trim();
+  } catch (error) {
+    console.error("[aiService] FIR generation failed:", error.message);
+    return buildFirFallback(cleanedInput);
+  }
+}
+
 async function extractTextFromDocx(filePath) {
   const result = await mammoth.extractRawText({ path: filePath });
   const extractedText = result.value.trim();
@@ -3694,6 +4178,7 @@ export {
   chunkText,
   detectDocumentType,
   extractTextFromDocx,
+  generateFirDraft,
   parseJSONResponse,
   removeMarkdownFormatting,
 };

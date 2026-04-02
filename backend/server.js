@@ -9,6 +9,7 @@ import pdfRoutes from "./routes/pdfRoutes.js";
 import documentRoutes from "./routes/documentRoutes.js";
 import authRoutes from "./routes/authRoutes.js";    
 import chatRoutes from "./routes/chatRoutes.js";
+import firRoutes from "./routes/firRoutes.js";
 
 // Validate environment variables on startup
 if (!process.env.GEMINI_API_KEY) {
@@ -33,6 +34,7 @@ app.use("/api/document", documentRoutes);
 app.use("/api", analysisRoutes);
 app.use("/api", ocrRoutes);
 app.use("/api/pdf", pdfRoutes);
+app.use("/api", firRoutes);
 
 // auth routes
 app.use('/api/auth', authRoutes);

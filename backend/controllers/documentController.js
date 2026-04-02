@@ -219,8 +219,7 @@ function buildFallbackDocumentAnalysis(documentText) {
       ? "UNFAIR"
       : "NORMAL";
 
-  const isTicket = detectedType === "ticket";
-  const safeDecision = isTicket ? "SAFE_TO_USE" : "SAFE_TO_SIGN";
+  const safeDecision = "SAFE_TO_USE";
 
   const topRisks = detectedRisks.map((risk) => risk.type);
 

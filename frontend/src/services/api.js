@@ -21,6 +21,7 @@ const ENDPOINTS = {
   TEXT_ANALYZE: `${API_BASE_URL}/document/analyze-text`,
   HEALTH_CHECK: `${API_BASE_URL}/document/health`,
   CHAT: `${API_BASE_URL}/chat`,
+  FIR_GENERATE: `${API_BASE_URL}/generate-fir`,
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -216,6 +217,37 @@ export async function checkHealth() {
   } catch (error) {
     console.error("[API] Health check error:", error);
     throw error;
+  }
+}
+
+/**
+ * Generate FIR / complaint draft
+ *
+ * @param {string} userInput - Problem description
+ * @returns {Promise<Object>} FIR draft
+ */
+export async function generateFir(userInput) {
+  try {
+    if (!userInput || !userInput.trim()) {
+      throw new Error("User input cannot be empty");
+    }
+
+    const response = await fetch(ENDPOINTS.FIR_GENERATE, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ user_input: userInput.trim() }),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("[API] FIR generation error:", error);
+    const userMessage = formatErrorMessage(error);
+    const formattedError = new Error(userMessage);
+    formattedError.originalError = error;
+    formattedError.code = error.code;
+    throw formattedError;
   }
 }
 

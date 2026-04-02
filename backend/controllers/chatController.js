@@ -5,13 +5,14 @@ export async function chatWithLegalAssistant(req, res) {
     const { message } = req.body ?? {};
 
     if (!message || typeof message !== "string" || !message.trim()) {
-      return res.status(400).json({
-        reply: "Message is required.",
+      return res.status(503).json({
+        success: false,
+        reply:
+          "Sorry, the legal assistant is temporarily unavailable. Please try again in a short while.",
         suggestions: ["See Steps"],
         contextUsed: false,
       });
     }
-
     const result = await generateLegalChatResponse(message.trim());
     return res.status(200).json(result);
   } catch (error) {
@@ -19,7 +20,7 @@ export async function chatWithLegalAssistant(req, res) {
 
     return res.status(500).json({
       reply:
-        "Maaf kijiye, abhi legal assistant temporarily unavailable hai. Thodi der baad phir try kariye.",
+        "Sorry, the legal assistant is temporarily unavailable. Please try again in a short while.",
       suggestions: ["See Steps"],
       contextUsed: false,
     });
