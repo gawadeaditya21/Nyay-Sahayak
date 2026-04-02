@@ -5,9 +5,16 @@ import path from "path";
 import {
   uploadAndAnalyzeDocument,
   analyzeTextOnly,
+  getAnalysisSessions,
+  getAnalysisHistoryBySession
 } from "../controllers/documentController.js";
 
+import { protect } from "../middleware/authMiddleware.js";
+
 const router = express.Router();
+
+router.get("/sessions", protect, getAnalysisSessions);
+router.get("/:sessionId", protect, getAnalysisHistoryBySession);
 
 const storage = multer.diskStorage({
   destination(req, file, cb) {
@@ -62,8 +69,8 @@ const upload = multer({
   },
 });
 
-router.post("/analyze", upload.single("document"), uploadAndAnalyzeDocument);
-router.post("/analyze-text", analyzeTextOnly);
+router.post("/analyze", protect, upload.single("document"), uploadAndAnalyzeDocument);
+router.post("/analyze-text", protect, analyzeTextOnly);
 
 router.get("/health", (req, res) => {
   res.json({

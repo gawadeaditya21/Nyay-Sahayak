@@ -20,7 +20,11 @@ const ENDPOINTS = {
   DOCUMENT_ANALYZE: `${API_BASE_URL}/document/analyze`,
   TEXT_ANALYZE: `${API_BASE_URL}/document/analyze-text`,
   HEALTH_CHECK: `${API_BASE_URL}/document/health`,
+  DOCUMENT_SESSIONS: `${API_BASE_URL}/document/sessions`,
+  DOCUMENT_HISTORY: (sessionId) => `${API_BASE_URL}/document/${sessionId}`,
   CHAT: `${API_BASE_URL}/chat`,
+  CHAT_SESSIONS: `${API_BASE_URL}/chat/sessions`,
+  CHAT_HISTORY: (sessionId) => `${API_BASE_URL}/chat/${sessionId}`,
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -96,27 +100,31 @@ function formatErrorMessage(error) {
  * const result = await analyzeDocument(file);
  * console.log(result.data.analysis.summary);
  */
-export async function analyzeDocument(file, onProgress = null) {
+export async function analyzeDocument(file, onProgress = null, sessionId = null, instructions = null) {
   try {
-    // Validate file
     if (!file) {
       throw new Error("No file provided");
     }
     
-    // Prepare form data
     const formData = new FormData();
     formData.append("document", file);
-    
-    // Optional: Report upload start
+    if (sessionId) formData.append("sessionId", sessionId);
+    if (instructions) formData.append("instructions", instructions);
+
     if (onProgress) {
       onProgress({ stage: "uploading", progress: 0 });
     }
     
-    // Send request
+    const token = localStorage.getItem('token');
+    const headers = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
     const response = await fetch(ENDPOINTS.DOCUMENT_ANALYZE, {
       method: "POST",
+      headers,
       body: formData,
-      // Don't set Content-Type header - browser will set it with boundary
     });
     
     // Handle response
@@ -154,9 +162,8 @@ export async function analyzeDocument(file, onProgress = null) {
  * const result = await analyzeText("This is my legal document text...");
  * console.log(result.data.analysis.risks);
  */
-export async function analyzeText(text) {
+export async function analyzeText(text, sessionId = null) {
   try {
-    // Validate input
     if (!text || text.trim().length === 0) {
       throw new Error("Text cannot be empty");
     }
@@ -165,13 +172,21 @@ export async function analyzeText(text) {
       throw new Error("Text is too short. Please provide at least 5 characters.");
     }
     
-    // Send request
+    const token = localStorage.getItem('token');
+    const headers = {
+      "Content-Type": "application/json",
+    };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const payload = { text };
+    if (sessionId) payload.sessionId = sessionId;
+
     const response = await fetch(ENDPOINTS.TEXT_ANALYZE, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ text }),
+      headers,
+      body: JSON.stringify(payload),
     });
     
     // Handle response
@@ -219,18 +234,27 @@ export async function checkHealth() {
   }
 }
 
-export async function sendChatMessage(message) {
+export async function sendChatMessage(message, sessionId = null) {
   try {
     if (!message || !message.trim()) {
       throw new Error("Message cannot be empty");
     }
 
+    const token = localStorage.getItem('token');
+    const headers = {
+      "Content-Type": "application/json",
+    };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const payload = { message: message.trim() };
+    if (sessionId) payload.sessionId = sessionId;
+
     const response = await fetch(ENDPOINTS.CHAT, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ message: message.trim() }),
+      headers,
+      body: JSON.stringify(payload),
     });
 
     return await handleResponse(response);
@@ -246,6 +270,85 @@ export async function sendChatMessage(message) {
   }
 }
 
+export async function fetchChatSessions() {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return [];
+
+    const response = await fetch(ENDPOINTS.CHAT_SESSIONS, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("fetchChatSessions error:", error);
+    return [];
+  }
+}
+
+export async function fetchChatHistory(sessionId = "Legacy Chats") {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return [];
+
+    const response = await fetch(ENDPOINTS.CHAT_HISTORY(sessionId), {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("fetchChatHistory error:", error);
+    const formattedError = new Error(formatErrorMessage(error));
+    formattedError.originalError = error;
+    formattedError.code = error.code;
+    throw formattedError;
+  }
+}
+
+export async function fetchAnalysisSessions() {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return [];
+
+    const response = await fetch(ENDPOINTS.DOCUMENT_SESSIONS, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("fetchAnalysisSessions error:", error);
+    return [];
+  }
+}
+
+export async function fetchAnalysisHistory(sessionId = "Legacy Analyses") {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return [];
+
+    const response = await fetch(ENDPOINTS.DOCUMENT_HISTORY(sessionId), {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("fetchAnalysisHistory error:", error);
+    return [];
+  }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // EXPORT DEFAULT API OBJECT (Alternative usage pattern)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -255,6 +358,10 @@ const api = {
   analyzeText,
   checkHealth,
   sendChatMessage,
+  fetchChatHistory,
+  fetchChatSessions,
+  fetchAnalysisSessions,
+  fetchAnalysisHistory,
 };
 
 export default api;

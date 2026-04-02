@@ -8,9 +8,96 @@ import {
   extractTextFromDocx,
 } from "../services/aiService.js";
 import { maskSensitiveData } from "../utils/dataMasking.js";
+import Analysis from "../models/Analysis.js";
+import { processAndEncrypt, encryptData, decryptData } from "../utils/cryptoUtils.js";
 
 const require = createRequire(import.meta.url);
 const pdf = require("pdf-parse");
+
+export async function getAnalysisSessions(req, res) {
+  try {
+    const messages = await Analysis.find({ userId: req.user._id }).sort({ createdAt: 1 });
+    const sessionsMap = new Map();
+    
+    for (const msg of messages) {
+       const sid = msg.sessionId || "Legacy Analyses";
+       if (!sessionsMap.has(sid)) {
+         let title = "Document Analysis";
+         if (msg.role === 'user' || !msg.role) {
+           if (msg.fileName && msg.fileName !== "Manual Text Input") {
+             title = msg.fileName;
+           } else {
+             try {
+                const decoded = decryptData(msg.encryptedContent);
+                const obj = JSON.parse(decoded);
+                title = typeof obj === 'string' ? obj.substring(0,30) + "..." : "Text Analysis";
+             } catch(e) {}
+           }
+         } else if (sid === "Legacy Analyses") {
+           title = "Older Analyses";
+         }
+         sessionsMap.set(sid, {
+           sessionId: sid,
+           title: title,
+           createdAt: msg.createdAt
+         });
+       }
+    }
+    
+    const sessions = Array.from(sessionsMap.values()).sort((a,b) => b.createdAt - a.createdAt);
+    return res.status(200).json(sessions);
+  } catch (error) {
+    console.error("[documentController] Error fetching sessions:", error.message);
+    return res.status(500).json({ error: "Failed to fetch sessions" });
+  }
+}
+
+export async function getAnalysisHistoryBySession(req, res) {
+  try {
+    const { sessionId } = req.params;
+    const query = { userId: req.user._id };
+    if (sessionId === "Legacy Analyses") {
+       query.$or = [{ sessionId: { $exists: false } }, { sessionId: null }, { sessionId: "default" }];
+    } else {
+       query.sessionId = sessionId;
+    }
+    const messages = await Analysis.find(query).sort({ createdAt: 1 });
+    
+    const decryptedMessages = messages.map(msg => {
+      let content;
+      try {
+        const decryptedStr = decryptData(msg.encryptedContent);
+        content = JSON.parse(decryptedStr);
+      } catch (err) {
+        content = "Error: Could not decrypt message";
+      }
+
+      const hasFile = !!msg.fileName && msg.fileName !== 'Manual Text Input';
+
+      if (msg.role === 'assistant') {
+        return {
+          role: "ai", 
+          content: content.analysis || content,
+          isError: false,
+          createdAt: msg.createdAt
+        };
+      } else {
+        return {
+          role: "user",
+          content: content,
+          hasFile: hasFile,
+          createdAt: msg.createdAt
+        };
+      }
+    });
+
+    return res.status(200).json(decryptedMessages);
+  } catch(error) {
+    console.error("[documentController] Error fetching history:", error.message);
+    return res.status(500).json({ error: "Failed to fetch history" });
+  }
+}
+
 
 async function extractTextFromPDF(filePath) {
   const dataBuffer = fs.readFileSync(filePath);
@@ -309,6 +396,8 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
   let filePath = null;
 
   try {
+    const { sessionId, instructions } = req.body ?? {};
+
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -370,6 +459,31 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
       aiAnalysis,
     });
 
+    if (req.user) {
+      const parts = [];
+      parts.push(`Uploaded: ${fileName}`);
+      parts.push(`Size: ${(fileSize / 1024).toFixed(2)} KB`);
+      if (instructions) parts.push(instructions);
+      
+      const userMessage = parts.join("\n");
+      const userEncrypted = encryptData(JSON.stringify(userMessage));
+      await Analysis.create({
+        userId: req.user._id,
+        sessionId: sessionId || "default",
+        role: "user",
+        fileName: fileName,
+        encryptedContent: userEncrypted
+      });
+
+      const assistantEncrypted = encryptData(JSON.stringify(response));
+      await Analysis.create({
+        userId: req.user._id,
+        sessionId: sessionId || "default",
+        role: "assistant",
+        encryptedContent: assistantEncrypted
+      });
+    }
+
     cleanupUploadedFile(filePath);
     return res.status(200).json(response);
   } catch (error) {
@@ -404,7 +518,7 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
 
 export const analyzeTextOnly = async (req, res) => {
   try {
-    const { text } = req.body ?? {};
+    const { text, sessionId } = req.body ?? {};
 
     if (!text || !text.trim()) {
       return res.status(400).json({
@@ -446,6 +560,7 @@ export const analyzeTextOnly = async (req, res) => {
     }
 
     const maskingResult = maskSensitiveData(trimmedText);
+
     let aiAnalysis;
     try {
       aiAnalysis = await analyzeDocument(maskingResult.maskedText, {
@@ -463,7 +578,7 @@ export const analyzeTextOnly = async (req, res) => {
     const legacyRisks = aiAnalysis.legacyRisks || [];
     const riskStats = buildRiskStatistics(legacyRisks);
 
-    return res.status(200).json({
+    const response = {
       success: true,
       message: "Text analysis completed successfully",
       data: {
@@ -488,7 +603,32 @@ export const analyzeTextOnly = async (req, res) => {
           textLength: trimmedText.length,
         },
       },
-    });
+    };
+
+    if (req.user) {
+      try {
+        const userEncrypted = encryptData(JSON.stringify(trimmedText));
+        await Analysis.create({
+          userId: req.user._id,
+          sessionId: sessionId || "default",
+          role: "user",
+          fileName: "Manual Text Input",
+          encryptedContent: userEncrypted
+        });
+
+        const assistantEncrypted = encryptData(JSON.stringify(response));
+        await Analysis.create({
+          userId: req.user._id,
+          sessionId: sessionId || "default",
+          role: "assistant",
+          encryptedContent: assistantEncrypted
+        });
+      } catch (dbError) {
+        console.error("❌ Database storage failed:", dbError.message);
+      }
+    }
+
+    return res.status(200).json(response);
   } catch (error) {
     console.error("[documentController] Text analysis failed:", error.message);
 
