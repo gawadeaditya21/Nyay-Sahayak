@@ -6,9 +6,6 @@ import {
   Loader2,
   Sparkles,
   User,
-  Paperclip,
-  X,
-  FileText,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { sendChatMessage, fetchChatHistory } from "../services/api";
@@ -51,8 +48,6 @@ export default function ChatPage() {
   const messagesEndRef = useRef(null);
   const initialMessage = useMemo(() => buildWelcomeMessage(t), [t]);
   const [input, setInput] = useState("");
-  const [file, setFile] = useState(null);
-  const fileInputRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [messages, setMessages] = useState([initialMessage]);
@@ -101,7 +96,6 @@ export default function ChatPage() {
     if (sessionNonce > 0 && !sessionId && !isGuestUser()) {
       setMessages([initialMessage]);
       setInput("");
-      setFile(null);
     }
   }, [sessionNonce, sessionId, initialMessage]);
 
@@ -109,27 +103,9 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  const removeFile = () => {
-    setFile(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
-  const handleFileChange = (event) => {
-    const selectedFile = event.target.files?.[0];
-    if (!selectedFile) return;
-
-    if (selectedFile.size > 15 * 1024 * 1024) {
-      alert("File size exceeds 15MB limit.");
-      return;
-    }
-    setFile(selectedFile);
-  };
-
   const submitMessage = async () => {
     const trimmedInput = input.trim();
-    if ((!trimmedInput && !file) || loading) {
+    if (!trimmedInput || loading) {
       return;
     }
 
@@ -153,16 +129,10 @@ export default function ChatPage() {
         : crypto.randomUUID();
     }
 
-    const parts = [];
-    if (file) parts.push(`[Attached File: ${file.name}]`);
-    if (trimmedInput) parts.push(trimmedInput);
-
-    const userEntry = { role: "user", content: parts.join("\n\n") };
+    const userEntry = { role: "user", content: trimmedInput };
     setMessages((prev) => [...prev, userEntry]);
     
     setInput("");
-    const fileToUpload = file;
-    removeFile();
     setLoading(true);
 
     try {
@@ -170,7 +140,6 @@ export default function ChatPage() {
         sessionId: targetSessionId,
         language,
         mode: privacyMode,
-        file: fileToUpload,
       });
 
       const assistantEntry = {
@@ -315,33 +284,12 @@ export default function ChatPage() {
 
       <div className="border-t border-white/5 bg-[#0a0a0b] p-4 sm:p-6">
         <div className="mx-auto max-w-4xl rounded-[24px] border border-white/10 bg-[#121215] p-2 shadow-2xl">
-          {file && (
-            <div className="mx-2 mb-2 flex items-center justify-between rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-2 text-indigo-300">
-              <div className="flex items-center gap-2 overflow-hidden">
-                <FileText size={16} />
-                <span className="truncate text-xs font-semibold">{file.name}</span>
-              </div>
-              <button onClick={removeFile} className="rounded-lg p-1 hover:bg-white/5">
-                <X size={16} />
-              </button>
-            </div>
-          )}
           <div className="flex items-end gap-2">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={loading}
-              className="rounded-xl p-3 text-slate-400 transition hover:bg-white/5 hover:text-white"
-              title="Attach Document"
-            >
-              <Paperclip size={20} />
-            </button>
-            <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept="application/pdf,image/*,.docx" />
-
             <textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder={file ? "Add optional context..." : t("chat.placeholder")}
-              className="max-h-40 flex-1 resize-none bg-transparent py-3 text-[15px] text-slate-100 outline-none placeholder:text-slate-600"
+              placeholder={t("chat.placeholder")}
+              className="max-h-40 flex-1 resize-none bg-transparent py-3 pl-4 text-[15px] text-slate-100 outline-none placeholder:text-slate-600"
               rows={1}
               disabled={loading}
               onKeyDown={(event) => {
@@ -353,7 +301,7 @@ export default function ChatPage() {
             />
             <button
               onClick={submitMessage}
-              disabled={loading || (!input.trim() && !file)}
+              disabled={loading || !input.trim()}
               className="rounded-2xl bg-indigo-600 p-3 text-white transition hover:bg-indigo-500 disabled:opacity-30"
             >
               {loading ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={20} />}
@@ -366,25 +314,13 @@ export default function ChatPage() {
   );
 }
 
-function StructuredReply({ content, file }) {
-  if (file) {
-    return (
-      <div className="space-y-2">
-        {content && typeof content === "string" && (
-          <div className="whitespace-pre-wrap break-words">{content}</div>
-        )}
-        <div className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs text-white/90">
-          Attached: {file.name}
-        </div>
-      </div>
-    );
-  }
-
+function StructuredReply({ content }) {
   if (typeof content === "string") {
     return <div className="whitespace-pre-wrap break-words">{content}</div>;
   }
 
-  const topic = content.topic || content.document_type || "Legal Guidance";
+  let topic = content.topic || content.document_type || "Legal Guidance";
+  if (topic.toLowerCase() === "unknown") topic = "AI Analysis";
   const explanation = content.simple_explanation || content.reason_for_decision;
 
   return (

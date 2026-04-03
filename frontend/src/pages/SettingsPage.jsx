@@ -59,10 +59,10 @@ export default function SettingsPage() {
             </div>
             <div className="py-4 border-b border-white/5 flex justify-between items-center">
               <div>
-                <h3 className="text-base font-medium text-slate-200">Subscription Plan</h3>
+                <h3 className="text-base font-medium text-slate-200">Basic Plan</h3>
                 <p className="text-xs text-slate-500 mt-1">Manage billing and features.</p>
               </div>
-              <span className="text-xs font-bold uppercase tracking-widest text-indigo-400 bg-indigo-500/10 px-3 py-1.5 rounded-lg">Professional</span>
+              {/* <span className="text-xs font-bold uppercase tracking-widest text-indigo-400 bg-indigo-500/10 px-3 py-1.5 rounded-lg">Professional</span> */}
             </div>
           </div>
         </div>

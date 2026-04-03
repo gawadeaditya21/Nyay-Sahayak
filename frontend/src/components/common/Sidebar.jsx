@@ -180,7 +180,7 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
       </div>
 
       <div className="mt-4 rounded-2xl border border-indigo-500/10 bg-indigo-600/5 p-4">
-        <p className="text-[11px] font-semibold text-indigo-300">Nyay Sahayak Omni</p>
+        <p className="text-[11px] font-semibold text-indigo-300">Nyay Sahayak</p>
         <p className="mt-2 text-[11px] text-slate-500">Unified legal assistant for your rights in India.</p>
       </div>
     </motion.aside>

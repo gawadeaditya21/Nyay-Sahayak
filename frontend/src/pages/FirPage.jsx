@@ -159,11 +159,11 @@ export default function FirPage() {
               </p>
             </div>
           </div>
-          <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+          {/* <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-400">
             <PrivacyToggle value={privacyMode} onChange={setPrivacyModeState} />
             <span>Private mode skips saving FIR history.</span>
             {isGuestUser() && <span className="text-amber-300">Guest limit: 1 FIR.</span>}
-          </div>
+          </div> */}
 
           <textarea
             value={userInput}

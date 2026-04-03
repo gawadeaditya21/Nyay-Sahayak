@@ -404,11 +404,11 @@ export default function AnalyzePage() {
     <div className="flex h-full flex-col overflow-hidden bg-[#0a0a0b] text-slate-300">
       <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-6">
         <div className="mx-auto w-full max-w-3xl">
-          <div className="mb-6 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+          {/* <div className="mb-6 flex flex-wrap items-center gap-3 text-xs text-slate-400">
             <PrivacyToggle value={privacyMode} onChange={setPrivacyModeState} />
             <span>Private mode skips saving analysis history.</span>
             {isGuestUser() && <span className="text-amber-300">Guest limit: 1 analysis.</span>}
-          </div>
+          </div> */}
           {isInitializing ? (
             <div className="flex justify-center py-12">
               <Loader2 className="animate-spin text-indigo-500" size={32} />
