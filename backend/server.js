@@ -10,6 +10,7 @@ import documentRoutes from "./routes/documentRoutes.js";
 import authRoutes from "./routes/authRoutes.js";    
 import chatRoutes from "./routes/chatRoutes.js";
 import firRoutes from "./routes/firRoutes.js";
+import { rateLimit } from "./middleware/rateLimit.js";
 
 // Validate environment variables on startup
 if (!process.env.GEMINI_API_KEY) {
@@ -28,17 +29,18 @@ app.use(express.json());
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // Primary Document Analysis Route (Recommended)
-app.use("/api/document", documentRoutes);
+app.use("/api/document", rateLimit, documentRoutes);
 
 // Legacy routes (for backward compatibility)
 app.use("/api", analysisRoutes);
 app.use("/api", ocrRoutes);
 app.use("/api/pdf", pdfRoutes);
+app.use("/api/generate-fir", rateLimit);
 app.use("/api", firRoutes);
 
 // auth routes
 app.use('/api/auth', authRoutes);
-app.use("/api/chat", chatRoutes);
+app.use("/api/chat", rateLimit, chatRoutes);
 
 const PORT = process.env.PORT || 5000;
 

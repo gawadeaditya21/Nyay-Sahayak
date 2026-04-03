@@ -915,7 +915,10 @@ async function generateGeminiReply({ query, context, language }) {
   );
 
   let outputLanguage = resolvedLanguage;
-  const requiredTokens = extractNumericTokens(query);
+  
+  // Do not require numeric tokens if this is a large document upload in chat
+  const isDocumentUpload = query.includes("User Uploaded Document Context:");
+  const requiredTokens = isDocumentUpload ? [] : extractNumericTokens(query);
 
   let prompt = buildChatPrompt({ query, context, language: resolvedLanguage });
   let result = await geminiModel.generateContent(prompt);
@@ -990,6 +993,7 @@ function shouldUseLegalContext(query) {
 export async function generateLegalChatResponse(query, options = {}) {
   let context = "";
   let contextUsed = false;
+  const aiQuery = options.aiQuery || query;
 
   try {
     if (shouldUseLegalContext(query)) {
@@ -1005,7 +1009,13 @@ export async function generateLegalChatResponse(query, options = {}) {
   let reply;
 
   try {
-    reply = await generateGeminiReply({ query, context, language: options.language });
+    reply = await generateGeminiReply({ query: aiQuery, context, language: options.language });
+    return {
+      reply,
+      suggestions: buildSuggestions(query),
+      contextUsed,
+      isError: false,
+    };
   } catch (error) {
     console.error("[geminiChat] Gemini generation failed:", error.message);
     reply = {
@@ -1034,7 +1044,7 @@ export async function generateLegalChatResponse(query, options = {}) {
     reply,
     suggestions: buildSuggestions(query),
     contextUsed,
-    isError: true
+    isError: true,
   };
 }
 

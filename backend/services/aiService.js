@@ -4666,4 +4666,5 @@ export {
   parseJSONResponse,
   removeMarkdownFormatting,
   translateStructuredOutput,
+  truncateText,
 };

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams, useOutletContext } from "react-router-dom";
 import {
   ArrowUp,
   FileText,
@@ -14,9 +15,24 @@ import {
   Info,
   Sparkles,
 } from "lucide-react";
-import { analyzeDocument, analyzeText } from "../services/api";
+import {
+  analyzeDocument,
+  analyzeText,
+  fetchAnalysisHistory,
+} from "../services/api";
 import { useLanguage } from "../context/LanguageContext.jsx";
 import { formatAnalysisResponse } from "../utils/formatAnalysis";
+import PrivacyToggle from "../components/common/PrivacyToggle.jsx";
+import {
+  canUseGuestFeature,
+  getOrCreateGuestSessionId,
+  getPrivacyMode,
+  incrementGuestUsage,
+  isGuestUser,
+  loadGuestAnalysisHistory,
+  saveGuestAnalysisHistory,
+  setPrivacyMode,
+} from "../utils/guestIdentity";
 
 const riskBadgeStyles = {
   LOW: "bg-emerald-500/15 text-emerald-200 border-emerald-500/30",
@@ -196,71 +212,61 @@ export default function AnalyzePage() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [chatHistory, setChatHistory] = useState([]);
   const [analysisProgress, setAnalysisProgress] = useState(null);
-  
-  const [sessions, setSessions] = useState([]);
-  const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [privacyMode, setPrivacyModeState] = useState(getPrivacyMode());
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sessionId = searchParams.get("session");
+  const { refreshSessions, sessionNonce } = useOutletContext() || {};
 
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    const initializeSessions = async () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const sess = await fetchAnalysisSessions();
-          setSessions(sess);
-          if (sess.length > 0) {
-            await loadSession(sess[0].sessionId);
-          } else {
-            setIsInitializing(false);
-          }
-        } catch (error) {
-          console.error("Failed to fetch analysis sessions:", error);
-          setIsInitializing(false);
+    setPrivacyMode(privacyMode);
+  }, [privacyMode]);
+
+  useEffect(() => {
+    const loadSession = async () => {
+      setIsInitializing(true);
+      if (!sessionId) {
+        if (isGuestUser()) {
+          const guestSessionId = getOrCreateGuestSessionId("analysis");
+          const guestHistory = loadGuestAnalysisHistory();
+          setChatHistory(guestHistory);
+          setSearchParams({ session: guestSessionId }, { replace: true });
+        } else {
+          setChatHistory([]);
         }
       } else {
-        setIsInitializing(false);
+        try {
+          const history = await fetchAnalysisHistory(sessionId);
+          if (history && history.length > 0) {
+            setChatHistory(history);
+          } else {
+            setChatHistory([]);
+          }
+        } catch (e) {
+          console.error("Failed to fetch analysis history:", e);
+          setChatHistory([]);
+        }
       }
+      setIsInitializing(false);
     };
-    initializeSessions();
-  }, []);
+
+    loadSession();
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (sessionNonce > 0 && !sessionId && !isGuestUser()) {
+      setChatHistory([]);
+      setInputText("");
+      setFile(null);
+    }
+  }, [sessionNonce, sessionId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatHistory, loading, analysisProgress]);
-
-  const loadSession = async (sessionId) => {
-    setIsInitializing(true);
-    setCurrentSessionId(sessionId);
-    try {
-      const history = await fetchAnalysisHistory(sessionId);
-      if (history && history.length > 0) {
-        setChatHistory(history);
-      } else {
-        setChatHistory([]);
-      }
-    } catch (e) {
-      setChatHistory([]);
-    }
-    setIsInitializing(false);
-  };
-
-  const startNewAnalysis = () => {
-    setCurrentSessionId(null);
-    setChatHistory([]);
-    setFile(null);
-    setInputText("");
-  };
-
-  const refreshSessions = async () => {
-    try {
-      const sess = await fetchAnalysisSessions();
-      setSessions(sess);
-    } catch (e) {
-      console.error(e);
-    }
-  };
 
   const addUserMessage = (content, hasFile = false) => {
     setChatHistory((prev) => [...prev, { role: "user", content, hasFile }]);
@@ -312,10 +318,17 @@ export default function AnalyzePage() {
       return;
     }
 
-    let targetSessionId = currentSessionId;
+    const guest = isGuestUser();
+    if (guest && !canUseGuestFeature("analysis")) {
+      addAIMessage("Please login to continue", true);
+      return;
+    }
+
+    let targetSessionId = sessionId;
     if (!targetSessionId) {
-      targetSessionId = crypto.randomUUID();
-      setCurrentSessionId(targetSessionId);
+      targetSessionId = guest
+        ? getOrCreateGuestSessionId("analysis")
+        : crypto.randomUUID();
     }
 
     const currentFile = file;
@@ -349,10 +362,10 @@ export default function AnalyzePage() {
           } else if (progress.stage === "completed") {
             setAnalysisProgress("Finalizing report...");
           }
-        }, language, targetSessionId);
+        }, { sessionId: targetSessionId, instructions: currentText, language, mode: privacyMode });
       } else {
         setAnalysisProgress("Analyzing text...");
-        response = await analyzeText(currentText, language, targetSessionId);
+        response = await analyzeText(currentText, { sessionId: targetSessionId, language, mode: privacyMode });
       }
 
       const structured = response?.data?.analysis?.structured || null;
@@ -360,6 +373,24 @@ export default function AnalyzePage() {
         addAIMessage("", false, structured);
       } else {
         addAIMessage(formatAnalysisResponse(response));
+      }
+
+      if (guest) {
+        const history = [...chatHistory, { role: "user", content: parts.join("\n"), hasFile: Boolean(currentFile) }];
+        const latest = structured
+          ? { role: "ai", content: "", isError: false, structured }
+          : { role: "ai", content: formatAnalysisResponse(response), isError: false };
+        const nextHistory = [...history, latest].slice(-2);
+        saveGuestAnalysisHistory(nextHistory);
+        incrementGuestUsage("analysis");
+      } 
+      
+      if (refreshSessions) {
+        refreshSessions();
+      }
+
+      if (!sessionId) {
+        setSearchParams({ session: targetSessionId }, { replace: true });
       }
     } catch (error) {
       addAIMessage(error.message || "Analysis failed. Please try again.", true);
@@ -373,7 +404,16 @@ export default function AnalyzePage() {
     <div className="flex h-full flex-col overflow-hidden bg-[#0a0a0b] text-slate-300">
       <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-6">
         <div className="mx-auto w-full max-w-3xl">
-          {chatHistory.length === 0 ? (
+          <div className="mb-6 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+            <PrivacyToggle value={privacyMode} onChange={setPrivacyModeState} />
+            <span>Private mode skips saving analysis history.</span>
+            {isGuestUser() && <span className="text-amber-300">Guest limit: 1 analysis.</span>}
+          </div>
+          {isInitializing ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="animate-spin text-indigo-500" size={32} />
+            </div>
+          ) : chatHistory.length === 0 ? (
             <div className="mt-20 rounded-3xl border border-white/10 bg-[#121215] p-8 text-center shadow-2xl">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600/20">
                 <Shield className="text-indigo-400" size={28} />
@@ -386,21 +426,10 @@ export default function AnalyzePage() {
           ) : (
             <div className="space-y-6 pb-10">
               {chatHistory.map((msg, index) => (
-                <div
-                  key={`${msg.role}-${index}`}
-                  className={`flex gap-4 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
+                <div key={`${msg.role}-${index}`} className={`flex gap-4 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   {msg.role === "ai" && (
-                    <div
-                      className={`mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
-                        msg.isError ? "bg-red-500/20" : "bg-indigo-600/90"
-                      }`}
-                    >
-                      {msg.isError ? (
-                        <AlertCircle size={18} className="text-red-300" />
-                      ) : (
-                        <Shield size={18} className="text-white" />
-                      )}
+                    <div className={`mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${msg.isError ? "bg-red-500/20" : "bg-indigo-600/90"}`}>
+                      {msg.isError ? <AlertCircle size={18} className="text-red-300" /> : <Shield size={18} className="text-white" />}
                     </div>
                   )}
                   {msg.role === "ai" && msg.structured ? (
@@ -415,7 +444,17 @@ export default function AnalyzePage() {
                           : "rounded-tl-none border border-white/5 bg-[#121215] text-slate-300"
                       }`}
                     >
-                      <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                      {msg.role === "ai" && typeof msg.content === "object" ? (
+                        <div className="whitespace-pre-wrap break-words">
+                          {formatAnalysisResponse(
+                            msg.content.success !== undefined
+                              ? msg.content
+                              : { success: true, data: { analysis: msg.content } }
+                          )}
+                        </div>
+                      ) : (
+                        <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -438,121 +477,53 @@ export default function AnalyzePage() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-6">
-          <div className="mx-auto w-full max-w-3xl">
-            {isInitializing ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="animate-spin text-indigo-500" size={32} />
+      <div className="border-t border-white/5 bg-[#0a0a0b] p-4 sm:p-6">
+        <div className="mx-auto max-w-3xl rounded-2xl border border-white/10 bg-[#121215] p-2">
+          {file && (
+            <div className="mx-2 mb-2 flex items-center justify-between rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-2 text-indigo-300">
+              <div className="flex items-center gap-2 overflow-hidden">
+                <FileText size={16} />
+                <span className="truncate text-xs font-semibold">{file.name}</span>
               </div>
-            ) : chatHistory.length === 0 ? (
-              <div className="mt-20 rounded-3xl border border-white/10 bg-[#121215] p-8 text-center shadow-2xl">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600/20">
-                  <Shield className="text-indigo-400" size={28} />
-                </div>
-                <h1 className="mb-3 text-3xl font-bold text-white">Document Analysis</h1>
-                <p className="mx-auto max-w-xl text-sm leading-7 text-slate-400">
-                  Upload agreements, notices, or legal documents for OCR, privacy masking, and Gemini-powered risk analysis.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-6 pb-10">
-                {chatHistory.map((msg, index) => (
-                  <div key={`${msg.role}-${index}`} className={`flex gap-4 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                    {msg.role === "ai" && (
-                      <div className={`mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${msg.isError ? "bg-red-500/20" : "bg-indigo-600/90"}`}>
-                        {msg.isError ? <AlertCircle size={18} className="text-red-300" /> : <Shield size={18} className="text-white" />}
-                      </div>
-                    )}
-                    <div
-                      className={`max-w-[85%] rounded-2xl p-4 text-sm leading-7 ${
-                        msg.role === "user"
-                          ? "rounded-tr-none bg-indigo-600 text-white"
-                          : msg.isError
-                            ? "border border-red-500/20 bg-red-500/10 text-red-100"
-                            : "rounded-tl-none border border-white/5 bg-[#121215] text-slate-300"
-                      }`}
-                    >
-                      {msg.role === 'ai' && typeof msg.content === 'object' ? (
-                        <div className="whitespace-pre-wrap break-words">
-                          {formatAnalysisResponse(
-                            msg.content.success !== undefined 
-                              ? msg.content 
-                              : { success: true, data: { analysis: msg.content } }
-                          )}
-                        </div>
-                      ) : (
-                        <div className="whitespace-pre-wrap break-words">{msg.content}</div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-
-                {loading && (
-                  <div className="flex gap-4">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/5 bg-[#121215]">
-                      <Loader2 size={18} className="animate-spin text-indigo-400" />
-                    </div>
-                    <div className="rounded-2xl border border-white/5 bg-[#121215] px-4 py-3 text-sm italic text-slate-400">
-                      {analysisProgress || "Processing..."}
-                    </div>
-                  </div>
-                )}
-
-                <div ref={messagesEndRef} />
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="border-t border-white/5 bg-[#0a0a0b] p-4 sm:p-6">
-          <div className="mx-auto max-w-3xl rounded-2xl border border-white/10 bg-[#121215] p-2">
-            {file && (
-              <div className="mx-2 mb-2 flex items-center justify-between rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-2 text-indigo-300">
-                <div className="flex items-center gap-2 overflow-hidden">
-                  <FileText size={16} />
-                  <span className="truncate text-xs font-semibold">{file.name}</span>
-                </div>
-                <button onClick={removeFile} className="rounded-lg p-1 hover:bg-white/5">
-                  <X size={16} />
-                </button>
-              </div>
-            )}
-
-            <div className="flex items-end gap-2">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={loading}
-                className="rounded-xl p-3 text-slate-400 transition hover:bg-white/5 hover:text-white"
-                title="Upload document"
-              >
-                <Upload size={20} />
-              </button>
-              <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept="image/*,.pdf,.docx" />
-
-              <textarea
-                value={inputText}
-                onChange={(event) => setInputText(event.target.value)}
-                placeholder="Paste legal text or add instructions for the uploaded document..."
-                className="max-h-32 flex-1 resize-none bg-transparent py-3 text-[15px] text-slate-200 outline-none placeholder:text-slate-600"
-                rows={1}
-                disabled={loading}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    handleSend();
-                  }
-                }}
-              />
-
-              <button
-                onClick={handleSend}
-                disabled={loading || (!file && !inputText.trim())}
-                className="rounded-xl bg-indigo-600 p-3 text-white transition hover:bg-indigo-500 disabled:opacity-30"
-              >
-                {loading ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={20} />}
+              <button onClick={removeFile} className="rounded-lg p-1 hover:bg-white/5">
+                <X size={16} />
               </button>
             </div>
+          )}
+
+          <div className="flex items-end gap-2">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={loading}
+              className="rounded-xl p-3 text-slate-400 transition hover:bg-white/5 hover:text-white"
+              title="Upload document"
+            >
+              <Upload size={20} />
+            </button>
+            <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept="image/*,.pdf,.docx" />
+
+            <textarea
+              value={inputText}
+              onChange={(event) => setInputText(event.target.value)}
+              placeholder="Paste legal text or add instructions for the uploaded document..."
+              className="max-h-32 flex-1 resize-none bg-transparent py-3 text-[15px] text-slate-200 outline-none placeholder:text-slate-600"
+              rows={1}
+              disabled={loading}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  handleSend();
+                }
+              }}
+            />
+
+            <button
+              onClick={handleSend}
+              disabled={loading || (!file && !inputText.trim())}
+              className="rounded-xl bg-indigo-600 p-3 text-white transition hover:bg-indigo-500 disabled:opacity-30"
+            >
+              {loading ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={20} />}
+            </button>
           </div>
         </div>
       </div>

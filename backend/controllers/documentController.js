@@ -1,6 +1,4 @@
-import fs from "fs";
-import { createRequire } from "module";
-import { createWorker } from "tesseract.js";
+import Analysis from "../models/Analysis.js";
 import {
   analyzeDocument,
   analyzeLegalQuery,
@@ -8,153 +6,13 @@ import {
   extractTextFromDocx,
 } from "../services/aiService.js";
 import { maskSensitiveData } from "../utils/dataMasking.js";
+import { decryptData, encryptData } from "../utils/cryptoUtils.js";
 import { ensureSupportedLanguage } from "../config/languages.js";
-import Analysis from "../models/Analysis.js";
-import { encryptData, decryptData } from "../utils/cryptoUtils.js";
-
-const require = createRequire(import.meta.url);
-const pdf = require("pdf-parse");
-
-export async function getAnalysisSessions(req, res) {
-  try {
-    const messages = await Analysis.find({ userId: req.user._id }).sort({ createdAt: 1 });
-    const sessionsMap = new Map();
-    
-    for (const msg of messages) {
-       const sid = msg.sessionId || "Legacy Analyses";
-       if (!sessionsMap.has(sid)) {
-         let title = "Document Analysis";
-         if (msg.role === 'user' || !msg.role) {
-           if (msg.fileName && msg.fileName !== "Manual Text Input") {
-             title = msg.fileName;
-           } else {
-             try {
-                const decoded = decryptData(msg.encryptedContent);
-                const obj = JSON.parse(decoded);
-                title = typeof obj === 'string' ? obj.substring(0,30) + "..." : "Text Analysis";
-             } catch(e) {}
-           }
-         } else if (sid === "Legacy Analyses") {
-           title = "Older Analyses";
-         }
-         sessionsMap.set(sid, {
-           sessionId: sid,
-           title: title,
-           createdAt: msg.createdAt
-         });
-       }
-    }
-    
-    const sessions = Array.from(sessionsMap.values()).sort((a,b) => b.createdAt - a.createdAt);
-    return res.status(200).json(sessions);
-  } catch (error) {
-    console.error("[documentController] Error fetching sessions:", error.message);
-    return res.status(500).json({ error: "Failed to fetch sessions" });
-  }
-}
-
-export async function getAnalysisHistoryBySession(req, res) {
-  try {
-    const { sessionId } = req.params;
-    const query = { userId: req.user._id };
-    if (sessionId === "Legacy Analyses") {
-       query.$or = [{ sessionId: { $exists: false } }, { sessionId: null }, { sessionId: "default" }];
-    } else {
-       query.sessionId = sessionId;
-    }
-    const messages = await Analysis.find(query).sort({ createdAt: 1 });
-    
-    const decryptedMessages = messages.map(msg => {
-      let content;
-      try {
-        const decryptedStr = decryptData(msg.encryptedContent);
-        content = JSON.parse(decryptedStr);
-      } catch (err) {
-        content = "Error: Could not decrypt message";
-      }
-
-      const hasFile = !!msg.fileName && msg.fileName !== 'Manual Text Input';
-
-      if (msg.role === 'assistant') {
-        return {
-          role: "ai", 
-          content: content.analysis || content,
-          isError: false,
-          createdAt: msg.createdAt
-        };
-      } else {
-        return {
-          role: "user",
-          content: content,
-          hasFile: hasFile,
-          createdAt: msg.createdAt
-        };
-      }
-    });
-
-    return res.status(200).json(decryptedMessages);
-  } catch(error) {
-    console.error("[documentController] Error fetching history:", error.message);
-    return res.status(500).json({ error: "Failed to fetch history" });
-  }
-}
+import { checkAndIncrementGuestUsage } from "../utils/guestLimits.js";
+import { resolveMode, resolveRequestIdentity } from "../utils/requestIdentity.js";
+import { extractTextFromPDF, extractTextFromImage, cleanupUploadedFile } from "../utils/fileExtractor.js";
 
 
-async function extractTextFromPDF(filePath) {
-  try {
-    const dataBuffer = fs.readFileSync(filePath);
-    const pdfData = await pdf(dataBuffer);
-    const extractedText = pdfData.text.trim();
-
-    if (!extractedText || extractedText.length < 30) {
-      throw new Error("PDF appears to be scanned. Use OCR for image-based PDFs.");
-    }
-
-    return {
-      text: extractedText,
-      pages: pdfData.numpages,
-      method: "pdf-parse",
-    };
-  } catch (error) {
-    if (error.message?.includes("bad XRef entry") || error.message?.includes("Invalid PDF structure") || error.message?.includes("Password")) {
-      throw new Error("The PDF file is corrupted, natively encrypted, or malformed (bad XRef entry). Please open the file in your system, 'Print to PDF' to create a clean copy, and try uploading again.");
-    }
-    throw error;
-  }
-}
-
-async function extractTextFromImage(filePath) {
-  const worker = await createWorker("eng");
-
-  try {
-    const { data } = await worker.recognize(filePath);
-    const extractedText = data.text.trim();
-
-    if (!extractedText || extractedText.length < 20) {
-      throw new Error(
-        "Unable to extract sufficient text from image. Image may be too blurry or contain no text."
-      );
-    }
-
-    return {
-      text: extractedText,
-      confidence: data.confidence,
-      method: "tesseract-ocr",
-    };
-  } finally {
-    await worker.terminate();
-  }
-}
-
-function cleanupUploadedFile(filePath) {
-  if (filePath && fs.existsSync(filePath)) {
-    try {
-      fs.unlinkSync(filePath);
-    } catch (error) {
-      console.error("[documentController] Cleanup failed:", error.message);
-    }
-  }
-}
 
 function buildRiskStatistics(risks = []) {
   return {
@@ -408,11 +266,38 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
   let filePath = null;
 
   try {
-    const { language: rawLanguage, sessionId } = req.body ?? {};
+    const {
+      language: rawLanguage,
+      sessionId,
+      instructions,
+      userId: rawUserId,
+      mode: rawMode,
+    } = req.body ?? {};
     const language = ensureSupportedLanguage(rawLanguage);
+    const mode = resolveMode(rawMode);
     console.log(
       `[documentController] upload language raw="${rawLanguage}" resolved="${language}"`
     );
+
+    const identity = resolveRequestIdentity(req, { userId: rawUserId });
+    if (identity.error) {
+      return res.status(identity.error.status).json({
+        success: false,
+        message: identity.error.message,
+        error: identity.error.code,
+      });
+    }
+
+    if (identity.isGuest) {
+      const limitResult = checkAndIncrementGuestUsage(identity.userId, "analysis");
+      if (!limitResult.allowed) {
+        return res.status(429).json({
+          success: false,
+          message: "Please login to continue",
+          error: "LIMIT_EXCEEDED",
+        });
+      }
+    }
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -475,7 +360,8 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
       aiAnalysis,
     });
 
-    if (req.user) {
+    const shouldStore = identity.isAuthenticated && mode === "save";
+    if (shouldStore) {
       const parts = [];
       parts.push(`Uploaded: ${fileName}`);
       parts.push(`Size: ${(fileSize / 1024).toFixed(2)} KB`);
@@ -483,7 +369,7 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
       const userMessage = parts.join("\n");
       const userEncrypted = encryptData(JSON.stringify(userMessage));
       await Analysis.create({
-        userId: req.user._id,
+        userId: identity.userId,
         sessionId: sessionId || "default",
         role: "user",
         fileName: fileName,
@@ -492,7 +378,7 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
 
       const assistantEncrypted = encryptData(JSON.stringify(response));
       await Analysis.create({
-        userId: req.user._id,
+        userId: identity.userId,
         sessionId: sessionId || "default",
         role: "assistant",
         encryptedContent: assistantEncrypted
@@ -533,11 +419,38 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
 
 export const analyzeTextOnly = async (req, res) => {
   try {
-    const { text, language: rawLanguage, sessionId } = req.body ?? {};
+    const {
+      text,
+      language: rawLanguage,
+      sessionId,
+      userId: rawUserId,
+      mode: rawMode,
+    } = req.body ?? {};
     const language = ensureSupportedLanguage(rawLanguage);
+    const mode = resolveMode(rawMode);
     console.log(
       `[documentController] analyzeText language raw="${rawLanguage}" resolved="${language}"`
     );
+
+    const identity = resolveRequestIdentity(req, { userId: rawUserId });
+    if (identity.error) {
+      return res.status(identity.error.status).json({
+        success: false,
+        message: identity.error.message,
+        error: identity.error.code,
+      });
+    }
+
+    if (identity.isGuest) {
+      const limitResult = checkAndIncrementGuestUsage(identity.userId, "analysis");
+      if (!limitResult.allowed) {
+        return res.status(429).json({
+          success: false,
+          message: "Please login to continue",
+          error: "LIMIT_EXCEEDED",
+        });
+      }
+    }
 
     if (!text || !text.trim()) {
       return res.status(400).json({
@@ -550,9 +463,10 @@ export const analyzeTextOnly = async (req, res) => {
     const trimmedText = text.trim();
 
     if (isLikelyUserQuery(trimmedText)) {
+      const maskedQuery = maskSensitiveData(trimmedText).maskedText;
       let queryAnalysis;
       try {
-        queryAnalysis = await analyzeLegalQuery(trimmedText, { language });
+        queryAnalysis = await analyzeLegalQuery(maskedQuery, { language });
       } catch (error) {
         if (!isQuotaOrRateLimitError(error)) {
           throw error;
@@ -625,11 +539,12 @@ export const analyzeTextOnly = async (req, res) => {
       },
     };
 
-    if (req.user) {
+    const shouldStore = identity.isAuthenticated && mode === "save";
+    if (shouldStore) {
       try {
         const userEncrypted = encryptData(JSON.stringify(trimmedText));
         await Analysis.create({
-          userId: req.user._id,
+          userId: identity.userId,
           sessionId: sessionId || "default",
           role: "user",
           fileName: "Manual Text Input",
@@ -638,7 +553,7 @@ export const analyzeTextOnly = async (req, res) => {
 
         const assistantEncrypted = encryptData(JSON.stringify(response));
         await Analysis.create({
-          userId: req.user._id,
+          userId: identity.userId,
           sessionId: sessionId || "default",
           role: "assistant",
           encryptedContent: assistantEncrypted
@@ -659,5 +574,87 @@ export const analyzeTextOnly = async (req, res) => {
       message: error.message || "Text analysis failed",
       error: isQuotaOrRateLimitError(error) ? "AI_QUOTA_EXCEEDED" : "ANALYSIS_ERROR",
     });
+  }
+};
+
+export const getAnalysisSessions = async (req, res) => {
+  try {
+    const records = await Analysis.find({ userId: req.user._id }).sort({ createdAt: 1 });
+    const sessionsMap = new Map();
+
+    for (const record of records) {
+      const sid = record.sessionId || "Legacy Analyses";
+      if (!sessionsMap.has(sid)) {
+        let title = record.fileName || "Analysis Session";
+        if (record.role === "user" && !record.fileName) {
+          try {
+            const decryptedStr = decryptData(record.encryptedContent);
+            const txt = JSON.parse(decryptedStr);
+            if (typeof txt === "string") {
+              title = txt.substring(0, 30) + (txt.length > 30 ? "..." : "");
+            }
+          } catch (error) {}
+        }
+
+        sessionsMap.set(sid, {
+          sessionId: sid,
+          title,
+          createdAt: record.createdAt,
+          updatedAt: record.updatedAt || record.createdAt,
+        });
+      }
+    }
+
+    const sessions = Array.from(sessionsMap.values()).sort(
+      (a, b) => b.updatedAt - a.updatedAt
+    );
+    return res.status(200).json(sessions);
+  } catch (error) {
+    console.error("[documentController] Error fetching analysis sessions:", error.message);
+    return res.status(500).json({ error: "Failed to fetch analysis sessions" });
+  }
+};
+
+export const getAnalysisHistoryBySession = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const query = { userId: req.user._id };
+
+    if (sessionId === "Legacy Analyses") {
+      query.$or = [{ sessionId: { $exists: false } }, { sessionId: null }, { sessionId: "default" }];
+    } else {
+      query.sessionId = sessionId;
+    }
+
+    const records = await Analysis.find(query).sort({ createdAt: 1 });
+    const history = records.map((record) => {
+      let content = "";
+      let structured = null;
+
+      try {
+        const decryptedStr = decryptData(record.encryptedContent);
+        const parsed = JSON.parse(decryptedStr);
+        if (record.role === "assistant") {
+          structured = parsed?.data?.analysis?.structured || null;
+          content = structured ? "" : parsed;
+        } else {
+          content = parsed;
+        }
+      } catch (err) {
+        content = "Error: Could not decrypt analysis";
+      }
+
+      return {
+        role: record.role === "assistant" ? "ai" : "user",
+        content,
+        structured,
+        createdAt: record.createdAt,
+      };
+    });
+
+    return res.status(200).json(history);
+  } catch (error) {
+    console.error("[documentController] Error fetching analysis history:", error.message);
+    return res.status(500).json({ error: "Failed to fetch analysis history" });
   }
 };

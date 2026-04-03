@@ -1,326 +1,228 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useOutletContext, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useOutletContext } from "react-router-dom";
 import {
   ArrowUp,
   Bot,
-  FileSignature,
-  List,
-  MessageSquare,
-  Paperclip,
-  Plus,
+  Loader2,
   Sparkles,
   User,
+  Paperclip,
   X,
+  FileText,
 } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { analyzeDocument, generateFir, sendChatMessage, fetchChatSessions, fetchChatHistory } from "../services/api";
+import { sendChatMessage, fetchChatHistory } from "../services/api";
 import { useLanguage } from "../context/LanguageContext.jsx";
-import AnalysisCard from "../components/omni/AnalysisCard";
-import FIRDraftCard from "../components/omni/FIRDraftCard";
-import FIRInputCard from "../components/omni/FIRInputCard";
-import LegalStepsCard from "../components/omni/LegalStepsCard";
-import TypingIndicator from "../components/omni/TypingIndicator";
+import PrivacyToggle from "../components/common/PrivacyToggle.jsx";
+import {
+  canUseGuestFeature,
+  getOrCreateGuestSessionId,
+  getPrivacyMode,
+  incrementGuestUsage,
+  isGuestUser,
+  loadGuestChatHistory,
+  saveGuestChatHistory,
+  setPrivacyMode,
+} from "../utils/guestIdentity";
 
-const FILE_TYPES = [
-  "application/pdf",
-  "image/png",
-  "image/jpeg",
-  "image/jpg",
-  "image/gif",
-  "image/webp",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-];
+const ACTION_ROUTES = {
+  "Generate FIR": "/fir",
+  "See Steps": "/steps",
+  "Analyze Document": "/analyze",
+};
+
+const buildWelcomeMessage = (t) => ({
+  role: "assistant",
+  content: {
+    topic: t("appName"),
+    simple_explanation: t("chat.initialExplanation"),
+    rules: [t("chat.initialRule1"), t("chat.initialRule2")],
+    penalties: [],
+    user_guidance: [t("chat.initialGuidance")],
+  },
+  suggestions: ["See Steps", "Analyze Document", "Generate FIR"],
+  contextUsed: false,
+});
 
 export default function ChatPage() {
   const { t } = useTranslation();
   const { language } = useLanguage();
-  const { registerChatActivity, chatNonce } = useOutletContext() || {};
-  const fileInputRef = useRef(null);
+  const navigate = useNavigate();
   const messagesEndRef = useRef(null);
-  const lastUserInputRef = useRef("");
-  const [chatId, setChatId] = useState(null);
+  const initialMessage = useMemo(() => buildWelcomeMessage(t), [t]);
   const [input, setInput] = useState("");
+  const [file, setFile] = useState(null);
+  const fileInputRef = useRef(null);
   const [loading, setLoading] = useState(false);
-  const [messages, setMessages] = useState([]);
-  const [stagedFile, setStagedFile] = useState(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const canSend = Boolean(input.trim() || stagedFile);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [messages, setMessages] = useState([initialMessage]);
+  const [privacyMode, setPrivacyModeState] = useState(getPrivacyMode());
+  
   const [searchParams, setSearchParams] = useSearchParams();
-  const currentSessionId = searchParams.get("session");
-
-  const initialMessage = useMemo(
-    () => ({
-      id: "intro",
-      role: "assistant",
-      type: "text",
-      content: {
-        topic: t("appName"),
-        simple_explanation: t("chat.initialExplanation"),
-        rules: [t("chat.initialRule1"), t("chat.initialRule2")],
-        penalties: [],
-        user_guidance: [t("chat.initialGuidance")],
-      },
-      suggestions: ["See Steps", "Analyze Document", "Generate FIR"],
-      contextUsed: false,
-    }),
-    [t]
-  );
+  const sessionId = searchParams.get("session");
+  const { refreshSessions, sessionNonce } = useOutletContext() || {};
 
   useEffect(() => {
-    setMessages([initialMessage]);
-  }, [initialMessage]);
+    setPrivacyMode(privacyMode);
+  }, [privacyMode]);
 
   useEffect(() => {
-    if (chatNonce > 0) {
+    const initializeChat = async () => {
+      setIsInitializing(true);
+      if (!sessionId) {
+        if (isGuestUser()) {
+          const guestSessionId = getOrCreateGuestSessionId("chat");
+          const guestHistory = loadGuestChatHistory();
+          setMessages(guestHistory.length ? [initialMessage, ...guestHistory] : [initialMessage]);
+          setSearchParams({ session: guestSessionId }, { replace: true });
+        } else {
+          setMessages([initialMessage]);
+        }
+      } else {
+        try {
+          const history = await fetchChatHistory(sessionId);
+          if (history && history.length > 0) {
+            setMessages([initialMessage, ...history]);
+          } else {
+            setMessages([initialMessage]);
+          }
+        } catch (e) {
+          console.error("Failed to fetch chat history:", e);
+          setMessages([initialMessage]);
+        }
+      }
+      setIsInitializing(false);
+    };
+
+    initializeChat();
+  }, [sessionId, initialMessage]);
+
+  useEffect(() => {
+    if (sessionNonce > 0 && !sessionId && !isGuestUser()) {
       setMessages([initialMessage]);
       setInput("");
-      setStagedFile(null);
-      setChatId(null);
+      setFile(null);
     }
-  }, [chatNonce, initialMessage]);
-
-  const loadSession = async (sessionId) => {
-    setLoading(true);
-    setIsInitializing(true);
-    try {
-      const history = await fetchChatHistory(sessionId);
-      if (history && history.length > 0) {
-        const formattedHistory = history.map(msg => ({
-          id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-          role: msg.role,
-          type: "text",
-          content: msg.content,
-          suggestions: msg.suggestions || [],
-          contextUsed: msg.contextUsed || false,
-        }));
-        setMessages([initialMessage, ...formattedHistory]);
-      } else {
-        setMessages([initialMessage]);
-      }
-    } catch (error) {
-      console.error("Failed to load session:", error);
-      setMessages([
-        initialMessage,
-        {
-          id: `error-${Date.now()}`,
-          role: "assistant",
-          type: "text",
-          isError: true,
-          content: "Failed to load chat history. Please try again later.",
-        }
-      ]);
-    } finally {
-      setLoading(false);
-      setIsInitializing(false);
-    }
-  };
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token && currentSessionId) {
-      loadSession(currentSessionId);
-    } else {
-      setMessages([initialMessage]);
-      setIsInitializing(false);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSessionId]);
+  }, [sessionNonce, sessionId, initialMessage]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  const pushMessage = (message) => {
-    setMessages((prev) => [
-      ...prev,
-      { id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, ...message },
-    ]);
-  };
-
-  const removeMessage = (id) => {
-    setMessages((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const ensureChatRegistered = (title) => {
-    if (!registerChatActivity) {
-      return chatId;
+  const removeFile = () => {
+    setFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
-
-    if (chatId) {
-      registerChatActivity(title, chatId);
-      return chatId;
-    }
-
-    const newId = registerChatActivity(title, chatId);
-    setChatId(newId);
-    return newId;
   };
 
   const handleFileChange = (event) => {
     const selectedFile = event.target.files?.[0];
-    if (!selectedFile) {
-      return;
-    }
+    if (!selectedFile) return;
 
     if (selectedFile.size > 15 * 1024 * 1024) {
-      pushMessage({
-        role: "assistant",
-        type: "text",
-        isError: true,
-        content: "File size exceeds 15MB. Please upload a smaller file.",
-      });
+      alert("File size exceeds 15MB limit.");
       return;
     }
-
-    if (!FILE_TYPES.includes(selectedFile.type)) {
-      pushMessage({
-        role: "assistant",
-        type: "text",
-        isError: true,
-        content: "Invalid file type. Please upload a PDF, image, or DOCX file.",
-      });
-      return;
-    }
-
-    setStagedFile(selectedFile);
-  };
-
-  const openFirComposer = (prefill = "") => {
-    pushMessage({
-      role: "assistant",
-      type: "fir_input",
-      content: { prefill },
-    });
-  };
-
-  const handleGenerateFir = async (seedText) => {
-    const content = seedText?.trim();
-    if (!content) {
-      openFirComposer("");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      pushMessage({ role: "user", type: "text", content });
-      const response = await generateFir(content, language);
-      pushMessage({
-        role: "assistant",
-        type: "fir",
-        content: response?.fir_text || "",
-      });
-    } catch (error) {
-      pushMessage({
-        role: "assistant",
-        type: "text",
-        isError: true,
-        content: error.message || "Unable to generate FIR.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleShowSteps = () => {
-    pushMessage({
-      role: "assistant",
-      type: "steps",
-      content: {
-        completed: 1,
-      },
-    });
-  };
-
-  const handleSuggestion = async (suggestion) => {
-    if (suggestion === "Analyze Document") {
-      fileInputRef.current?.click();
-      return;
-    }
-
-    if (suggestion === "See Steps") {
-      handleShowSteps();
-      return;
-    }
-
-    if (suggestion === "Generate FIR") {
-      openFirComposer(lastUserInputRef.current);
-    }
+    setFile(selectedFile);
   };
 
   const submitMessage = async () => {
     const trimmedInput = input.trim();
-    if ((!trimmedInput && !stagedFile) || loading) {
+    if ((!trimmedInput && !file) || loading) {
       return;
     }
 
-    const file = stagedFile;
-    const chatTitle = trimmedInput || file?.name || "New chat";
-    ensureChatRegistered(chatTitle);
+    const guest = isGuestUser();
+    if (guest && !canUseGuestFeature("chat")) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Please login to continue",
+          isError: true,
+        },
+      ]);
+      return;
+    }
 
-    pushMessage({
-      role: "user",
-      type: "text",
-      content: trimmedInput,
-      file,
-    });
+    let targetSessionId = sessionId;
+    if (!targetSessionId) {
+      targetSessionId = guest
+        ? getOrCreateGuestSessionId("chat")
+        : crypto.randomUUID();
+    }
 
+    const parts = [];
+    if (file) parts.push(`[Attached File: ${file.name}]`);
+    if (trimmedInput) parts.push(trimmedInput);
+
+    const userEntry = { role: "user", content: parts.join("\n\n") };
+    setMessages((prev) => [...prev, userEntry]);
+    
     setInput("");
-    setStagedFile(null);
+    const fileToUpload = file;
+    removeFile();
     setLoading(true);
 
     try {
-      if (file) {
-        const response = await analyzeDocument(file, null, language, currentSessionId);
-        const structured = response?.data?.analysis?.structured || null;
-        if (structured) {
-          pushMessage({
-            role: "assistant",
-            type: "analysis",
-            content: {
-              analysis: structured,
-              fileName: file.name,
-              fileType: file.type,
-            },
-          });
-        }
+      const response = await sendChatMessage(trimmedInput, {
+        sessionId: targetSessionId,
+        language,
+        mode: privacyMode,
+        file: fileToUpload,
+      });
+
+      const assistantEntry = {
+        role: "assistant",
+        content: response.reply,
+        suggestions: Array.isArray(response.suggestions) ? response.suggestions : [],
+        isError: Boolean(response.isError),
+        contextUsed: Boolean(response.contextUsed),
+      };
+
+      setMessages((prev) => [...prev, assistantEntry]);
+
+      if (guest) {
+        const history = loadGuestChatHistory();
+        const nextHistory = [...history, userEntry, assistantEntry].slice(-4);
+        saveGuestChatHistory(nextHistory);
+        incrementGuestUsage("chat");
+      }
+      
+      if (refreshSessions) {
+        refreshSessions();
       }
 
-      if (trimmedInput) {
-        lastUserInputRef.current = trimmedInput;
-        const response = await sendChatMessage(trimmedInput, language, currentSessionId);
-        pushMessage({
-          role: "assistant",
-          type: "text",
-          content: response.reply,
-          suggestions: Array.isArray(response.suggestions) ? response.suggestions : [],
-          contextUsed: Boolean(response.contextUsed),
-        });
+      if (!sessionId) {
+        setSearchParams({ session: targetSessionId }, { replace: true });
       }
     } catch (error) {
-      pushMessage({
-        role: "assistant",
-        type: "text",
-        isError: true,
-        content: error.message || t("chat.errorMessage"),
-      });
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: error.message || t("chat.errorMessage"),
+          isError: true,
+        },
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
-  const menuVariants = {
-    hidden: { opacity: 0, scale: 0.95, y: 10, transformOrigin: "bottom left" },
-    visible: { opacity: 1, scale: 1, y: 0, transformOrigin: "bottom left" },
-    exit: { opacity: 0, scale: 0.96, y: 8 },
+  const handleSuggestion = (suggestion) => {
+    const route = ACTION_ROUTES[suggestion];
+    if (route) {
+      navigate(route);
+    }
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#050505] text-slate-300">
+    <div className="flex h-full flex-col overflow-hidden bg-[#0a0a0b] text-slate-300">
       <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-6">
-        <div className="mx-auto w-full max-w-5xl">
-          <div className="mb-8 rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(99,102,241,0.18),_transparent_55%),rgba(15,15,18,0.9)] p-8 shadow-2xl backdrop-blur-md">
+        <div className="mx-auto w-full max-w-4xl">
+          <div className="mb-8 rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(99,102,241,0.22),_transparent_50%),#121215] p-8 shadow-2xl">
             <div className="mb-4 flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white">
                 <Sparkles size={22} />
@@ -330,107 +232,80 @@ export default function ChatPage() {
                 <p className="text-sm text-slate-400">{t("chat.subtitle")}</p>
               </div>
             </div>
-            <p className="max-w-3xl text-sm leading-7 text-slate-400">{t("chat.example")}</p>
+            <p className="text-sm text-slate-400">{t("chat.example")}</p>
+            <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+              <PrivacyToggle value={privacyMode} onChange={setPrivacyModeState} />
+              <span>Private mode skips saving chat history.</span>
+              {isGuestUser() && <span className="text-amber-300">Guest limit: 3 messages.</span>}
+            </div>
           </div>
 
-          <div className="space-y-6 pb-10">
-            {messages.map((message, index) => (
-              <motion.div
-                key={message.id}
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: Math.min(index * 0.02, 0.2) }}
-                className={`flex gap-4 ${message.role === "user" ? "justify-end" : "justify-start"}`}
-              >
-                {message.role === "assistant" && (
-                  <div
-                    className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${
-                      message.isError ? "bg-red-500/20 text-red-300" : "bg-indigo-600 text-white"
-                    }`}
-                  >
-                    <Bot size={18} />
-                  </div>
-                )}
-
-                <div className="max-w-[90%]">
-                  {message.type === "analysis" && (
-                    <AnalysisCard
-                      analysis={message.content.analysis}
-                      fileName={message.content.fileName}
-                      fileType={message.content.fileType}
-                      onViewSteps={handleShowSteps}
-                      onDraftNotice={() => handleGenerateFir(lastUserInputRef.current)}
-                    />
+          <div className="space-y-6 pb-8">
+            {isInitializing ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="animate-spin text-indigo-500" size={32} />
+              </div>
+            ) : (
+              messages.map((message, index) => (
+                <div key={`${message.role}-${index}`} className={`flex gap-4 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+                  {message.role === "assistant" && (
+                    <div className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${message.isError ? "bg-red-500/20 text-red-300" : "bg-indigo-600 text-white"}`}>
+                      <Bot size={18} />
+                    </div>
                   )}
 
-                  {message.type === "steps" && (
-                    <LegalStepsCard completed={message.content.completed} />
-                  )}
-
-                  {message.type === "fir" && <FIRDraftCard firText={message.content} />}
-
-                  {message.type === "fir_input" && (
-                    <FIRInputCard
-                      defaultValue={message.content?.prefill || ""}
-                      onSubmit={handleGenerateFir}
-                      onCancel={() => removeMessage(message.id)}
-                    />
-                  )}
-
-                  {message.type === "text" && (
+                  <div className="max-w-[88%]">
                     <div
                       className={`rounded-3xl p-4 text-sm leading-7 ${
                         message.role === "user"
-                          ? "rounded-tr-none bg-indigo-600 text-white"
+                          ? "rounded-tr-none bg-white text-[#111827]"
                           : message.isError
-                          ? "border border-red-500/20 bg-red-500/10 text-red-100"
-                          : "rounded-tl-none border border-white/10 bg-slate-900/60 text-slate-200 backdrop-blur-md"
+                            ? "border border-red-500/20 bg-red-500/10 text-red-100"
+                            : "rounded-tl-none border border-white/10 bg-[#121215] text-slate-200"
                       }`}
                     >
-                      <StructuredReply content={message.content} file={message.file} />
+                      <StructuredReply content={message.content} />
                       {message.role === "assistant" && !message.isError && (
-                        <div className="mt-3 text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                          {message.contextUsed ? "RAG context used" : "General legal guidance"}
+                        <div className="mt-3 flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                          <span>{message.contextUsed ? "RAG context used" : "General legal guidance"}</span>
+                          {message.createdAt && <span className="opacity-60">{new Date(message.createdAt).toLocaleTimeString()}</span>}
                         </div>
                       )}
                     </div>
-                  )}
 
-                  {message.role === "assistant" && message.suggestions?.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {message.suggestions.map((suggestion) => (
-                        <button
-                          key={suggestion}
-                          onClick={() => handleSuggestion(suggestion)}
-                          className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-200 transition hover:bg-indigo-500/20"
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
+                    {message.role === "assistant" && message.suggestions?.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {message.suggestions.map((suggestion) => (
+                          <button
+                            key={suggestion}
+                            onClick={() => handleSuggestion(suggestion)}
+                            className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-200 transition hover:bg-indigo-500/20"
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {message.role === "user" && (
+                    <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-slate-200">
+                      <User size={18} />
                     </div>
                   )}
                 </div>
-
-                {message.role === "user" && (
-                  <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-slate-200">
-                    <User size={18} />
-                  </div>
-                )}
-              </motion.div>
-            ))}
+              ))
+            )}
 
             {loading && (
-              <motion.div
-                className="flex gap-4"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25 }}
-              >
+              <div className="flex gap-4">
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-600 text-white">
-                  <Bot size={18} />
+                  <Loader2 size={18} className="animate-spin" />
                 </div>
-                <TypingIndicator />
-              </motion.div>
+                <div className="rounded-3xl rounded-tl-none border border-white/10 bg-[#121215] px-4 py-3 text-sm italic text-slate-400">
+                  {t("chat.loading")}
+                </div>
+              </div>
             )}
 
             <div ref={messagesEndRef} />
@@ -438,98 +313,35 @@ export default function ChatPage() {
         </div>
       </div>
 
-      <div className="border-t border-white/5 bg-[#050505] p-4 sm:p-6">
-        <div className="mx-auto max-w-5xl rounded-[32px] border border-white/10 bg-[#121215] p-3 shadow-2xl backdrop-blur-md">
-          {stagedFile && (
-            <div className="mx-1 mb-3 flex items-center justify-between rounded-2xl border border-indigo-500/20 bg-indigo-500/10 px-3 py-2 text-xs text-indigo-200">
-              <div className="flex items-center gap-2 truncate">
-                <Paperclip size={14} />
-                <span className="truncate font-semibold">{stagedFile.name}</span>
+      <div className="border-t border-white/5 bg-[#0a0a0b] p-4 sm:p-6">
+        <div className="mx-auto max-w-4xl rounded-[24px] border border-white/10 bg-[#121215] p-2 shadow-2xl">
+          {file && (
+            <div className="mx-2 mb-2 flex items-center justify-between rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-2 text-indigo-300">
+              <div className="flex items-center gap-2 overflow-hidden">
+                <FileText size={16} />
+                <span className="truncate text-xs font-semibold">{file.name}</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setStagedFile(null)}
-                className="rounded-lg p-1 text-indigo-200 hover:bg-indigo-500/20"
-              >
-                <X size={14} />
+              <button onClick={removeFile} className="rounded-lg p-1 hover:bg-white/5">
+                <X size={16} />
               </button>
             </div>
           )}
-
-          <div className="relative flex items-end gap-2">
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setIsMenuOpen((prev) => !prev)}
-                className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
-                disabled={loading}
-              >
-                <Plus size={18} />
-              </button>
-
-              <AnimatePresence>
-                {isMenuOpen && (
-                  <motion.div
-                    variants={menuVariants}
-                    initial="hidden"
-                    animate="visible"
-                    exit="exit"
-                    className="absolute bottom-16 left-0 z-20 w-56 rounded-2xl border border-white/5 bg-[#1e1e24] p-2 shadow-2xl"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        fileInputRef.current?.click();
-                      }}
-                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-200 transition hover:bg-white/5"
-                    >
-                      <Paperclip size={16} />
-                      Upload Document
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        openFirComposer(lastUserInputRef.current);
-                      }}
-                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-200 transition hover:bg-white/5"
-                    >
-                      <FileSignature size={16} />
-                      Generate FIR
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        handleShowSteps();
-                      }}
-                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-200 transition hover:bg-white/5"
-                    >
-                      <List size={16} />
-                      See Legal Steps
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              accept="image/*,.pdf,.docx"
-              onChange={(event) => {
-                handleFileChange(event);
-                setIsMenuOpen(false);
-              }}
-            />
+          <div className="flex items-end gap-2">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={loading}
+              className="rounded-xl p-3 text-slate-400 transition hover:bg-white/5 hover:text-white"
+              title="Attach Document"
+            >
+              <Paperclip size={20} />
+            </button>
+            <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept="application/pdf,image/*,.docx" />
 
             <textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder={t("chat.placeholder")}
-              className="max-h-40 flex-1 resize-none bg-transparent px-3 py-3 text-[15px] text-slate-100 outline-none placeholder:text-slate-600"
+              placeholder={file ? "Add optional context..." : t("chat.placeholder")}
+              className="max-h-40 flex-1 resize-none bg-transparent py-3 text-[15px] text-slate-100 outline-none placeholder:text-slate-600"
               rows={1}
               disabled={loading}
               onKeyDown={(event) => {
@@ -541,14 +353,10 @@ export default function ChatPage() {
             />
             <button
               onClick={submitMessage}
-              disabled={loading || !canSend}
-              className={`rounded-2xl p-3 text-white transition ${
-                canSend
-                  ? "bg-indigo-600 hover:bg-indigo-500"
-                  : "bg-slate-800/60 text-slate-500"
-              }`}
+              disabled={loading || (!input.trim() && !file)}
+              className="rounded-2xl bg-indigo-600 p-3 text-white transition hover:bg-indigo-500 disabled:opacity-30"
             >
-              <ArrowUp size={20} />
+              {loading ? <Loader2 size={20} className="animate-spin" /> : <ArrowUp size={20} />}
             </button>
           </div>
         </div>

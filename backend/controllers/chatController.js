@@ -1,29 +1,155 @@
 import { ensureSupportedLanguage } from "../config/languages.js";
+import { extractTextFromDocx, truncateText } from "../services/aiService.js";
+import { extractTextFromPDF, extractTextFromImage, cleanupUploadedFile } from "../utils/fileExtractor.js";
 import { generateLegalChatResponse } from "../services/geminiChat.js";
 import Message from "../models/Message.js";
+import ChatSession from "../models/ChatSession.js";
 import { encryptData, decryptData } from "../utils/cryptoUtils.js";
+import { maskSensitiveData } from "../utils/dataMasking.js";
+import { checkAndIncrementGuestUsage } from "../utils/guestLimits.js";
+import { resolveMode, resolveRequestIdentity } from "../utils/requestIdentity.js";
 
 export async function chatWithLegalAssistant(req, res) {
   try {
-    const { message, language: rawLanguage } = req.body ?? {};
+    const {
+      message,
+      sessionId,
+      language: rawLanguage,
+      userId: rawUserId,
+      mode: rawMode,
+    } = req.body ?? {};
     const language = ensureSupportedLanguage(rawLanguage);
+    const mode = resolveMode(rawMode);
     console.log(
       `[chatController] language raw="${rawLanguage}" resolved="${language}"`
     );
-
-    if (!message || typeof message !== "string" || !message.trim()) {
-      return res.status(503).json({
+    let filePath = null;
+    const identity = resolveRequestIdentity(req, { userId: rawUserId });
+    if (identity.error) {
+      return res.status(identity.error.status).json({
         success: false,
-        reply:
-          "Sorry, the legal assistant is temporarily unavailable. Please try again in a short while.",
+        message: identity.error.message,
+        error: identity.error.code,
+      });
+    }
+
+    if (identity.isGuest) {
+      const limitResult = checkAndIncrementGuestUsage(identity.userId, "chat");
+      if (!limitResult.allowed) {
+        return res.status(429).json({
+          success: false,
+          message: "Please login to continue",
+          error: "LIMIT_EXCEEDED",
+        });
+      }
+    }
+
+    let extractedText = "";
+    let fileName = null;
+    let fileSize = null;
+
+    if (req.file) {
+      filePath = req.file.path;
+      fileName = req.file.originalname;
+      fileSize = req.file.size;
+      const mimeType = req.file.mimetype;
+
+      let extractionResult;
+      if (mimeType === "application/pdf") {
+        extractionResult = await extractTextFromPDF(filePath);
+      } else if (mimeType.startsWith("image/")) {
+        extractionResult = await extractTextFromImage(filePath);
+      } else if (
+        mimeType ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ) {
+        extractionResult = await extractTextFromDocx(filePath);
+      } else {
+        throw new Error(`Unsupported file type: ${mimeType}.`);
+      }
+      extractedText = extractionResult.text;
+
+      if (!extractedText || extractedText.trim().length < 20) {
+        throw new Error("Insufficient text extracted from file.");
+      }
+      
+      cleanupUploadedFile(filePath);
+      filePath = null;
+    }
+
+    if ((!message || typeof message !== "string" || !message.trim()) && !extractedText) {
+      return res.status(400).json({
+        success: false,
+        reply: "Please provide either a text message or a document.",
         suggestions: ["See Steps"],
         contextUsed: false,
       });
     }
-    const result = await generateLegalChatResponse(message.trim(), { language });
+
+    const trimmedMessage = message ? message.trim() : "";
+    const shouldStore = identity.isAuthenticated && mode === "save";
+    const resolvedSessionId = sessionId || "default";
+    
+    let finalQueryText = trimmedMessage;
+    if (extractedText) {
+       const safeExtractedText = truncateText(extractedText, 18000);
+       finalQueryText = `${trimmedMessage ? trimmedMessage + "\n\n" : ""}User Uploaded Document Context:\n${safeExtractedText}`;
+    }
+
+    const maskedMessage = maskSensitiveData(finalQueryText).maskedText;
+
+    if (shouldStore) {
+      let titleMessage = trimmedMessage || (fileName ? `Analyzed: ${fileName}` : "New Chat");
+      const title = titleMessage.slice(0, 60) + (titleMessage.length > 60 ? "..." : "");
+      await ChatSession.findOneAndUpdate(
+        { userId: identity.userId, sessionId: resolvedSessionId },
+        {
+          $setOnInsert: { title },
+          $set: { updatedAt: new Date() },
+        },
+        { upsert: true, returnDocument: "after" }
+      );
+
+      let displayMessage = trimmedMessage;
+      if (fileName) {
+        displayMessage = trimmedMessage ? `${trimmedMessage}\n\n[Attached File: ${fileName}]` : `[Attached File: ${fileName}]`;
+      }
+
+      const userEncrypted = encryptData(JSON.stringify(displayMessage));
+      await Message.create({
+        userId: identity.userId,
+        sessionId: resolvedSessionId,
+        role: "user",
+        encryptedContent: userEncrypted,
+        fileName: fileName || undefined
+      });
+    }
+
+    const result = await generateLegalChatResponse(trimmedMessage || "Please analyze this document", {
+      language,
+      aiQuery: maskedMessage,
+    });
+
+    if (shouldStore) {
+      const assistantEncrypted = encryptData(JSON.stringify(result));
+      await Message.create({
+        userId: identity.userId,
+        sessionId: resolvedSessionId,
+        role: "assistant",
+        encryptedContent: assistantEncrypted,
+      });
+    }
     return res.status(200).json(result);
   } catch (error) {
     console.error("[chatController] Chat request failed:", error.message);
+    if (error.message.includes("Unsupported file type") || error.message.includes("Insufficient text")) {
+      return res.status(400).json({
+        success: false,
+        reply: error.message,
+        suggestions: ["See Steps"],
+        contextUsed: false
+      });
+    }
 
     return res.status(500).json({
       reply:
@@ -36,32 +162,47 @@ export async function chatWithLegalAssistant(req, res) {
 
 export async function getChatSessions(req, res) {
   try {
+    const sessions = await ChatSession.find({ userId: req.user._id })
+      .sort({ updatedAt: -1 })
+      .select({ sessionId: 1, title: 1, createdAt: 1, updatedAt: 1 })
+      .lean();
+
+    if (sessions.length > 0) {
+      return res.status(200).json(sessions);
+    }
+
     const messages = await Message.find({ userId: req.user._id }).sort({ createdAt: 1 });
     const sessionsMap = new Map();
-    
+
     for (const msg of messages) {
-       const sid = msg.sessionId || "Legacy Chats";
-       if (!sessionsMap.has(sid)) {
-         let title = "Chat Session";
-         if (msg.role === 'user') {
-           try {
-              const decryptedStr = decryptData(msg.encryptedContent);
-              const txt = JSON.parse(decryptedStr);
-              title = typeof txt === 'string' ? (txt.substring(0, 30) + (txt.length > 30 ? "..." : "")) : "Document Upload";
-           } catch(e) {}
-         } else if (sid === "Legacy Chats") {
-           title = "Older Chats";
-         }
-         sessionsMap.set(sid, {
-           sessionId: sid,
-           title: title,
-           createdAt: msg.createdAt
-         });
-       }
+      const sid = msg.sessionId || "Legacy Chats";
+      if (!sessionsMap.has(sid)) {
+        let title = "Chat Session";
+        if (msg.role === "user") {
+          try {
+            const decryptedStr = decryptData(msg.encryptedContent);
+            const txt = JSON.parse(decryptedStr);
+            title =
+              typeof txt === "string"
+                ? txt.substring(0, 30) + (txt.length > 30 ? "..." : "")
+                : "Document Upload";
+          } catch (e) {}
+        } else if (sid === "Legacy Chats") {
+          title = "Older Chats";
+        }
+        sessionsMap.set(sid, {
+          sessionId: sid,
+          title: title,
+          createdAt: msg.createdAt,
+          updatedAt: msg.updatedAt || msg.createdAt,
+        });
+      }
     }
-    
-    const sessions = Array.from(sessionsMap.values()).sort((a,b) => b.createdAt - a.createdAt);
-    return res.status(200).json(sessions);
+
+    const legacySessions = Array.from(sessionsMap.values()).sort(
+      (a, b) => b.updatedAt - a.updatedAt
+    );
+    return res.status(200).json(legacySessions);
   } catch (error) {
     console.error("[chatController] Error fetching sessions:", error.message);
     return res.status(500).json({ error: "Failed to fetch sessions" });
