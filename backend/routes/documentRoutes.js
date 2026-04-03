@@ -4,8 +4,11 @@ import multer from "multer";
 import path from "path";
 import {
   uploadAndAnalyzeDocument,
-  analyzeTextOnly
+  analyzeTextOnly,
+  getAnalysisSessions,
+  getAnalysisHistoryBySession,
 } from "../controllers/documentController.js";
+import { optionalProtect, protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
@@ -62,8 +65,9 @@ const upload = multer({
   },
 });
 
-router.post("/analyze", upload.single("document"), uploadAndAnalyzeDocument);
-router.post("/analyze-text", analyzeTextOnly);
+router.post("/analyze", optionalProtect, upload.single("document"), uploadAndAnalyzeDocument);
+router.post("/analyze-text", optionalProtect, analyzeTextOnly);
+router.get("/sessions", protect, getAnalysisSessions);
 
 router.get("/health", (req, res) => {
   res.json({
@@ -72,6 +76,8 @@ router.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+router.get("/:sessionId", protect, getAnalysisHistoryBySession);
 
 router.use((error, req, res, next) => {
   if (error instanceof multer.MulterError) {

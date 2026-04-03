@@ -62,7 +62,7 @@ const __dirname = path.dirname(__filename);
 export const analyseText = (req, res) => {
   const { text } = req.body;
 
-  console.log("Received text from frontend:", text);
+  console.log("Received text from frontend, length:", text?.length || 0);
 
   if (!text) {
     return res.status(400).json({ error: "Text required" });

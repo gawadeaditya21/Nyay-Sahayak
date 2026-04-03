@@ -10,6 +10,7 @@
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import { resolveLanguage } from "../config/languages";
+import { getEffectiveUserId, getPrivacyMode } from "../utils/guestIdentity";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CONFIGURATION
@@ -85,6 +86,10 @@ function formatErrorMessage(error) {
       return "Text is too short for analysis. Please provide at least 50 characters.";
     case "SCANNED_PDF":
       return "This appears to be a scanned PDF. Please upload an image version for OCR processing.";
+    case "LIMIT_EXCEEDED":
+      return "Please login to continue.";
+    case "GUEST_ID_REQUIRED":
+      return "Guest identity is missing. Please refresh the page.";
     default:
       return error.message || "An unexpected error occurred. Please try again.";
   }
@@ -120,7 +125,11 @@ export async function analyzeDocument(file, onProgress = null, options = {}) {
     formData.append("document", file);
     const normalizedOptions = typeof options === "string" ? { language: options } : options || {};
     const resolvedLanguage = normalizedOptions.language || getStoredLanguage();
+    const resolvedMode = normalizedOptions.mode || getPrivacyMode();
+    const userId = getEffectiveUserId();
     formData.append("language", resolvedLanguage);
+    formData.append("mode", resolvedMode);
+    formData.append("userId", userId);
     if (normalizedOptions.sessionId) formData.append("sessionId", normalizedOptions.sessionId);
     if (normalizedOptions.instructions) formData.append("instructions", normalizedOptions.instructions);
 
@@ -195,9 +204,13 @@ export async function analyzeText(text, options = {}) {
     }
 
     const normalizedOptions = typeof options === "string" ? { language: options } : options || {};
+    const resolvedMode = normalizedOptions.mode || getPrivacyMode();
+    const userId = getEffectiveUserId();
     const payload = {
       text,
       language: normalizedOptions.language || getStoredLanguage(),
+      mode: resolvedMode,
+      userId,
     };
     if (normalizedOptions.sessionId) payload.sessionId = normalizedOptions.sessionId;
 
@@ -258,12 +271,15 @@ export async function checkHealth() {
  * @param {string} userInput - Problem description
  * @returns {Promise<Object>} FIR draft
  */
-export async function generateFir(userInput, language = null) {
+export async function generateFir(userInput, options = {}) {
   try {
     if (!userInput || !userInput.trim()) {
       throw new Error("User input cannot be empty");
     }
 
+    const normalizedOptions = typeof options === "string" ? { language: options } : options || {};
+    const resolvedMode = normalizedOptions.mode || getPrivacyMode();
+    const userId = getEffectiveUserId();
     const response = await fetch(ENDPOINTS.FIR_GENERATE, {
       method: "POST",
       headers: {
@@ -271,7 +287,10 @@ export async function generateFir(userInput, language = null) {
       },
       body: JSON.stringify({
         user_input: userInput.trim(),
-        language: language || getStoredLanguage(),
+        language: normalizedOptions.language || getStoredLanguage(),
+        mode: resolvedMode,
+        userId,
+        sessionId: normalizedOptions.sessionId,
       }),
     });
 
@@ -301,9 +320,13 @@ export async function sendChatMessage(message, options = {}) {
     }
 
     const normalizedOptions = typeof options === "string" ? { language: options } : options || {};
+    const resolvedMode = normalizedOptions.mode || getPrivacyMode();
+    const userId = getEffectiveUserId();
     const payload = {
       message: message.trim(),
       language: normalizedOptions.language || getStoredLanguage(),
+      mode: resolvedMode,
+      userId,
     };
     if (normalizedOptions.sessionId) payload.sessionId = normalizedOptions.sessionId;
 

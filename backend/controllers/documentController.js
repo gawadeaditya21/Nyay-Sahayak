@@ -9,8 +9,10 @@ import {
   extractTextFromDocx,
 } from "../services/aiService.js";
 import { maskSensitiveData } from "../utils/dataMasking.js";
-import { encryptData } from "../utils/cryptoUtils.js";
+import { decryptData, encryptData } from "../utils/cryptoUtils.js";
 import { ensureSupportedLanguage } from "../config/languages.js";
+import { checkAndIncrementGuestUsage } from "../utils/guestLimits.js";
+import { resolveMode, resolveRequestIdentity } from "../utils/requestIdentity.js";
 
 const require = createRequire(import.meta.url);
 const pdf = require("pdf-parse");
@@ -315,11 +317,38 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
   let filePath = null;
 
   try {
-    const { language: rawLanguage, sessionId, instructions } = req.body ?? {};
+    const {
+      language: rawLanguage,
+      sessionId,
+      instructions,
+      userId: rawUserId,
+      mode: rawMode,
+    } = req.body ?? {};
     const language = ensureSupportedLanguage(rawLanguage);
+    const mode = resolveMode(rawMode);
     console.log(
       `[documentController] upload language raw="${rawLanguage}" resolved="${language}"`
     );
+
+    const identity = resolveRequestIdentity(req, { userId: rawUserId });
+    if (identity.error) {
+      return res.status(identity.error.status).json({
+        success: false,
+        message: identity.error.message,
+        error: identity.error.code,
+      });
+    }
+
+    if (identity.isGuest) {
+      const limitResult = checkAndIncrementGuestUsage(identity.userId, "analysis");
+      if (!limitResult.allowed) {
+        return res.status(429).json({
+          success: false,
+          message: "Please login to continue",
+          error: "LIMIT_EXCEEDED",
+        });
+      }
+    }
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -382,7 +411,8 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
       aiAnalysis,
     });
 
-    if (req.user) {
+    const shouldStore = identity.isAuthenticated && mode === "save";
+    if (shouldStore) {
       const parts = [];
       parts.push(`Uploaded: ${fileName}`);
       parts.push(`Size: ${(fileSize / 1024).toFixed(2)} KB`);
@@ -391,7 +421,7 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
       const userMessage = parts.join("\n");
       const userEncrypted = encryptData(JSON.stringify(userMessage));
       await Analysis.create({
-        userId: req.user._id,
+        userId: identity.userId,
         sessionId: sessionId || "default",
         role: "user",
         fileName: fileName,
@@ -400,7 +430,7 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
 
       const assistantEncrypted = encryptData(JSON.stringify(response));
       await Analysis.create({
-        userId: req.user._id,
+        userId: identity.userId,
         sessionId: sessionId || "default",
         role: "assistant",
         encryptedContent: assistantEncrypted
@@ -441,11 +471,38 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
 
 export const analyzeTextOnly = async (req, res) => {
   try {
-    const { text, language: rawLanguage, sessionId } = req.body ?? {};
+    const {
+      text,
+      language: rawLanguage,
+      sessionId,
+      userId: rawUserId,
+      mode: rawMode,
+    } = req.body ?? {};
     const language = ensureSupportedLanguage(rawLanguage);
+    const mode = resolveMode(rawMode);
     console.log(
       `[documentController] analyzeText language raw="${rawLanguage}" resolved="${language}"`
     );
+
+    const identity = resolveRequestIdentity(req, { userId: rawUserId });
+    if (identity.error) {
+      return res.status(identity.error.status).json({
+        success: false,
+        message: identity.error.message,
+        error: identity.error.code,
+      });
+    }
+
+    if (identity.isGuest) {
+      const limitResult = checkAndIncrementGuestUsage(identity.userId, "analysis");
+      if (!limitResult.allowed) {
+        return res.status(429).json({
+          success: false,
+          message: "Please login to continue",
+          error: "LIMIT_EXCEEDED",
+        });
+      }
+    }
 
     if (!text || !text.trim()) {
       return res.status(400).json({
@@ -458,9 +515,10 @@ export const analyzeTextOnly = async (req, res) => {
     const trimmedText = text.trim();
 
     if (isLikelyUserQuery(trimmedText)) {
+      const maskedQuery = maskSensitiveData(trimmedText).maskedText;
       let queryAnalysis;
       try {
-        queryAnalysis = await analyzeLegalQuery(trimmedText, { language });
+        queryAnalysis = await analyzeLegalQuery(maskedQuery, { language });
       } catch (error) {
         if (!isQuotaOrRateLimitError(error)) {
           throw error;
@@ -533,11 +591,12 @@ export const analyzeTextOnly = async (req, res) => {
       },
     };
 
-    if (req.user) {
+    const shouldStore = identity.isAuthenticated && mode === "save";
+    if (shouldStore) {
       try {
         const userEncrypted = encryptData(JSON.stringify(trimmedText));
         await Analysis.create({
-          userId: req.user._id,
+          userId: identity.userId,
           sessionId: sessionId || "default",
           role: "user",
           fileName: "Manual Text Input",
@@ -546,7 +605,7 @@ export const analyzeTextOnly = async (req, res) => {
 
         const assistantEncrypted = encryptData(JSON.stringify(response));
         await Analysis.create({
-          userId: req.user._id,
+          userId: identity.userId,
           sessionId: sessionId || "default",
           role: "assistant",
           encryptedContent: assistantEncrypted
@@ -567,5 +626,87 @@ export const analyzeTextOnly = async (req, res) => {
       message: error.message || "Text analysis failed",
       error: isQuotaOrRateLimitError(error) ? "AI_QUOTA_EXCEEDED" : "ANALYSIS_ERROR",
     });
+  }
+};
+
+export const getAnalysisSessions = async (req, res) => {
+  try {
+    const records = await Analysis.find({ userId: req.user._id }).sort({ createdAt: 1 });
+    const sessionsMap = new Map();
+
+    for (const record of records) {
+      const sid = record.sessionId || "Legacy Analyses";
+      if (!sessionsMap.has(sid)) {
+        let title = record.fileName || "Analysis Session";
+        if (record.role === "user" && !record.fileName) {
+          try {
+            const decryptedStr = decryptData(record.encryptedContent);
+            const txt = JSON.parse(decryptedStr);
+            if (typeof txt === "string") {
+              title = txt.substring(0, 30) + (txt.length > 30 ? "..." : "");
+            }
+          } catch (error) {}
+        }
+
+        sessionsMap.set(sid, {
+          sessionId: sid,
+          title,
+          createdAt: record.createdAt,
+          updatedAt: record.updatedAt || record.createdAt,
+        });
+      }
+    }
+
+    const sessions = Array.from(sessionsMap.values()).sort(
+      (a, b) => b.updatedAt - a.updatedAt
+    );
+    return res.status(200).json(sessions);
+  } catch (error) {
+    console.error("[documentController] Error fetching analysis sessions:", error.message);
+    return res.status(500).json({ error: "Failed to fetch analysis sessions" });
+  }
+};
+
+export const getAnalysisHistoryBySession = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const query = { userId: req.user._id };
+
+    if (sessionId === "Legacy Analyses") {
+      query.$or = [{ sessionId: { $exists: false } }, { sessionId: null }, { sessionId: "default" }];
+    } else {
+      query.sessionId = sessionId;
+    }
+
+    const records = await Analysis.find(query).sort({ createdAt: 1 });
+    const history = records.map((record) => {
+      let content = "";
+      let structured = null;
+
+      try {
+        const decryptedStr = decryptData(record.encryptedContent);
+        const parsed = JSON.parse(decryptedStr);
+        if (record.role === "assistant") {
+          structured = parsed?.data?.analysis?.structured || null;
+          content = structured ? "" : parsed;
+        } else {
+          content = parsed;
+        }
+      } catch (err) {
+        content = "Error: Could not decrypt analysis";
+      }
+
+      return {
+        role: record.role === "assistant" ? "ai" : "user",
+        content,
+        structured,
+        createdAt: record.createdAt,
+      };
+    });
+
+    return res.status(200).json(history);
+  } catch (error) {
+    console.error("[documentController] Error fetching analysis history:", error.message);
+    return res.status(500).json({ error: "Failed to fetch analysis history" });
   }
 };

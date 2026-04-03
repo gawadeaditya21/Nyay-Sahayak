@@ -24,6 +24,18 @@ import {
 } from "../services/api";
 import { useLanguage } from "../context/LanguageContext.jsx";
 import { formatAnalysisResponse } from "../utils/formatAnalysis";
+import PrivacyToggle from "../components/common/PrivacyToggle.jsx";
+import {
+  canUseGuestFeature,
+  getOrCreateGuestSessionId,
+  getPrivacyMode,
+  incrementGuestUsage,
+  isGuestUser,
+  loadGuestAnalysisHistory,
+  resetGuestSessionId,
+  saveGuestAnalysisHistory,
+  setPrivacyMode,
+} from "../utils/guestIdentity";
 
 const riskBadgeStyles = {
   LOW: "bg-emerald-500/15 text-emerald-200 border-emerald-500/30",
@@ -206,6 +218,7 @@ export default function AnalyzePage() {
   
   const [sessions, setSessions] = useState([]);
   const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [privacyMode, setPrivacyModeState] = useState(getPrivacyMode());
 
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -227,11 +240,19 @@ export default function AnalyzePage() {
           setIsInitializing(false);
         }
       } else {
+        const guestSessionId = getOrCreateGuestSessionId("analysis");
+        const guestHistory = loadGuestAnalysisHistory();
+        setCurrentSessionId(guestSessionId);
+        setChatHistory(guestHistory);
         setIsInitializing(false);
       }
     };
     initializeSessions();
   }, []);
+
+  useEffect(() => {
+    setPrivacyMode(privacyMode);
+  }, [privacyMode]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -254,7 +275,12 @@ export default function AnalyzePage() {
   };
 
   const startNewAnalysis = () => {
-    setCurrentSessionId(null);
+    if (isGuestUser()) {
+      const guestSessionId = resetGuestSessionId("analysis");
+      setCurrentSessionId(guestSessionId);
+    } else {
+      setCurrentSessionId(null);
+    }
     setChatHistory([]);
     setFile(null);
     setInputText("");
@@ -319,9 +345,17 @@ export default function AnalyzePage() {
       return;
     }
 
+    const guest = isGuestUser();
+    if (guest && !canUseGuestFeature("analysis")) {
+      addAIMessage("Please login to continue", true);
+      return;
+    }
+
     let targetSessionId = currentSessionId;
     if (!targetSessionId) {
-      targetSessionId = crypto.randomUUID();
+      targetSessionId = guest
+        ? getOrCreateGuestSessionId("analysis")
+        : crypto.randomUUID();
       setCurrentSessionId(targetSessionId);
     }
 
@@ -356,10 +390,10 @@ export default function AnalyzePage() {
           } else if (progress.stage === "completed") {
             setAnalysisProgress("Finalizing report...");
           }
-        }, { sessionId: targetSessionId, instructions: currentText, language });
+        }, { sessionId: targetSessionId, instructions: currentText, language, mode: privacyMode });
       } else {
         setAnalysisProgress("Analyzing text...");
-        response = await analyzeText(currentText, { sessionId: targetSessionId, language });
+        response = await analyzeText(currentText, { sessionId: targetSessionId, language, mode: privacyMode });
       }
 
       const structured = response?.data?.analysis?.structured || null;
@@ -369,7 +403,17 @@ export default function AnalyzePage() {
         addAIMessage(formatAnalysisResponse(response));
       }
 
-      refreshSessions();
+      if (guest) {
+        const history = [...chatHistory, { role: "user", content: parts.join("\n"), hasFile: Boolean(currentFile) }];
+        const latest = structured
+          ? { role: "ai", content: "", isError: false, structured }
+          : { role: "ai", content: formatAnalysisResponse(response), isError: false };
+        const nextHistory = [...history, latest].slice(-2);
+        saveGuestAnalysisHistory(nextHistory);
+        incrementGuestUsage("analysis");
+      } else {
+        refreshSessions();
+      }
     } catch (error) {
       addAIMessage(error.message || "Analysis failed. Please try again.", true);
     } finally {
@@ -418,6 +462,11 @@ export default function AnalyzePage() {
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-6">
           <div className="mx-auto w-full max-w-3xl">
+            <div className="mb-6 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+              <PrivacyToggle value={privacyMode} onChange={setPrivacyModeState} />
+              <span>Private mode skips saving analysis history.</span>
+              {isGuestUser() && <span className="text-amber-300">Guest limit: 1 analysis.</span>}
+            </div>
             {isInitializing ? (
               <div className="flex justify-center py-12">
                 <Loader2 className="animate-spin text-indigo-500" size={32} />

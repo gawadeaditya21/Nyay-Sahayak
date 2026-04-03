@@ -990,6 +990,7 @@ function shouldUseLegalContext(query) {
 export async function generateLegalChatResponse(query, options = {}) {
   let context = "";
   let contextUsed = false;
+  const aiQuery = options.aiQuery || query;
 
   try {
     if (shouldUseLegalContext(query)) {
@@ -1005,7 +1006,7 @@ export async function generateLegalChatResponse(query, options = {}) {
   let reply;
 
   try {
-    reply = await generateGeminiReply({ query, context, language: options.language });
+    reply = await generateGeminiReply({ query: aiQuery, context, language: options.language });
     return {
       reply,
       suggestions: buildSuggestions(query),

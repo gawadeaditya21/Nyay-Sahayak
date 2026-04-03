@@ -12,6 +12,18 @@ import {
 import { useTranslation } from "react-i18next";
 import { sendChatMessage, fetchChatHistory, fetchChatSessions } from "../services/api";
 import { useLanguage } from "../context/LanguageContext.jsx";
+import PrivacyToggle from "../components/common/PrivacyToggle.jsx";
+import {
+  canUseGuestFeature,
+  getOrCreateGuestSessionId,
+  getPrivacyMode,
+  incrementGuestUsage,
+  isGuestUser,
+  loadGuestChatHistory,
+  resetGuestSessionId,
+  saveGuestChatHistory,
+  setPrivacyMode,
+} from "../utils/guestIdentity";
 
 const ACTION_ROUTES = {
   "Generate FIR": "/fir",
@@ -44,6 +56,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState([initialMessage]);
   const [sessions, setSessions] = useState([]);
   const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [privacyMode, setPrivacyModeState] = useState(getPrivacyMode());
   
   useEffect(() => {
     if (!messages.length) {
@@ -70,13 +83,20 @@ export default function ChatPage() {
           setIsInitializing(false);
         }
       } else {
-        setMessages([initialMessage]);
+        const guestSessionId = getOrCreateGuestSessionId("chat");
+        const guestHistory = loadGuestChatHistory();
+        setCurrentSessionId(guestSessionId);
+        setMessages(guestHistory.length ? [initialMessage, ...guestHistory] : [initialMessage]);
         setIsInitializing(false);
       }
     };
 
     initializeSessions();
   }, [initialMessage]);
+
+  useEffect(() => {
+    setPrivacyMode(privacyMode);
+  }, [privacyMode]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -99,7 +119,12 @@ export default function ChatPage() {
   };
 
   const startNewChat = () => {
-    setCurrentSessionId(null);
+    if (isGuestUser()) {
+      const guestSessionId = resetGuestSessionId("chat");
+      setCurrentSessionId(guestSessionId);
+    } else {
+      setCurrentSessionId(null);
+    }
     setMessages([initialMessage]);
   };
 
@@ -118,33 +143,56 @@ export default function ChatPage() {
       return;
     }
 
+    const guest = isGuestUser();
+    if (guest && !canUseGuestFeature("chat")) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Please login to continue",
+          isError: true,
+        },
+      ]);
+      return;
+    }
+
     let targetSessionId = currentSessionId;
     if (!targetSessionId) {
-      targetSessionId = crypto.randomUUID();
+      targetSessionId = guest
+        ? getOrCreateGuestSessionId("chat")
+        : crypto.randomUUID();
       setCurrentSessionId(targetSessionId);
     }
 
-    setMessages((prev) => [...prev, { role: "user", content: trimmedInput }]);
+    const userEntry = { role: "user", content: trimmedInput };
+    setMessages((prev) => [...prev, userEntry]);
     setInput("");
     setLoading(true);
     try {
       const response = await sendChatMessage(trimmedInput, {
         sessionId: targetSessionId,
         language,
+        mode: privacyMode,
       });
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: response.reply,
-          suggestions: Array.isArray(response.suggestions) ? response.suggestions : [],
-          isError: Boolean(response.isError),
-          contextUsed: Boolean(response.contextUsed),
-        },
-      ]);
+      const assistantEntry = {
+        role: "assistant",
+        content: response.reply,
+        suggestions: Array.isArray(response.suggestions) ? response.suggestions : [],
+        isError: Boolean(response.isError),
+        contextUsed: Boolean(response.contextUsed),
+      };
 
-      refreshSessions();
+      setMessages((prev) => [...prev, assistantEntry]);
+
+      if (guest) {
+        const history = loadGuestChatHistory();
+        const nextHistory = [...history, userEntry, assistantEntry].slice(-4);
+        saveGuestChatHistory(nextHistory);
+        incrementGuestUsage("chat");
+      } else {
+        refreshSessions();
+      }
     } catch (error) {
       setMessages((prev) => [
         ...prev,
@@ -215,6 +263,11 @@ export default function ChatPage() {
                 </div>
               </div>
               <p className="text-sm text-slate-400">{t("chat.example")}</p>
+              <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                <PrivacyToggle value={privacyMode} onChange={setPrivacyModeState} />
+                <span>Private mode skips saving chat history.</span>
+                {isGuestUser() && <span className="text-amber-300">Guest limit: 3 messages.</span>}
+              </div>
             </div>
 
             <div className="space-y-6 pb-8">

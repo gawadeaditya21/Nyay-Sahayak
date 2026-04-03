@@ -1,9 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Copy, Download, FileText, Loader2, Sparkles } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { generateFir } from "../../services/api";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../../context/LanguageContext.jsx";
+import PrivacyToggle from "../common/PrivacyToggle.jsx";
+import {
+  canUseGuestFeature,
+  getOrCreateGuestSessionId,
+  getPrivacyMode,
+  incrementGuestUsage,
+  isGuestUser,
+  setPrivacyMode,
+} from "../../utils/guestIdentity";
 
 export default function FIRGenerator() {
   const { t } = useTranslation();
@@ -13,10 +22,20 @@ export default function FIRGenerator() {
   const [firText, setFirText] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [privacyMode, setPrivacyModeState] = useState(getPrivacyMode());
+
+  useEffect(() => {
+    setPrivacyMode(privacyMode);
+  }, [privacyMode]);
 
   const handleGenerate = async () => {
     if (!userInput.trim()) {
       setError("Please enter your problem description.");
+      return;
+    }
+
+    if (isGuestUser() && !canUseGuestFeature("fir")) {
+      setError("Please login to continue");
       return;
     }
 
@@ -26,8 +45,16 @@ export default function FIRGenerator() {
     setFirText("");
 
     try {
-      const response = await generateFir(userInput.trim(), language);
+      const sessionId = getOrCreateGuestSessionId("fir");
+      const response = await generateFir(userInput.trim(), {
+        language,
+        mode: privacyMode,
+        sessionId,
+      });
       setFirText(response?.fir_text || "");
+      if (isGuestUser()) {
+        incrementGuestUsage("fir");
+      }
     } catch (err) {
       setError(err.message || "Unable to generate FIR.");
     } finally {
@@ -77,6 +104,11 @@ export default function FIRGenerator() {
               {t("fir.subtitle")}
             </p>
           </div>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+          <PrivacyToggle value={privacyMode} onChange={setPrivacyModeState} />
+          <span>Private mode skips saving FIR history.</span>
+          {isGuestUser() && <span className="text-amber-300">Guest limit: 1 FIR.</span>}
         </div>
 
         <textarea
