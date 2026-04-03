@@ -1006,6 +1006,12 @@ export async function generateLegalChatResponse(query, options = {}) {
 
   try {
     reply = await generateGeminiReply({ query, context, language: options.language });
+    return {
+      reply,
+      suggestions: buildSuggestions(query),
+      contextUsed,
+      isError: false,
+    };
   } catch (error) {
     console.error("[geminiChat] Gemini generation failed:", error.message);
     reply = {
@@ -1034,6 +1040,7 @@ export async function generateLegalChatResponse(query, options = {}) {
     reply,
     suggestions: buildSuggestions(query),
     contextUsed,
+    isError: true,
   };
 }
 

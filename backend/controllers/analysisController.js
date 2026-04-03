@@ -92,13 +92,32 @@ export const analyseText = (req, res) => {
     console.log("Python process exited with code:", code);
     console.log("Final Output:", output);
 
-    // try {
-    //   const parsed = JSON.parse(output);
-    //   res.json(parsed);
-    // } catch (err) {
-    //   console.error("JSON Parse Error:", err);
-    //   res.status(500).json({ error: "Invalid Python response" });
-    // }
+    const trimmedOutput = output.trim();
+    if (!trimmedOutput) {
+      return res.status(500).json({ error: "Empty Python response" });
+    }
+
+    try {
+      const parsed = JSON.parse(trimmedOutput);
+      return res.json(parsed);
+    } catch (err) {
+      const jsonMatch = trimmedOutput.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[0]);
+          return res.json(parsed);
+        } catch (innerErr) {
+          console.error("JSON Parse Error:", innerErr);
+        }
+      } else {
+        console.error("JSON Parse Error:", err);
+      }
+
+      return res.status(500).json({
+        error: "Invalid Python response",
+        details: process.env.NODE_ENV === "development" ? err.message : undefined,
+      });
+    }
   });
 };
 

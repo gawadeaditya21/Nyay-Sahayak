@@ -4,7 +4,7 @@ import multer from "multer";
 import path from "path";
 import {
   uploadAndAnalyzeDocument,
-  analyzeTextOnly,
+  analyzeTextOnly
 } from "../controllers/documentController.js";
 
 const router = express.Router();

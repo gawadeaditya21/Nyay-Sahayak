@@ -1,6 +1,7 @@
 import fs from "fs";
 import { createRequire } from "module";
 import { createWorker } from "tesseract.js";
+import Analysis from "../models/Analysis.js";
 import {
   analyzeDocument,
   analyzeLegalQuery,
@@ -8,11 +9,11 @@ import {
   extractTextFromDocx,
 } from "../services/aiService.js";
 import { maskSensitiveData } from "../utils/dataMasking.js";
+import { encryptData } from "../utils/cryptoUtils.js";
 import { ensureSupportedLanguage } from "../config/languages.js";
 
 const require = createRequire(import.meta.url);
 const pdf = require("pdf-parse");
-
 async function extractTextFromPDF(filePath) {
   const dataBuffer = fs.readFileSync(filePath);
   const pdfData = await pdf(dataBuffer);
@@ -314,7 +315,7 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
   let filePath = null;
 
   try {
-    const { language: rawLanguage } = req.body ?? {};
+    const { language: rawLanguage, sessionId, instructions } = req.body ?? {};
     const language = ensureSupportedLanguage(rawLanguage);
     console.log(
       `[documentController] upload language raw="${rawLanguage}" resolved="${language}"`
@@ -381,6 +382,31 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
       aiAnalysis,
     });
 
+    if (req.user) {
+      const parts = [];
+      parts.push(`Uploaded: ${fileName}`);
+      parts.push(`Size: ${(fileSize / 1024).toFixed(2)} KB`);
+      if (instructions) parts.push(instructions);
+      
+      const userMessage = parts.join("\n");
+      const userEncrypted = encryptData(JSON.stringify(userMessage));
+      await Analysis.create({
+        userId: req.user._id,
+        sessionId: sessionId || "default",
+        role: "user",
+        fileName: fileName,
+        encryptedContent: userEncrypted
+      });
+
+      const assistantEncrypted = encryptData(JSON.stringify(response));
+      await Analysis.create({
+        userId: req.user._id,
+        sessionId: sessionId || "default",
+        role: "assistant",
+        encryptedContent: assistantEncrypted
+      });
+    }
+
     cleanupUploadedFile(filePath);
     return res.status(200).json(response);
   } catch (error) {
@@ -415,7 +441,7 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
 
 export const analyzeTextOnly = async (req, res) => {
   try {
-    const { text, language: rawLanguage } = req.body ?? {};
+    const { text, language: rawLanguage, sessionId } = req.body ?? {};
     const language = ensureSupportedLanguage(rawLanguage);
     console.log(
       `[documentController] analyzeText language raw="${rawLanguage}" resolved="${language}"`
@@ -461,6 +487,7 @@ export const analyzeTextOnly = async (req, res) => {
     }
 
     const maskingResult = maskSensitiveData(trimmedText);
+
     let aiAnalysis;
     try {
       aiAnalysis = await analyzeDocument(maskingResult.maskedText, {
@@ -479,7 +506,7 @@ export const analyzeTextOnly = async (req, res) => {
     const legacyRisks = aiAnalysis.legacyRisks || [];
     const riskStats = buildRiskStatistics(legacyRisks);
 
-    return res.status(200).json({
+    const response = {
       success: true,
       message: "Text analysis completed successfully",
       data: {
@@ -504,7 +531,32 @@ export const analyzeTextOnly = async (req, res) => {
           textLength: trimmedText.length,
         },
       },
-    });
+    };
+
+    if (req.user) {
+      try {
+        const userEncrypted = encryptData(JSON.stringify(trimmedText));
+        await Analysis.create({
+          userId: req.user._id,
+          sessionId: sessionId || "default",
+          role: "user",
+          fileName: "Manual Text Input",
+          encryptedContent: userEncrypted
+        });
+
+        const assistantEncrypted = encryptData(JSON.stringify(response));
+        await Analysis.create({
+          userId: req.user._id,
+          sessionId: sessionId || "default",
+          role: "assistant",
+          encryptedContent: assistantEncrypted
+        });
+      } catch (dbError) {
+        console.error("❌ Database storage failed:", dbError.message);
+      }
+    }
+
+    return res.status(200).json(response);
   } catch (error) {
     console.error("[documentController] Text analysis failed:", error.message);
 

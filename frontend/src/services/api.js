@@ -23,9 +23,13 @@ const ENDPOINTS = {
   DOCUMENT_ANALYZE: `${API_BASE_URL}/document/analyze`,
   TEXT_ANALYZE: `${API_BASE_URL}/document/analyze-text`,
   HEALTH_CHECK: `${API_BASE_URL}/document/health`,
+  DOCUMENT_SESSIONS: `${API_BASE_URL}/document/sessions`,
+  DOCUMENT_HISTORY: (sessionId) => `${API_BASE_URL}/document/${sessionId}`,
   CHAT: `${API_BASE_URL}/chat`,
   FIR_GENERATE: `${API_BASE_URL}/generate-fir`,
   LANGUAGE_PREF: `${API_BASE_URL}/auth/language`,
+  CHAT_SESSIONS: `${API_BASE_URL}/chat/sessions`,
+  CHAT_HISTORY: (sessionId) => `${API_BASE_URL}/chat/${sessionId}`,
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -106,28 +110,35 @@ function getStoredLanguage() {
  * const result = await analyzeDocument(file);
  * console.log(result.data.analysis.summary);
  */
-export async function analyzeDocument(file, onProgress = null, language = null) {
+export async function analyzeDocument(file, onProgress = null, options = {}) {
   try {
-    // Validate file
     if (!file) {
       throw new Error("No file provided");
     }
     
-    // Prepare form data
     const formData = new FormData();
     formData.append("document", file);
-    formData.append("language", language || getStoredLanguage());
-    
+    const normalizedOptions = typeof options === "string" ? { language: options } : options || {};
+    const resolvedLanguage = normalizedOptions.language || getStoredLanguage();
+    formData.append("language", resolvedLanguage);
+    if (normalizedOptions.sessionId) formData.append("sessionId", normalizedOptions.sessionId);
+    if (normalizedOptions.instructions) formData.append("instructions", normalizedOptions.instructions);
+
     // Optional: Report upload start
     if (onProgress) {
       onProgress({ stage: "uploading", progress: 0 });
     }
     
-    // Send request
+    const token = localStorage.getItem('token');
+    const headers = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
     const response = await fetch(ENDPOINTS.DOCUMENT_ANALYZE, {
       method: "POST",
+      headers,
       body: formData,
-      // Don't set Content-Type header - browser will set it with boundary
     });
     
     // Handle response
@@ -165,9 +176,8 @@ export async function analyzeDocument(file, onProgress = null, language = null) 
  * const result = await analyzeText("This is my legal document text...");
  * console.log(result.data.analysis.risks);
  */
-export async function analyzeText(text, language = null) {
+export async function analyzeText(text, options = {}) {
   try {
-    // Validate input
     if (!text || text.trim().length === 0) {
       throw new Error("Text cannot be empty");
     }
@@ -176,13 +186,25 @@ export async function analyzeText(text, language = null) {
       throw new Error("Text is too short. Please provide at least 5 characters.");
     }
     
-    // Send request
+    const token = localStorage.getItem('token');
+    const headers = {
+      "Content-Type": "application/json",
+    };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const normalizedOptions = typeof options === "string" ? { language: options } : options || {};
+    const payload = {
+      text,
+      language: normalizedOptions.language || getStoredLanguage(),
+    };
+    if (normalizedOptions.sessionId) payload.sessionId = normalizedOptions.sessionId;
+
     const response = await fetch(ENDPOINTS.TEXT_ANALYZE, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ text, language: language || getStoredLanguage() }),
+      headers,
+      body: JSON.stringify(payload),
     });
     
     // Handle response
@@ -264,21 +286,31 @@ export async function generateFir(userInput, language = null) {
   }
 }
 
-export async function sendChatMessage(message, language = null) {
+export async function sendChatMessage(message, options = {}) {
   try {
     if (!message || !message.trim()) {
       throw new Error("Message cannot be empty");
     }
 
+    const token = localStorage.getItem('token');
+    const headers = {
+      "Content-Type": "application/json",
+    };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const normalizedOptions = typeof options === "string" ? { language: options } : options || {};
+    const payload = {
+      message: message.trim(),
+      language: normalizedOptions.language || getStoredLanguage(),
+    };
+    if (normalizedOptions.sessionId) payload.sessionId = normalizedOptions.sessionId;
+
     const response = await fetch(ENDPOINTS.CHAT, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        message: message.trim(),
-        language: language || getStoredLanguage(),
-      }),
+      headers,
+      body: JSON.stringify(payload),
     });
 
     return await handleResponse(response);
@@ -294,6 +326,85 @@ export async function sendChatMessage(message, language = null) {
   }
 }
 
+export async function fetchChatSessions() {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return [];
+
+    const response = await fetch(ENDPOINTS.CHAT_SESSIONS, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("fetchChatSessions error:", error);
+    return [];
+  }
+}
+
+export async function fetchChatHistory(sessionId = "Legacy Chats") {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return [];
+
+    const response = await fetch(ENDPOINTS.CHAT_HISTORY(sessionId), {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("fetchChatHistory error:", error);
+    const formattedError = new Error(formatErrorMessage(error));
+    formattedError.originalError = error;
+    formattedError.code = error.code;
+    throw formattedError;
+  }
+}
+
+export async function fetchAnalysisSessions() {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return [];
+
+    const response = await fetch(ENDPOINTS.DOCUMENT_SESSIONS, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("fetchAnalysisSessions error:", error);
+    return [];
+  }
+}
+
+export async function fetchAnalysisHistory(sessionId = "Legacy Analyses") {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return [];
+
+    const response = await fetch(ENDPOINTS.DOCUMENT_HISTORY(sessionId), {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("fetchAnalysisHistory error:", error);
+    return [];
+  }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // EXPORT DEFAULT API OBJECT (Alternative usage pattern)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -303,6 +414,10 @@ const api = {
   analyzeText,
   checkHealth,
   sendChatMessage,
+  fetchChatHistory,
+  fetchChatSessions,
+  fetchAnalysisSessions,
+  fetchAnalysisHistory,
 };
 
 export async function updateLanguagePreference(userId, preferredLanguage) {
