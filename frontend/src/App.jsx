@@ -3,8 +3,10 @@ import MainLayout from './layouts/MainLayout';
 import ChatPage from './pages/ChatPage';
 import LoginPage from './pages/LoginPage';
 import SettingsPage from './pages/SettingsPage';
-// Import the new LandingPage
 import LandingPage from './pages/LandingPage';
+import AnalyzePage from './pages/AnalyzePage';
+import FirPage from './pages/FirPage';
+import LegalStepsPage from './pages/LegalStepsPage';
 
 export default function App() {
   return (
@@ -15,8 +17,10 @@ export default function App() {
 
         {/* Routes wrapped in MainLayout will have the Sidebar and Header */}
         <Route element={<MainLayout />}>
-          {/* ChatPage is now at /chat */}
           <Route path="/chat" element={<ChatPage />} />
+          <Route path="/analyze" element={<AnalyzePage />} />
+          <Route path="/fir" element={<FirPage />} />
+          <Route path="/steps" element={<LegalStepsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
 
