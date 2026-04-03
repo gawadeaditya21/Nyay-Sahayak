@@ -34,7 +34,7 @@ export function getAuthenticatedUserId() {
 
 export function getOrCreateGuestId() {
   const existing = localStorage.getItem(GUEST_ID_KEY);
-  if (existing) {
+  if (existing && typeof existing === "string" && existing.startsWith("guest_")) {
     return existing;
   }
 

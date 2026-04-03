@@ -280,10 +280,12 @@ export async function generateFir(userInput, options = {}) {
     const normalizedOptions = typeof options === "string" ? { language: options } : options || {};
     const resolvedMode = normalizedOptions.mode || getPrivacyMode();
     const userId = getEffectiveUserId();
+    const token = localStorage.getItem('token');
     const response = await fetch(ENDPOINTS.FIR_GENERATE, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
         user_input: userInput.trim(),
