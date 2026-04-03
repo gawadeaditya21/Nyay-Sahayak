@@ -231,7 +231,7 @@ export default function AnalyzePage() {
       if (!sessionId) {
         if (isGuestUser()) {
           const guestSessionId = getOrCreateGuestSessionId("analysis");
-          const guestHistory = loadGuestAnalysisHistory();
+          const guestHistory = loadGuestAnalysisHistory() || [];
           setChatHistory(guestHistory);
           setSearchParams({ session: guestSessionId }, { replace: true });
         } else {

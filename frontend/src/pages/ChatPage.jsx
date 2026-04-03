@@ -67,7 +67,7 @@ export default function ChatPage() {
       if (!sessionId) {
         if (isGuestUser()) {
           const guestSessionId = getOrCreateGuestSessionId("chat");
-          const guestHistory = loadGuestChatHistory();
+          const guestHistory = loadGuestChatHistory() || [];
           setMessages(guestHistory.length ? [initialMessage, ...guestHistory] : [initialMessage]);
           setSearchParams({ session: guestSessionId }, { replace: true });
         } else {
