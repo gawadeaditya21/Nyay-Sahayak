@@ -1,6 +1,12 @@
 import mammoth from "mammoth";
 import { geminiModel, genAI } from "../config/gemini.js";
 import {
+  ensureSupportedLanguage,
+  getLanguageInstruction,
+  getLanguageLabel,
+  resolveLanguage,
+} from "../config/languages.js";
+import {
   buildContextString,
   filterRelevantResults,
   runPythonSearch,
@@ -108,10 +114,82 @@ const LEGAL_DATASET_ALLOWED_TYPES = new Set([
   "policy",
 ]);
 const FRAUD_WARNING_MESSAGES = [
-  "This document shows signs of fraud or exploitation",
-  "Do NOT make any payment",
-  "Do NOT share personal details",
+  "This document shows strong signs of a job scam. Do NOT pay any money or share personal details.",
 ];
+const PIPELINE_DEBUG = String(process.env.PIPELINE_DEBUG || "").toLowerCase() === "true";
+const CLASSIFICATION_CONFIDENCE_THRESHOLD = Number(
+  process.env.CLASSIFICATION_CONFIDENCE_THRESHOLD || 50
+);
+const CLASSIFICATION_MAX_INPUT = Number(process.env.CLASSIFICATION_MAX_INPUT || 6000);
+const DOCUMENT_TYPE_LABELS = {
+  ticket: "Ticket",
+  offer_letter: "Offer Letter",
+  legal_agreement: "Legal Agreement",
+  identity_document: "Identity Document",
+  financial_document: "Financial Document",
+  other: "Other",
+};
+const DOCUMENT_TYPE_KEYS = Object.fromEntries(
+  Object.entries(DOCUMENT_TYPE_LABELS).map(([key, label]) => [label, key])
+);
+const LAW_REFERENCE_DETAILS = {
+  "Indian Railways Rules":
+    "Ticket validity and travel conditions are governed by Indian Railways rules.",
+  "Indian Contract Act": "Ensures agreements are fair and legally valid.",
+  "Indian Contract Act (Section 28)":
+    "Bars clauses that restrict legal remedies or access to courts.",
+  "RERA Act": "Protects home buyers from builder-related issues.",
+  "Model Tenancy Act / State Rent Act":
+    "Governs rights and obligations of landlords and tenants.",
+  "Relevant Labour Laws": "Protect employees from unfair job conditions.",
+  "RBI Guidelines": "Protects customers from unsafe banking practices and sharing OTP/CVV/password.",
+  "IPC 420": "Addresses cheating and fraud-related offenses.",
+  "Consumer Protection Act": "Prevents unfair trade practices and protects consumers.",
+  "Applicable Government Rules": "Requires compliance with official government notifications.",
+};
+const DOCUMENT_KEYWORDS = {
+  ticket: {
+    strong: ["pnr", "irctc", "railway", "train", "platform", "coach", "berth"],
+    support: ["ticket", "journey", "departure", "arrival", "boarding", "class", "fare"],
+  },
+  offer_letter: {
+    strong: ["offer letter", "appointment letter", "ctc", "joining date", "probation"],
+    support: ["salary", "designation", "position", "employment", "benefits"],
+  },
+  legal_agreement: {
+    strong: ["agreement", "contract", "whereas", "arbitration", "jurisdiction", "clause"],
+    support: ["section", "party", "indemnity", "termination", "liability"],
+  },
+  identity_document: {
+    strong: ["aadhaar", "aadhar", "pan", "passport", "driver", "voter id"],
+    support: ["dob", "date of birth", "address", "id number", "gender"],
+  },
+  financial_document: {
+    strong: ["account number", "ifsc", "statement", "loan", "emi", "balance"],
+    support: ["bank", "transaction", "amount", "interest", "upi"],
+  },
+  other: {
+    strong: [],
+    support: [],
+  },
+};
+const RISK_PHRASE_MAP = {
+  "Cost Escalation Risk": "Cost Escalation Risk",
+  "Hidden Charges Risk": "Hidden Charges",
+  "Legal Disadvantage Risk": "Jurisdiction Limitation",
+  "Cancellation Loss Risk": "Cancellation Deduction",
+  "Delay Without Penalty": "Delay Without Penalty",
+  "High Penalty Clause": "Penalty Clause",
+  "Cancellation Deduction High": "Cancellation Deduction",
+  "Penalty Clause": "Penalty Clause",
+  "Delay Clause": "Delay Clause",
+  "Upfront Payment Scam": "Upfront Payment Demand",
+  "Upfront Payment Demand": "Upfront Payment Demand",
+  "Job Scam Indicator": "Job Scam Indicator",
+  "Personal Data Risk": "Personal Data Risk",
+  "Urgency Pressure": "Urgency Pressure",
+  "Salary Delay Risk": "Salary Uncertainty",
+};
 
 function chunkText(text, chunkSize = MAX_CHUNK_SIZE) {
   const chunks = [];
@@ -189,14 +267,738 @@ function normalizeForMatching(text) {
   return cleanOcrText(text).toLowerCase();
 }
 
-function inferLanguageInstruction(text) {
-  const hasHindiScript = /[\u0900-\u097F]/.test(text);
-  const hasHinglishMarkers =
-    /\b(kya|kaise|batao|samjhao|karu|hai|rules|penalty|agreement)\b/i.test(text);
+function inferLanguageInstruction(language) {
+  const resolvedLanguage = ensureSupportedLanguage(language);
+  return getLanguageInstruction(resolvedLanguage);
+}
 
-  return hasHindiScript || hasHinglishMarkers
-    ? "Respond in simple Hinglish."
-    : "Respond in simple English.";
+function hasDevanagariText(text) {
+  return /[\u0900-\u097F]/.test(String(text || ""));
+}
+
+function extractNumericTokens(text, limit = 12) {
+  const normalized = String(text || "");
+  const matches = normalized.match(/(?:₹\s*)?\d+(?:,\d{3})*(?:\.\d+)?%?/g) || [];
+  const unique = [...new Set(matches.map((item) => item.trim()).filter(Boolean))];
+  return unique.slice(0, limit);
+}
+
+function hasPlaceholders(text) {
+  return /_{2,}/.test(String(text || ""));
+}
+
+function hasMissingNumericTokens(text, requiredTokens = []) {
+  if (!requiredTokens.length) {
+    return false;
+  }
+
+  const haystack = String(text || "");
+  return requiredTokens.some((token) => !haystack.includes(token));
+}
+
+function isMixedLanguage(text, language) {
+  const resolvedLanguage = ensureSupportedLanguage(language);
+  if (resolvedLanguage === "en") {
+    return false;
+  }
+
+  let content = String(text || "");
+  if (content.includes(":")) {
+    content = content.replace(/"[^"]+"\s*:/g, " ");
+  }
+  const devanagariCount = (content.match(/[\u0900-\u097F]/g) || []).length;
+  const latinCount = (content.match(/[A-Za-z]/g) || []).length;
+  const totalLetters = devanagariCount + latinCount;
+
+  if (totalLetters === 0) {
+    return false;
+  }
+
+  const englishHeadings = /(Top Risks|What To Do|Warnings|Reason for decision|Law Reference|Legal Grounds|Suggested Actions|Important Notes|Request|Subject)/i.test(
+    content
+  );
+  const latinRatio = latinCount / totalLetters;
+
+  return englishHeadings || (latinCount > 20 && latinRatio > 0.28);
+}
+
+function isLanguageMismatch(text, language) {
+  const resolvedLanguage = ensureSupportedLanguage(language);
+  if (resolvedLanguage === "hi" || resolvedLanguage === "mr") {
+    return !hasDevanagariText(text);
+  }
+  return false;
+}
+
+function logPipeline(step, payload) {
+  if (!PIPELINE_DEBUG) {
+    return;
+  }
+
+  const safePayload = { ...payload };
+  if (safePayload && typeof safePayload === "object") {
+    delete safePayload.text;
+    delete safePayload.rawText;
+  }
+
+  console.log(`[pipeline] ${step}`, safePayload || "");
+}
+
+function cleanExtractedText(text) {
+  let cleaned = String(text || "").normalize("NFKC");
+  cleaned = cleaned.replace(/[\u0000-\u001f]/g, " ");
+  cleaned = cleaned.replace(/[\s\u00a0]+/g, " ").trim();
+  return cleaned;
+}
+
+function normalizeGeminiDocumentType(value) {
+  const normalized = String(value || "").toLowerCase();
+
+  if (normalized.includes("ticket") || normalized.includes("rail")) {
+    return "Ticket";
+  }
+  if (normalized.includes("offer") || normalized.includes("appointment")) {
+    return "Offer Letter";
+  }
+  if (normalized.includes("legal") || normalized.includes("agreement") || normalized.includes("contract")) {
+    return "Legal Agreement";
+  }
+  if (
+    normalized.includes("identity") ||
+    normalized.includes("aadhaar") ||
+    normalized.includes("aadhar") ||
+    normalized.includes("pan") ||
+    normalized.includes("passport") ||
+    normalized.includes("driver")
+  ) {
+    return "Identity Document";
+  }
+  if (
+    normalized.includes("financial") ||
+    normalized.includes("bank") ||
+    normalized.includes("statement") ||
+    normalized.includes("loan") ||
+    normalized.includes("invoice")
+  ) {
+    return "Financial Document";
+  }
+
+  return "Other";
+}
+
+function clampNumber(value, min, max) {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  return Math.min(max, Math.max(min, value));
+}
+
+function buildClassificationPrompt(extractedText) {
+  return `Classify the following document into one of these categories:
+
+1. Ticket
+2. Offer Letter
+3. Legal Agreement
+4. Identity Document
+5. Financial Document
+6. Other
+
+Return ONLY JSON:
+{
+"document_type": "...",
+"confidence": 0-100,
+"reason": "short explanation"
+}
+
+If unsure or the text is noisy, choose "Other".
+
+Text:
+${extractedText}`;
+}
+
+function parseClassificationResponse(raw = {}) {
+  const documentType = normalizeGeminiDocumentType(raw.document_type);
+  const confidence = clampNumber(Number(raw.confidence), 0, 100);
+  const reason = flattenObjectToString(raw.reason || raw.explanation || "");
+
+  return {
+    document_type: documentType,
+    confidence,
+    reason,
+  };
+}
+
+async function classifyDocumentWithGemini(extractedText) {
+  const trimmed = cleanExtractedText(extractedText);
+  const shortened = truncateText(trimmed, CLASSIFICATION_MAX_INPUT);
+  const prompt = buildClassificationPrompt(shortened || "(empty)");
+
+  const raw = await generateStructuredJson(prompt);
+  const parsed = parseClassificationResponse(raw);
+
+  if (parsed.confidence < CLASSIFICATION_CONFIDENCE_THRESHOLD) {
+    return {
+      document_type: "Other",
+      confidence: parsed.confidence,
+      reason: parsed.reason || "Low confidence classification",
+    };
+  }
+
+  return parsed;
+}
+
+function documentTypeLabelToKey(label) {
+  return DOCUMENT_TYPE_KEYS[label] || "other";
+}
+
+function countKeywordHits(text, keywords) {
+  if (!keywords || keywords.length === 0) {
+    return 0;
+  }
+  return keywords.reduce((count, keyword) => count + (hasKeyword(text, keyword) ? 1 : 0), 0);
+}
+
+function computeKeywordStrength(text, documentTypeKey) {
+  const normalized = normalizeForMatching(text);
+  const keywords = DOCUMENT_KEYWORDS[documentTypeKey] || DOCUMENT_KEYWORDS.other;
+  const strongHits = countKeywordHits(normalized, keywords.strong);
+  const supportHits = countKeywordHits(normalized, keywords.support);
+  const maxScore = keywords.strong.length * 2 + keywords.support.length;
+
+  if (maxScore === 0) {
+    return 0.2;
+  }
+
+  const score = (strongHits * 2 + supportHits) / maxScore;
+  return clampNumber(score, 0, 1);
+}
+
+function computeStructureClarity(text, documentTypeKey) {
+  const normalized = normalizeForMatching(text);
+  const rawText = String(text || "");
+
+  let checks = [];
+  switch (documentTypeKey) {
+    case "ticket":
+      checks = [
+        /\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{1,2}\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec))\b/i.test(
+          rawText
+        ),
+        /\b\d{1,2}:\d{2}\b/.test(rawText),
+        /(from\s+\w+\s+to\s+\w+|source\s+station|destination\s+station|boarding\s+station)/i.test(
+          rawText
+        ),
+        /(pnr|train\s*(no|number)|coach|berth|irctc|uts)/i.test(normalized),
+      ];
+      break;
+    case "offer_letter":
+      checks = [
+        /offer letter|appointment letter/i.test(normalized),
+        /ctc|salary|compensation/i.test(normalized),
+        /joining date|start date|date of joining/i.test(normalized),
+        /designation|position|role/i.test(normalized),
+      ];
+      break;
+    case "legal_agreement":
+      checks = [
+        /agreement|contract|deed/i.test(normalized),
+        /clause|section|whereas/i.test(normalized),
+        /jurisdiction|arbitration|governing law/i.test(normalized),
+        /party of the first part|party of the second part|authorized signatory/i.test(normalized),
+      ];
+      break;
+    case "identity_document":
+      checks = [
+        /aadhaar|aadhar|pan|passport|voter id|driving/i.test(normalized),
+        /dob|date of birth/i.test(normalized),
+        /address/i.test(normalized),
+        /\b\d{4}\s*\d{4}\s*\d{4}\b|\b[A-Z]{5}\d{4}[A-Z]\b/i.test(rawText),
+      ];
+      break;
+    case "financial_document":
+      checks = [
+        /account\s*number|ifsc|statement|loan|emi/i.test(normalized),
+        /balance|credit|debit|transaction/i.test(normalized),
+        /\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b/.test(rawText),
+        /(bank|branch|statement|ledger)/i.test(normalized),
+      ];
+      break;
+    default:
+      checks = [/\btitle\b|\bsection\b|\bsummary\b/i.test(normalized)];
+  }
+
+  if (checks.length === 0) {
+    return 0.2;
+  }
+
+  const score = checks.filter(Boolean).length / checks.length;
+  return clampNumber(score, 0, 1);
+}
+
+function computeTextClarityScore(text) {
+  const raw = String(text || "");
+  if (!raw) {
+    return 0.2;
+  }
+
+  const alphaNum = raw.match(/[A-Za-z0-9]/g) || [];
+  const total = raw.length || 1;
+  const ratio = alphaNum.length / total;
+
+  if (ratio < 0.4) {
+    return 0.6;
+  }
+  if (ratio < 0.55) {
+    return 0.8;
+  }
+  return 1;
+}
+
+function cleanOcrNoise(text) {
+  return String(text || "")
+    .replace(/\n/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/[^\w\s.,;:!?%()₹\-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function countWords(text) {
+  return String(text || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+function extractRelevantSentence(text, keywordOrPattern) {
+  const cleanedText = cleanOcrNoise(text);
+  const sentences = cleanedText.split(/[.!?]/).map((sentence) => sentence.trim()).filter(Boolean);
+  const isRegex = keywordOrPattern instanceof RegExp;
+
+  for (let i = 0; i < sentences.length; i += 1) {
+    const sentence = sentences[i];
+    const matched = isRegex
+      ? keywordOrPattern.test(sentence)
+      : sentence.toLowerCase().includes(String(keywordOrPattern || "").toLowerCase());
+
+    if (!matched) {
+      continue;
+    }
+
+    let candidate = sentence;
+
+    if (countWords(candidate) < 8) {
+      const next = sentences[i + 1] ? ` ${sentences[i + 1]}` : "";
+      const prev = sentences[i - 1] ? `${sentences[i - 1]} ` : "";
+      candidate = countWords(prev + candidate) >= 8 ? `${prev}${candidate}` : `${candidate}${next}`;
+    }
+
+    if (countWords(candidate) >= 8) {
+      return candidate.trim();
+    }
+  }
+
+  return "Relevant clause detected but full sentence not found in OCR text.";
+}
+
+function dedupeDetectedRisks(risks) {
+  if (!Array.isArray(risks)) {
+    return [];
+  }
+
+  const seen = new Set();
+  return risks.filter((risk) => {
+    const key = `${risk.type}|${risk.reason}`.toLowerCase();
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function findPercentNearKeywords(text, keywords) {
+  const raw = String(text || "");
+  const normalized = raw.toLowerCase();
+  const matches = [...normalized.matchAll(/(\d{1,2})\s*%/g)];
+  let maxPercent = null;
+
+  for (const match of matches) {
+    const percent = Number(match[1]);
+    if (!Number.isFinite(percent)) {
+      continue;
+    }
+
+    const start = Math.max(0, match.index - 40);
+    const end = Math.min(normalized.length, match.index + 40);
+    const window = normalized.slice(start, end);
+
+    if (keywords.some((keyword) => window.includes(keyword))) {
+      maxPercent = maxPercent == null ? percent : Math.max(maxPercent, percent);
+    }
+  }
+
+  return maxPercent;
+}
+
+function detectClauseRisks(text) {
+  const normalized = normalizeForMatching(text);
+  const rawText = String(text || "");
+  const risks = [];
+
+  if (/increase\s+cost|final\s+cost\s+may\s+increase/i.test(normalized)) {
+    risks.push(
+      createRisk(
+        "Cost Escalation Risk",
+        "Cost escalation terms detected.",
+        "HIGH",
+        extractClauseSnippet(rawText, /increase\s+cost|final\s+cost\s+may\s+increase/i)
+      )
+    );
+  }
+
+  if (/maintenance|hidden\s+cost/i.test(normalized)) {
+    risks.push(
+      createRisk(
+        "Hidden Charges Risk",
+        "Hidden or maintenance charges are referenced.",
+        "MEDIUM",
+        extractClauseSnippet(rawText, /maintenance|hidden\s+cost/i)
+      )
+    );
+  }
+
+  if (/jurisdiction|only\s+court/i.test(normalized)) {
+    risks.push(
+      createRisk(
+        "Legal Disadvantage Risk",
+        "Jurisdiction restrictions detected.",
+        "MEDIUM",
+        extractClauseSnippet(rawText, /jurisdiction|only\s+court/i)
+      )
+    );
+  }
+
+  if (/deduct|cancellation\s+charges/i.test(normalized)) {
+    risks.push(
+      createRisk(
+        "Cancellation Loss Risk",
+        "Cancellation deductions are mentioned.",
+        "MEDIUM",
+        extractClauseSnippet(rawText, /deduct|cancellation\s+charges/i)
+      )
+    );
+  }
+
+  if (/delay/i.test(normalized) && /no\s+penalty|without\s+penalty|no\s+compensation/i.test(normalized)) {
+    risks.push(
+      createRisk(
+        "Delay Without Penalty",
+        "Delay clauses appear without penalty or compensation.",
+        "HIGH",
+        extractClauseSnippet(
+          rawText,
+          /delay[\s\S]{0,80}(no\s+penalty|without\s+penalty|no\s+compensation)/i
+        )
+      )
+    );
+  }
+
+  if (/salary\s+may\s+be\s+delayed|salary\s+payment\s+may\s+be\s+delayed|salary\s+can\s+be\s+delayed|payment\s+of\s+salary\s+may\s+be\s+delayed/i.test(normalized)) {
+    risks.push(
+      createRisk(
+        "Salary Delay Risk",
+        "Salary payment is not guaranteed.",
+        "MEDIUM",
+        extractClauseSnippet(
+          rawText,
+          /salary\s+may\s+be\s+delayed|salary\s+payment\s+may\s+be\s+delayed|salary\s+can\s+be\s+delayed|payment\s+of\s+salary\s+may\s+be\s+delayed/i
+        )
+      )
+    );
+  }
+
+  const penaltyPercent = findPercentNearKeywords(rawText, ["penalty", "penalties", "charge", "charges"]);
+  if (penaltyPercent != null && penaltyPercent >= 15) {
+    risks.push(
+      createRisk(
+        "High Penalty Clause",
+        `Penalty of ${penaltyPercent}% detected (>= 15%).`,
+        "HIGH",
+        extractClauseSnippet(rawText, /penalt|charges?/i)
+      )
+    );
+  }
+
+  const cancellationPercent = findPercentNearKeywords(rawText, ["cancellation", "deduct", "deduction"]);
+  if (cancellationPercent != null && cancellationPercent >= 20) {
+    risks.push(
+      createRisk(
+        "Cancellation Deduction High",
+        `Cancellation deduction of ${cancellationPercent}% detected (>= 20%).`,
+        "HIGH",
+        extractClauseSnippet(rawText, /cancellation|deduct|deduction/i)
+      )
+    );
+  }
+
+  return risks;
+}
+
+function computeRiskLevelFromDetectedRisks(detectedRisks) {
+  const highCount = detectedRisks.filter((risk) => risk.level === "HIGH").length;
+  const mediumCount = detectedRisks.filter((risk) => risk.level === "MEDIUM").length;
+  const totalRisks = detectedRisks.length;
+
+  if (highCount >= 2 || totalRisks >= 4) {
+    return "HIGH";
+  }
+  if (mediumCount >= 2) {
+    return "MEDIUM";
+  }
+  return "LOW";
+}
+
+function buildRiskSummaryPhrases(detectedRisks) {
+  return detectedRisks
+    .map((risk) => RISK_PHRASE_MAP[risk.type] || String(risk.type || "").toLowerCase())
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
+function buildKeyWarningFromRisks(detectedRisks, documentLabel) {
+  if (!Array.isArray(detectedRisks) || detectedRisks.length === 0) {
+    if (documentLabel && documentLabel.toLowerCase().includes("agreement")) {
+      return "This agreement appears balanced and does not contain major risks.";
+    }
+    if (documentLabel && documentLabel.toLowerCase().includes("offer")) {
+      return "This agreement appears balanced and does not contain major risks.";
+    }
+    return "No major risk clauses detected in the available text.";
+  }
+
+  const phrases = buildRiskSummaryPhrases(detectedRisks);
+  if (phrases.length === 0) {
+    return "Multiple risk indicators detected. Review before signing or acting.";
+  }
+
+  const prefix = documentLabel && documentLabel.toLowerCase().includes("agreement")
+    ? "The agreement grants"
+    : "This document includes";
+
+  return `${prefix} ${phrases.join(", ")} - your protections look limited.`;
+}
+
+function buildSmartExplanationFromRisks(detectedRisks, documentLabel) {
+  if (!Array.isArray(detectedRisks) || detectedRisks.length === 0) {
+    if (documentLabel && documentLabel.toLowerCase().includes("agreement")) {
+      return "No strong unfair or risky clauses detected. The agreement appears balanced.";
+    }
+    return "No strong one-sided or high-impact clauses were detected in the available text.";
+  }
+
+  const phrases = buildRiskSummaryPhrases(detectedRisks);
+  const subject = documentLabel && documentLabel.toLowerCase().includes("agreement")
+    ? "The agreement"
+    : "The document";
+  const detail = phrases.length > 0
+    ? `multiple one-sided clauses such as ${phrases.join(", ")}`
+    : "multiple one-sided clauses";
+
+  return `${subject} contains ${detail}. These indicate an imbalance of power that may reduce your protections.`;
+}
+
+function computeConfidenceScore(rawConfidence, text, documentTypeKey) {
+  const llmScore = clampNumber(Number(rawConfidence), 0, 100);
+  const keywordStrength = computeKeywordStrength(text, documentTypeKey);
+  const structureClarity = computeStructureClarity(text, documentTypeKey);
+  const clarityScore = computeTextClarityScore(text);
+  const length = String(text || "").length;
+
+  let score =
+    llmScore * 0.5 +
+    keywordStrength * 100 * 0.3 +
+    structureClarity * 100 * 0.2;
+
+  if (length < 200) {
+    score -= 6;
+  }
+  if (length < 80) {
+    score -= 12;
+  }
+
+  if (clarityScore < 1) {
+    score *= clarityScore;
+  }
+
+  return Math.round(clampNumber(score, 0, 100));
+}
+
+function isRentalContext(normalized) {
+  return /rental|lease|tenant|landlord|rent|premises|tenancy/i.test(normalized);
+}
+
+function hasRefundableDeposit(normalized) {
+  return /refundable\s+deposit|deposit\s+is\s+refundable|fully\s+refundable|refundable\s+security\s+deposit/i.test(
+    normalized
+  );
+}
+
+function hasNonRefundableDeposit(normalized) {
+  return /non[-\s]?refundable\s+deposit|deposit\s+is\s+non[-\s]?refundable|deposit\s+not\s+refundable|no\s+refund\s+of\s+deposit/i.test(
+    normalized
+  );
+}
+
+function hasAdvancePaymentBeforeService(normalized) {
+  return (
+    /advance\s+payment\s+(?:before|prior)\s+(?:service|joining|delivery|work|activation|possession)/i.test(
+      normalized
+    ) ||
+    /pay(?:ment)?\s+before\s+(?:service|joining|delivery|work|activation|possession)/i.test(normalized)
+  );
+}
+
+function hasUpfrontFeeDemand(normalized) {
+  return /(registration\s+fee|processing\s+fee|training\s+fee|pay\s+to\s+join|fee\s+to\s+join)/i.test(
+    normalized
+  );
+}
+
+function getDepositRiskLevel(normalized) {
+  const hasDeposit = /deposit|security\s+deposit|advance\s+payment|booking\s+amount/i.test(normalized);
+  if (!hasDeposit && !hasAdvancePaymentBeforeService(normalized)) {
+    return "NONE";
+  }
+
+  if (hasNonRefundableDeposit(normalized) || hasAdvancePaymentBeforeService(normalized)) {
+    return "HIGH";
+  }
+
+  if (hasRefundableDeposit(normalized) && isRentalContext(normalized)) {
+    return "NONE";
+  }
+
+  return "NONE";
+}
+
+function hasUpfrontPaymentRisk(normalized) {
+  return getDepositRiskLevel(normalized) === "HIGH" || hasUpfrontFeeDemand(normalized);
+}
+
+function detectFraudIndicators(normalized) {
+  const upfrontPayment = hasUpfrontPaymentRisk(normalized);
+  const urgency = /within\s+24\s+hours|within\s+24\s*h|urgent|immediately|limited\s+time/i.test(
+    normalized
+  );
+  const personalData =
+    /aadhaar|pan\s*card|bank\s*details|otp|cvv|password|upi\s*pin|account\s*details/i.test(
+      normalized
+    );
+  const unrealistic =
+    /guaranteed\s+job|assured\s+job|too\s+good\s+to\s+be\s+true|no\s+experience\s+required|high\s+salary\s+without\s+experience|guaranteed\s+income|double\s+your\s+money|instant\s+joining/i.test(
+      normalized
+    );
+
+  return {
+    upfrontPayment,
+    urgency,
+    personalData,
+    unrealistic,
+  };
+}
+
+function isFraudLikely(indicators) {
+  return Boolean(
+    indicators.upfrontPayment || indicators.urgency || indicators.personalData || indicators.unrealistic
+  );
+}
+
+function detectBalancedAgreementSignals(normalized) {
+  const equalRights = /(both\s+parties|either\s+party|mutual|equal\s+rights)/i.test(normalized);
+  const equalNotice =
+    /notice\s+period\s+of\s+\d+\s+days?\s+for\s+both\s+parties|either\s+party\s+may\s+terminate\s+with\s+\d+\s+days?\s+notice|mutual\s+notice\s+period|same\s+notice\s+period\s+for\s+both\s+parties/i.test(
+      normalized
+    );
+  const noHiddenCharges = /(no\s+hidden\s+charges|no\s+extra\s+charges|no\s+additional\s+charges)/i.test(
+    normalized
+  );
+  const balancedResponsibilities = /(responsibilities\s+of\s+both\s+parties|each\s+party\s+is\s+responsible|mutual\s+obligations|shared\s+responsibilities)/i.test(
+    normalized
+  );
+
+  return equalRights && equalNotice && noHiddenCharges && balancedResponsibilities;
+}
+
+function detectHybridHints(text) {
+  const raw = String(text || "");
+  const normalized = raw.toLowerCase();
+  const hasCurrency = /(₹|rs\.?|inr)/i.test(raw);
+  const hasDeposit = /deposit|advance\s+payment|security\s+deposit|refundable\s+deposit|booking\s+amount/i.test(
+    normalized
+  );
+  const legalHint = /agreement|clause|section|contract/i.test(normalized);
+  const depositRiskLevel = getDepositRiskLevel(normalized);
+
+  return {
+    financialDeposit: hasCurrency && hasDeposit,
+    legalHint,
+    depositRiskLevel,
+  };
+}
+
+function createRisk(type, reason, level = "MEDIUM", snippet = "") {
+  return {
+    level: String(level || "MEDIUM").toUpperCase(),
+    type: String(type || "Risk"),
+    reason: String(reason || ""),
+    snippet: String(snippet || ""),
+  };
+}
+
+function buildTopRisks(detectedRisks) {
+  if (!Array.isArray(detectedRisks) || detectedRisks.length === 0) {
+    return [];
+  }
+
+  const seen = new Set();
+  const topRisks = [];
+
+  for (const risk of detectedRisks) {
+    const rawLabel = String(risk?.type || risk?.reason || "").trim();
+    const label = RISK_PHRASE_MAP[rawLabel] || rawLabel;
+    if (!label || seen.has(label.toLowerCase())) {
+      continue;
+    }
+    seen.add(label.toLowerCase());
+    topRisks.push(label);
+    if (topRisks.length >= 5) {
+      break;
+    }
+  }
+
+  return topRisks;
+}
+
+function buildLawReferenceObjects(laws, fallbackDescription) {
+  if (!Array.isArray(laws)) {
+    return [];
+  }
+
+  return laws.map((law) => {
+    const description = LAW_REFERENCE_DETAILS[law] || fallbackDescription || "Relevant legal guidance applies.";
+    return { law, description };
+  });
+}
+
+function decisionFromRisk(riskLevel) {
+  if (riskLevel === "HIGH") {
+    return "DO_NOT_SIGN";
+  }
+  if (riskLevel === "MEDIUM") {
+    return "REVIEW_CAUTION";
+  }
+  return "SAFE_TO_USE";
 }
 
 function normalizeRiskLevel(value) {
@@ -973,20 +1775,12 @@ function extractClauseReference(snippet) {
   return match ? match[0] : "";
 }
 
-function extractClauseSnippet(text, pattern, maxLen = 160) {
+function extractClauseSnippet(text, pattern) {
   if (!text) {
     return "";
   }
 
-  const match = String(text).match(pattern);
-  if (!match || match.index == null) {
-    return "";
-  }
-
-  const start = Math.max(0, match.index - 60);
-  const end = Math.min(text.length, match.index + maxLen);
-  const snippet = text.slice(start, end).replace(/\s+/g, " ").trim();
-  return snippet.length > maxLen ? `${snippet.slice(0, maxLen)}...` : snippet;
+  return extractRelevantSentence(text, pattern);
 }
 
 function buildClauseRisk({ type, description, impact, pattern, text }) {
@@ -1433,10 +2227,16 @@ function resolveFinalDecision(documentType, classification, riskLevel) {
   }
 
   if (isSignableDocument(documentType)) {
-    return classification === "UNFAIR" || riskLevel !== "LOW" ? "REVIEW_CAUTION" : "SAFE_TO_SIGN";
+    if (classification === "UNFAIR") {
+      return "REVIEW_CAUTION";
+    }
+    if (classification === "NORMAL") {
+      return "SAFE_TO_USE";
+    }
+    return "REVIEW_CAUTION";
   }
 
-  return "REVIEW_CAUTION";
+  return classification === "NORMAL" ? "SAFE_TO_USE" : "REVIEW_CAUTION";
 }
 
 function resolveShouldUserSign(finalDecision) {
@@ -1456,11 +2256,9 @@ function resolveShouldUserSign(finalDecision) {
 function buildGuidance(documentType, classification, riskLevel) {
   if (classification === "FRAUD") {
     return [
-      "DO NOT SIGN THIS DOCUMENT",
-      "Do NOT make payment.",
+      "Do NOT pay any money before joining.",
       "Do NOT share personal details.",
-      "Verify the other party independently before any action.",
-      "Consult a legal expert immediately.",
+      "Verify company authenticity from official sources.",
     ];
   }
 
@@ -1492,6 +2290,14 @@ function buildGuidance(documentType, classification, riskLevel) {
   }
 
   if (isSignableDocument(documentType)) {
+    if (classification === "NORMAL") {
+      return [
+        "Ensure details (rent, deposit, duration) are correct.",
+        "Keep a signed copy safely.",
+        "Follow the agreed terms.",
+      ];
+    }
+
     return [
       "Verify parties, dates, and payment schedule before signing.",
       "Check termination, penalty, and refund clauses for one-sided terms.",
@@ -1538,16 +2344,18 @@ function detectFraudSignals(text, documentType) {
 
   const signalRules = [
     {
-      type: "Advance Payment Demand",
+      type: "Upfront Payment Demand",
       description: "Payment or deposit is demanded before service, joining, or benefit is provided.",
       impact: "User may lose money before receiving any legitimate service or job security.",
       patterns: [
-        /pay(?:ment)?\s+(?:before|prior)/i,
-        /security deposit/i,
-        /registration fee/i,
-        /advance payment/i,
-        /processing fee/i,
-        /pay.*to join/i,
+        /pay(?:ment)?\s+before\s+(?:service|joining|delivery|work|activation|possession)/i,
+        /advance\s+payment\s+(?:before|prior)\s+(?:service|joining|delivery|work|activation|possession)/i,
+        /non[-\s]?refundable\s+deposit/i,
+        /deposit\s+is\s+non[-\s]?refundable/i,
+        /registration\s+fee/i,
+        /processing\s+fee/i,
+        /training\s+fee/i,
+        /pay.*to\s+join/i,
       ],
       onlyFor: ["offer_letter", "legal", "unknown"],
     },
@@ -1559,11 +2367,26 @@ function detectFraudSignals(text, documentType) {
       onlyFor: ["offer_letter", "bank_financial", "legal", "unknown"],
     },
     {
-      type: "Sensitive Data Requested Early",
+      type: "Personal Data Risk",
       description: "Sensitive identity or financial details are requested too early in the process.",
       impact: "User may face identity theft or fraud.",
       patterns: [/aadhaar/i, /pan card/i, /bank details/i, /otp/i, /cvv/i, /password/i],
       onlyFor: ["offer_letter", "bank_financial", "legal", "unknown"],
+    },
+    {
+      type: "Job Scam Indicator",
+      description: "Unrealistic promises or guarantees are used to lure the user.",
+      impact: "Unrealistic claims are common in job scams and fake offers.",
+      patterns: [
+        /guaranteed\s+job/i,
+        /assured\s+job/i,
+        /no\s+experience\s+required/i,
+        /too\s+good\s+to\s+be\s+true/i,
+        /guaranteed\s+income/i,
+        /high\s+salary\s+without\s+experience/i,
+        /instant\s+joining/i,
+      ],
+      onlyFor: ["offer_letter", "legal", "unknown"],
     },
     {
       type: "Possible Banking Phishing Pattern",
@@ -1601,6 +2424,14 @@ function detectUnfairRiskSignals(text, documentType) {
       impact: "May cause direct financial loss or additional charges.",
       patterns: [/cancellation\s*charge/i, /penalt(?:y|ies)/i, /liable to pay/i, /fine of/i, /forfeit/i],
       onlyFor: ["legal", "property_document", "rental_agreement", "offer_letter"],
+      severity: "MEDIUM",
+    },
+    {
+      type: "Cost Escalation Risk",
+      description: "The agreement allows costs to increase after signing.",
+      impact: "User may face higher costs than originally agreed.",
+      patterns: [/increase\s+cost/i, /final\s+cost\s+may\s+increase/i, /price\s+increase/i, /cost\s+increase/i, /escalation/i],
+      onlyFor: ["legal", "property_document", "rental_agreement"],
       severity: "MEDIUM",
     },
     {
@@ -1679,36 +2510,36 @@ function buildLawReference(
     laws.push("IPC 420");
     laws.push("RBI / Cyber Fraud Guidelines");
     simpleExplanation =
-      "Fraud classification activates anti-cheating and cyber-fraud legal protections.";
+      "IPC 420 addresses cheating and fraud, while cyber fraud guidelines protect users from scams and unsafe payment requests.";
   } else if (documentType === "property_document" || documentType === "rental_agreement") {
     if (documentType === "property_document") {
       laws.push("RERA Act");
       laws.push("Indian Contract Act");
       simpleExplanation =
-        "Property agreements are governed by RERA and contract law. Review cost escalations, possession timelines, and dispute resolution clauses carefully.";
+        "RERA Act protects home buyers from builder-related issues, and the Indian Contract Act ensures agreements are fair and legally valid.";
     } else {
       laws.push("Model Tenancy Act / State Rent Act");
       laws.push("Indian Contract Act");
       simpleExplanation =
-        "Rental agreements are governed by tenancy laws and contract law. Review rent escalation, notice periods, and penalty clauses carefully.";
+        "Tenancy laws protect landlord-tenant rights, and the Indian Contract Act ensures agreements are fair and legally valid.";
     }
   } else if (documentType === "legal") {
     laws.push("Indian Contract Act");
     simpleExplanation =
-      "General agreements are governed by contract law; review unfair or one-sided clauses before signing.";
+      "The Indian Contract Act ensures agreements are fair and legally valid.";
   } else if (documentType === "offer_letter") {
     laws.push("Indian Contract Act");
     laws.push("Relevant Labour Laws");
     simpleExplanation =
-      "Job offers should have clear and fair terms. Payment-before-joining demands can be a serious red flag.";
+      "The Indian Contract Act ensures agreements are fair and legally valid, while labour laws protect employees from unfair job conditions.";
   } else if (documentType === "bank_financial") {
     laws.push("RBI Guidelines");
     simpleExplanation =
-      "Banks and financial entities should not ask for OTP, CVV, or passwords for verification in normal processing.";
+      "RBI guidelines protect customers from unsafe banking practices and sharing OTP/CVV/password.";
   } else if (documentType === "policy") {
     laws.push("Consumer Protection Act");
     simpleExplanation =
-      "Policy and rules documents should use fair terms and should not hide unfair burdens on the user.";
+      "Consumer Protection Act prevents unfair trade practices and protects consumers.";
   } else if (documentType === "ticket") {
     laws.push("Indian Railways Rules");
     simpleExplanation =
@@ -1768,6 +2599,14 @@ function applyDecisionPolicy(structured, documentType, documentText) {
   const suspiciousClauses = normalizeSuspiciousClauses(
     structured.suspicious_clauses || structured.hidden_conditions || structured.penalties
   );
+  const fraudWarning =
+    "This document shows strong signs of a job scam. Do NOT pay any money or share personal details.";
+  const unfairWarning = "This document contains one-sided clauses that may disadvantage you.";
+  const safeWarning = "This agreement appears balanced and does not contain major risks.";
+  const fraudIndicators = detectFraudIndicators(normalizeForMatching(documentText));
+  const fraudLikely =
+    isFraudLikely(fraudIndicators) ||
+    (fraudIndicators.urgency && fraudIndicators.personalData && fraudIndicators.unrealistic);
 
   for (const signal of fraudSignals) {
     risks.push(signal);
@@ -1782,7 +2621,7 @@ function applyDecisionPolicy(structured, documentType, documentText) {
     risks.push(impact);
   }
 
-  const hasFraudSignals = fraudSignals.length > 0;
+  const hasFraudSignals = fraudSignals.length > 0 || fraudLikely;
   const hasIllegalSignals = illegalSignals.length > 0 || illegalFlags.length > 0;
   const isContractType = ["legal", "property_document", "rental_agreement"].includes(policyDocumentType);
   const isTicketType = policyDocumentType === "ticket";
@@ -1802,11 +2641,7 @@ function applyDecisionPolicy(structured, documentType, documentText) {
   const negativeScore = negativeSignals.reduce((sum, item) => sum + item.weight, 0);
   const positiveScore = positiveSignals.length;
   const balanceScore = positiveScore - negativeScore;
-  const hasStrongFraudSignals = negativeSignals.some((signal) =>
-    ["Payment requested before joining", "Urgency pressure to act quickly", "Sensitive data requested"].includes(
-      signal.label
-    )
-  );
+  const hasStrongFraudSignals = fraudLikely;
 
   if (hasIllegalSignals) {
     classification = "ILLEGAL";
@@ -1828,41 +2663,30 @@ function applyDecisionPolicy(structured, documentType, documentText) {
       (item) =>
         !/this document shows signs of fraud|do not make payment|do not share personal details/i.test(item)
     );
-  } else if (isContractType) {
-    // ⚠️  HARD OVERRIDE: Property/Legal/Rental agreements are NEVER classified as FRAUD
-    console.log(`[applyDecisionPolicy] ⚠️  HARD OVERRIDE: ${documentType} contract detected - FORCING UNFAIR (never FRAUD)`);
-    classification = "UNFAIR";
-    // Contract/property agreements can be high-risk but are still UNFAIR (not FRAUD).
-    riskLevel = currentRiskLevel === "LOW" ? "MEDIUM" : currentRiskLevel;
-    reasonForDecision =
-      "This is a contract agreement with one-sided or high-penalty terms that require careful review before signing.";
-    if (!lawyerSuggestion) {
-      lawyerSuggestion = "Consult a legal expert before taking any action";
-    }
-    warnings.push("This agreement contains terms that heavily favor one party.");
   } else if (hasFraudSignals) {
     classification = "FRAUD";
     riskLevel = "HIGH";
     reasonForDecision =
-      "Fraud or exploitation signals were detected, including risky payment, pressure, penalty, or sensitive-data patterns.";
+      "This is a HIGH-RISK document with multiple fraud indicators such as upfront payment demand, urgency pressure, and lack of job security.";
     lawyerSuggestion = "Consult a legal expert before taking any action";
-    warnings.push(...FRAUD_WARNING_MESSAGES);
+    warnings = [fraudWarning, ...warnings];
   } else if (riskLevel === "HIGH") {
     classification = "UNFAIR";
     if (!lawyerSuggestion) {
       lawyerSuggestion = "Consult a legal expert before taking any action";
     }
-    warnings.push("This document contains strong one-sided or harmful terms");
+    warnings = [unfairWarning, ...warnings];
   } else if (riskLevel === "MEDIUM") {
     classification = "UNFAIR";
     lawyerSuggestion = lawyerSuggestion || "";
+    warnings = warnings.length > 0 ? warnings : [unfairWarning];
   } else {
     classification = "NORMAL";
     lawyerSuggestion = "";
   }
 
   if (policyDocumentType === "offer_letter" && !hasIllegalSignals) {
-    if (negativeScore >= 3 && hasStrongFraudSignals) {
+    if (hasStrongFraudSignals) {
       classification = "FRAUD";
       riskLevel = "HIGH";
     } else if (balanceScore >= 2) {
@@ -1902,25 +2726,82 @@ function applyDecisionPolicy(structured, documentType, documentText) {
     }
   }
 
+  if (classification === "UNFAIR") {
+    reasonForDecision =
+      "The agreement contains multiple one-sided clauses such as penalty, delay, hidden charges, or cost escalation.";
+  }
+
   finalDecision = resolveFinalDecision(policyDocumentType, classification, riskLevel);
   shouldUserSign = resolveShouldUserSign(finalDecision);
 
   if (classification !== "FRAUD") {
     warnings = warnings.filter(
       (item) =>
-        !/this document shows signs of fraud|do not make payment|do not share personal details/i.test(item)
+        !/this document shows (strong )?signs of (a job scam|a scam|fraud)|do not make payment|do not share personal details/i.test(
+          item
+        )
     );
+  }
+
+  if (classification === "NORMAL" && isSignableDocument(policyDocumentType)) {
+    warnings = warnings.length > 0 ? warnings : [safeWarning];
+    reasonForDecision = "No strong unfair or risky clauses detected. The agreement appears balanced.";
+  }
+
+  if (classification === "NORMAL" && warnings.length === 0) {
+    warnings = [safeWarning];
   }
 
   const cleanedRisks = filterContradictions(risks, positiveSignals, documentText);
   const specificRisks = filterGroundedRisks(dedupeRisks(cleanedRisks), documentText)
     .filter((risk) => isRiskSpecific(risk));
-  const topRisks = (
+  let topRisks = (
     specificRisks.length > 0
       ? specificRisks
       : filterGroundedRisks(dedupeRisks(cleanedRisks), documentText)
   )
     .slice(0, 5);
+  if (classification === "FRAUD") {
+    const requiredTopRisks = [
+      {
+        type: "Upfront Payment Demand",
+        description: "Payment or deposit is demanded before service or joining.",
+        impact: "User may lose money before receiving any legitimate service or job security.",
+      },
+      {
+        type: "Job Scam Indicator",
+        description: "Unrealistic promises or guarantees are used to lure the user.",
+        impact: "Unrealistic claims are common in job scams and fake offers.",
+      },
+      {
+        type: "Personal Data Risk",
+        description: "Sensitive personal or financial details are requested early.",
+        impact: "User may face identity theft or fraud.",
+      },
+      {
+        type: "Urgency Pressure",
+        description: "Document pressures the user to act within a very short deadline.",
+        impact: "Urgency can be used to stop the user from reading terms properly.",
+      },
+    ];
+    const existingTopRisks = topRisks.filter(
+      (risk) => !requiredTopRisks.some((required) => required.type === risk.type)
+    );
+    topRisks = dedupeRisks([...requiredTopRisks, ...existingTopRisks]).slice(0, 5);
+    const hasUpfrontRisk = cleanedRisks.some(
+      (risk) => String(risk?.type || "").toLowerCase().includes("upfront payment")
+    );
+    if (!hasUpfrontRisk) {
+      cleanedRisks.push(
+        createRisk(
+          "Upfront Payment Scam",
+          "Payment required before joining",
+          "HIGH",
+          "Pay a refundable security deposit before joining."
+        )
+      );
+    }
+  }
   const mergedSuspiciousClauses = filterGroundedClauses(
     [...new Set(suspiciousClauses.filter(Boolean))],
     documentText
@@ -2020,18 +2901,83 @@ async function generateStructuredJson(prompt) {
   return parseJSONResponse(removeMarkdownFormatting(responseText));
 }
 
+function buildStructuredTranslationPrompt(structured, languageLabel) {
+  const payload = JSON.stringify(structured);
+  return `You are a translation engine for legal guidance.
+Translate all user-facing text values to ${languageLabel}.
+Write as if the text was originally authored in ${languageLabel}, not translated.
+Use very simple, conversational language for common/rural users.
+
+Rules (strict):
+1. Return only valid JSON.
+2. Preserve keys, structure, arrays, and ordering.
+3. Do NOT translate enum values for these keys: classification, risk_level, final_decision, should_user_sign, decision, confidence_score, escalation.
+4. Do NOT translate law_reference.laws; keep all law names, IPC sections, and statute names in English.
+5. Never remove or alter numbers, percentages, durations, or monetary values.
+6. Keep numbers, dates, and placeholders (e.g., __________) unchanged.
+7. Do not use blanks or placeholders like "____" unless already present in the input.
+8. If a string is already in ${languageLabel}, keep it as-is.
+
+JSON input:
+${payload}`;
+}
+
+async function translateStructuredOutput(structured, language) {
+  const resolvedLanguage = ensureSupportedLanguage(language);
+  if (resolvedLanguage === "en") {
+    return structured;
+  }
+
+  const languageLabel = getLanguageLabel(resolvedLanguage);
+  const prompt = buildStructuredTranslationPrompt(structured, languageLabel);
+  const requiredTokens = extractNumericTokens(JSON.stringify(structured));
+
+  try {
+    let translated = await generateStructuredJson(prompt);
+    const translatedText = JSON.stringify(translated);
+    const hasNumberLoss = hasMissingNumericTokens(translatedText, requiredTokens);
+    const hasBlank = hasPlaceholders(translatedText);
+    const mixedLanguage = isMixedLanguage(translatedText, resolvedLanguage);
+
+    if (isLanguageMismatch(translatedText, resolvedLanguage) || hasNumberLoss || hasBlank || mixedLanguage) {
+      const strictPrompt = `${prompt}\n\nIMPORTANT: Output MUST be only in ${languageLabel}. Do not use any other language.`;
+      translated = await generateStructuredJson(strictPrompt);
+    }
+    const finalText = JSON.stringify(translated);
+    const stillMissingNumbers = hasMissingNumericTokens(finalText, requiredTokens);
+    const stillMixed = isMixedLanguage(finalText, resolvedLanguage);
+    const stillBlank = hasPlaceholders(finalText);
+
+    if (isLanguageMismatch(finalText, resolvedLanguage) || stillMissingNumbers || stillMixed || stillBlank) {
+      console.warn("[aiService] Translation quality check failed; falling back to English output.");
+      return structured;
+    }
+
+    return translated;
+  } catch (error) {
+    console.warn("[aiService] Structured translation failed, using English output:", error.message);
+    return structured;
+  }
+}
+
 function buildSharedGuardrails(languageInstruction) {
   return `
 ${languageInstruction}
 Critical rules:
-1. Return only valid JSON.
-2. No markdown, no commentary, no extra text.
-3. Never include unrelated context.
-4. Use retrieved context only if it clearly matches the document or query.
-5. If context mismatches, ignore it completely.
-6. Do not hallucinate laws, penalties, or clauses.
-7. Use only masked document text.
-8. Detect realistic risks only. Do not force risks where none exist.
+1. Respond only in the language specified above. Do not mix languages.
+2. Return only valid JSON.
+3. No markdown, no commentary, no extra text.
+4. Never include unrelated context.
+5. Use retrieved context only if it clearly matches the document or query.
+6. If context mismatches, ignore it completely.
+7. Do not hallucinate laws, penalties, or clauses.
+8. Use only masked document text.
+9. Detect realistic risks only. Do not force risks where none exist.
+10. Never remove or alter numbers, percentages, durations, or monetary values from the input.
+11. Do not use blanks or placeholders like "____"; always keep exact values.
+12. Use very simple, conversational language for common/rural users.
+13. For each risk, include real-life impact (money/time/property loss).
+14. Write naturally as if originally authored in the selected language.
 `.trim();
 }
 
@@ -2076,17 +3022,19 @@ Return STRICT JSON:
   "note_for_user": "This is AI guidance. For serious matters, consult a legal expert."
 }
 
+Impact rule:
+For each top_risks item, the "impact" must describe real-life loss (money/time/property) and keep any numbers exact.
+
 Decision rules:
-1. If there is payment before job/service, urgency pressure, high penalty, one-sided agreement, salary uncertainty, sensitive-data request, or fraud pattern, set risk_level to HIGH.
-2. Use classification FRAUD only for scam-like or clearly deceptive patterns.
-3. Use classification ILLEGAL if a clause blocks legal remedies or access to courts.
-4. Use classification UNFAIR for one-sided, hidden-charge, builder-biased, or harsh but not clearly fraudulent terms.
-5. Use classification NORMAL if no major issue appears.
-6. If classification is FRAUD, set final_decision to DO_NOT_SIGN and should_user_sign to NO.
-7. If classification is ILLEGAL, set final_decision to DO_NOT_SIGN and should_user_sign to NO.
-8. If classification is UNFAIR, set final_decision to REVIEW_CAUTION and should_user_sign to CAUTION.
-9. If classification is NORMAL, set final_decision to SAFE_TO_SIGN and should_user_sign to YES.
-10. Never tell the user to obey risky instructions. Override them with safe guidance.
+1. If any of these appear, set classification to FRAUD and risk_level to HIGH: upfront payment before service/joining, urgency pressure, personal data requests, or unrealistic job conditions.
+2. Use classification ILLEGAL if a clause blocks legal remedies or access to courts.
+3. Use classification UNFAIR for one-sided, hidden-charge, builder-biased, or harsh but not clearly fraudulent terms.
+4. Use classification NORMAL if no major issue appears.
+5. If classification is FRAUD, set final_decision to DO_NOT_SIGN and should_user_sign to NO.
+6. If classification is ILLEGAL, set final_decision to DO_NOT_SIGN and should_user_sign to NO.
+7. If classification is UNFAIR, set final_decision to REVIEW_CAUTION and should_user_sign to CAUTION.
+8. If classification is NORMAL, set final_decision to SAFE_TO_USE and should_user_sign to YES.
+9. Never tell the user to obey risky instructions. Override them with safe guidance.
 `.trim();
 }
 
@@ -2128,6 +3076,9 @@ Return STRICT JSON:
   "lawyer_suggestion": "",
   "note_for_user": "This is AI guidance. For serious matters, consult a legal expert."
 }
+
+Impact rule:
+For each top_risks item, the "impact" must describe real-life loss (money/time/property) and keep any numbers exact.
 `.trim();
 }
 
@@ -2172,6 +3123,9 @@ Return STRICT JSON:
   "lawyer_suggestion": "",
   "note_for_user": "This is AI guidance. For serious matters, consult a legal expert."
 }
+
+Impact rule:
+For each top_risks item, the "impact" must describe real-life loss (money/time/property) and keep any numbers exact.
 `.trim();
 }
 
@@ -2212,6 +3166,9 @@ Return STRICT JSON:
   "lawyer_suggestion": "",
   "note_for_user": "This is AI guidance. For serious matters, consult a legal expert."
 }
+
+Impact rule:
+For each top_risks item, the "impact" must describe real-life loss (money/time/property) and keep any numbers exact.
 `.trim();
 }
 
@@ -2234,6 +3191,11 @@ Return STRICT JSON:
   "penalties": [],
   "user_guidance": []
 }
+
+Guidance rules:
+1. Use very simple language.
+2. If any numbers or time limits are mentioned, repeat them exactly.
+3. Every guidance point must mention real-life impact (money/time/property).
 `.trim();
 }
 
@@ -2367,92 +3329,780 @@ function normalizeGenericAnalysis(rawAnalysis = {}, detectedType) {
   };
 }
 
-async function analyzeDocument(documentText, options = {}) {
-  if (!documentText || !documentText.trim()) {
-    throw new Error("Document text cannot be empty");
-  }
+function buildTicketAnalysis(documentText, languageInstruction) {
+  const normalized = normalizeForMatching(documentText);
+  const rawText = String(documentText || "");
+  const isHinglish = languageInstruction.includes("Hinglish");
 
-  const cleanText = documentText.trim();
-  const rawText = String(options.rawText || "").trim();
-  const detectionSource = String(options.detectionText || rawText || cleanText).trim();
-  const representativeText = truncateText(cleanText);
-  const detectionText = detectionSource ? truncateText(detectionSource) : representativeText;
-  const detectedType = options.detectedTypeOverride || detectDocumentType(detectionText);
-  const chunks = chunkText(cleanText);
-  const languageInstruction = inferLanguageInstruction(cleanText);
-  const rag = await retrieveLegalContext(representativeText.slice(0, 2000), detectedType);
+  const hasDate = /\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{1,2}\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec))\b/i.test(
+    rawText
+  );
+  const hasTime = /\b\d{1,2}:\d{2}\b/.test(rawText);
+  const hasRoute = /(from\s+\w+\s+to\s+\w+|source\s+station|destination\s+station|boarding\s+station)/i.test(
+    rawText
+  );
+  const hasTrain = /(pnr|train\s*(no|number)|coach|berth|irctc|uts)/i.test(normalized);
 
-  let prompt;
-  let normalizer;
-
-  if (detectedType === "resume") {
-    prompt = buildResumePrompt({
-      documentText: representativeText,
-      languageInstruction,
-    });
-    normalizer = normalizeResumeAnalysis;
-  } else if (detectedType === "ticket") {
-    prompt = buildTicketPrompt({
-      documentText: representativeText,
-      context: rag.context,
-      languageInstruction,
-    });
-    normalizer = normalizeTicketAnalysis;
-  } else if (detectedType === "legal") {
-    prompt = buildLegalPrompt({
-      documentText: representativeText,
-      context: rag.context,
-      languageInstruction,
-    });
-    normalizer = normalizeLegalAnalysis;
-  } else {
-    prompt = buildGenericPrompt({
-      documentText: representativeText,
-      documentType: detectedType,
-      languageInstruction,
-    });
-    normalizer = (rawAnalysis) => normalizeGenericAnalysis(rawAnalysis, detectedType);
-  }
-
-  try {
-    const rawAnalysis = await generateStructuredJson(prompt);
-    const normalized = normalizer(rawAnalysis);
-    const policyText = rawText || cleanText;
-    normalized.structured = applyDecisionPolicy(
-      normalized.structured,
-      normalized.documentType,
-      policyText
+  const detectedRisks = [];
+  if (!hasDate || !hasTime) {
+    detectedRisks.push(
+      createRisk(
+        "Missing Travel Timing",
+        "Travel date/time is not clearly visible.",
+        "MEDIUM"
+      )
     );
-    const structuredType = normalizeDocumentType(normalized.structured.document_type);
-    if (normalized.documentType === "unknown" && structuredType !== "unknown") {
-      normalized.documentType = structuredType;
-    }
-    normalized.legacyRisks = normalized.structured.top_risks.map((risk) => ({
-      clause: risk.type || "Document Risk",
-      severity: normalized.structured.risk_level || "MEDIUM",
-      reason: `${risk.description} Impact: ${risk.impact}`.trim(),
-    }));
-    normalized.summary =
-      normalized.structured.reason_for_decision ||
-      normalized.summary;
-
-    const finalDetectedType =
-      detectedType === "unknown" && normalized.documentType !== "unknown"
-        ? normalized.documentType
-        : detectedType;
-
-    return {
-      ...normalized,
-      detectedType: finalDetectedType,
-      contextUsed: rag.contextUsed,
-      contextCount: rag.contextCount,
-      chunksProcessed: chunks.length,
-      totalRisksFound: normalized.legacyRisks.length,
-    };
-  } catch (error) {
-    console.error("[aiService] Error in analyzeDocument:", error.message);
-    throw new Error(`Gemini API error: ${error.message}`);
   }
+  if (!hasRoute) {
+    detectedRisks.push(
+      createRisk(
+        "Missing Route Details",
+        "Source/destination stations are not clearly stated.",
+        "MEDIUM"
+      )
+    );
+  }
+  if (!hasTrain) {
+    detectedRisks.push(
+      createRisk(
+        "Ticket Identifiers Missing",
+        "PNR/train/coach identifiers are not clearly visible.",
+        "MEDIUM"
+      )
+    );
+  }
+
+  const riskLevel = detectedRisks.length > 0 ? "MEDIUM" : "LOW";
+  const decision = decisionFromRisk(riskLevel);
+  const mandatoryTicketWarning =
+    "Journey should start within ~1 hour (for many local tickets). Ticket validity rules apply (Indian Railways).";
+  const keyWarning = detectedRisks.length > 0
+    ? `Ticket details look incomplete. ${mandatoryTicketWarning}`
+    : mandatoryTicketWarning;
+  const simpleExplanation = isHinglish
+    ? "This looks like a travel ticket. Verify date, time, and route before travel."
+    : "This looks like a travel ticket. Verify date, time, and route before travel.";
+  const smartExplanation = detectedRisks.length > 0
+    ? "Some core ticket fields are missing or unclear, so validity cannot be fully confirmed."
+    : "Ticket fields appear present; follow printed validity and route conditions.";
+
+  return {
+    document_type: "Ticket",
+    risk_level: riskLevel,
+    decision,
+    classification: detectedRisks.length > 0 ? "UNFAIR" : "NORMAL",
+    key_warning: keyWarning,
+    simple_explanation: simpleExplanation,
+    smart_explanation: smartExplanation,
+    detected_risks: detectedRisks,
+    what_user_should_do: [
+      "Start the journey within ~1 hour for many local tickets.",
+      "Follow Indian Railways ticket validity rules.",
+      "Check ticket validity date/time and class.",
+      "Confirm source and destination stations match your journey.",
+      "Carry booking proof and any required ID.",
+      "Avoid breaking the journey unless explicitly allowed.",
+    ],
+    law_reference: buildLawReferenceObjects(
+      ["Indian Railways Rules"],
+      "Ticket validity and travel conditions are governed by Indian Railways rules."
+    ),
+    law_reference_explanation:
+      "Railway tickets are governed by Indian Railways rules. Travel must follow printed validity conditions.",
+  };
+}
+
+function buildOfferLetterAnalysis(documentText, languageInstruction) {
+  const normalized = normalizeForMatching(documentText);
+  const rawText = String(documentText || "");
+  const isHinglish = languageInstruction.includes("Hinglish");
+
+  const detectedRisks = [];
+  const hasUpfrontPayment = hasUpfrontPaymentRisk(normalized);
+  const hasBondClause = /bond|service\s+agreement|liquidated\s+damages|pay\s*back\s*training/i.test(
+    normalized
+  );
+  const hasNoNoticeTermination = /terminate.*without\s+notice|termination.*at\s+any\s+time|sole\s+discretion/i.test(
+    normalized
+  );
+  const hasSalaryDelay = /salary\s+may\s+be\s+delayed|salary\s+payment\s+may\s+be\s+delayed|salary\s+can\s+be\s+delayed|payment\s+of\s+salary\s+may\s+be\s+delayed/i.test(
+    normalized
+  );
+  const fraudIndicators = detectFraudIndicators(normalized);
+  const hasUrgency = fraudIndicators.urgency;
+  const hasPersonalDataRequest = fraudIndicators.personalData;
+  const hasUnrealisticPromise = fraudIndicators.unrealistic;
+  const fraudLikely =
+    isFraudLikely(fraudIndicators) ||
+    (fraudIndicators.urgency && fraudIndicators.personalData && fraudIndicators.unrealistic);
+
+  if (hasUpfrontPayment) {
+    detectedRisks.push(
+      createRisk(
+        "Upfront Payment Scam",
+        "Detected payment-before-joining terms (fee/deposit).",
+        "HIGH",
+        extractClauseSnippet(
+          rawText,
+          /registration\s+fee|processing\s+fee|training\s+fee|non[-\s]?refundable\s+deposit|deposit\s+is\s+non[-\s]?refundable|pay.*before\s+(?:service|joining|delivery|work|activation|possession)|advance\s+payment\s+(?:before|prior)\s+(?:service|joining|delivery|work|activation|possession)/i
+        )
+      )
+    );
+  }
+
+  if (hasUrgency) {
+    detectedRisks.push(
+      createRisk(
+        "Urgency Pressure",
+        "Urgent action is demanded in a short time window.",
+        "MEDIUM",
+        extractClauseSnippet(rawText, /within\s+24\s+hours|urgent|immediately|limited time/i)
+      )
+    );
+  }
+
+  if (hasPersonalDataRequest) {
+    detectedRisks.push(
+      createRisk(
+        "Personal Data Risk",
+        "Sensitive personal or financial details are requested early.",
+        "HIGH",
+        extractClauseSnippet(rawText, /aadhaar|pan\s*card|bank\s*details|otp|cvv|password|upi\s*pin/i)
+      )
+    );
+  }
+
+  if (hasUnrealisticPromise) {
+    detectedRisks.push(
+      createRisk(
+        "Job Scam Indicator",
+        "Unrealistic or guaranteed job promises are mentioned.",
+        "HIGH",
+        extractClauseSnippet(
+          rawText,
+          /guaranteed\s+job|assured\s+job|no\s+experience\s+required|too\s+good\s+to\s+be\s+true|guaranteed\s+income|high\s+salary\s+without\s+experience|instant\s+joining/i
+        )
+      )
+    );
+  }
+
+  if (hasBondClause) {
+    detectedRisks.push(
+      createRisk(
+        "Bond / Penalty Clause",
+        "Bond or penalty clause detected.",
+        "MEDIUM",
+        extractClauseSnippet(
+          rawText,
+          /bond|service\s+agreement|liquidated\s+damages|pay\s*back\s*training/i
+        )
+      )
+    );
+  }
+
+  if (hasNoNoticeTermination) {
+    detectedRisks.push(
+      createRisk(
+        "One-Sided Termination",
+        "Termination without notice is mentioned.",
+        "MEDIUM",
+        extractClauseSnippet(
+          rawText,
+          /terminate.*without\s+notice|termination.*at\s+any\s+time|sole\s+discretion/i
+        )
+      )
+    );
+  }
+
+  if (hasSalaryDelay) {
+    detectedRisks.push(
+      createRisk(
+        "Salary Delay Risk",
+        "Salary payment is not guaranteed.",
+        "MEDIUM",
+        extractClauseSnippet(
+          rawText,
+          /salary\s+may\s+be\s+delayed|salary\s+payment\s+may\s+be\s+delayed|salary\s+can\s+be\s+delayed|payment\s+of\s+salary\s+may\s+be\s+delayed/i
+        )
+      )
+    );
+  }
+
+  let riskLevel = "LOW";
+  let classification = "NORMAL";
+  if (fraudLikely) {
+    riskLevel = "HIGH";
+    classification = "FRAUD";
+  } else if (hasBondClause || hasNoNoticeTermination || hasSalaryDelay) {
+    riskLevel = "MEDIUM";
+    classification = "UNFAIR";
+  }
+
+  const decision =
+    classification === "FRAUD"
+      ? "DO_NOT_SIGN"
+      : classification === "UNFAIR"
+      ? "REVIEW_CAUTION"
+      : "SAFE_TO_USE";
+  const keyWarning =
+    classification === "FRAUD"
+      ? "This document shows strong signs of a job scam. Do NOT pay any money or share personal details."
+      : classification === "NORMAL"
+      ? "This agreement appears balanced and does not contain major risks."
+      : "This document contains one-sided clauses that may disadvantage you.";
+  const simpleExplanation = "Check the offer for payment demands, bonds, or one-sided termination terms.";
+  const smartExplanation =
+    classification === "FRAUD"
+      ? "This is a HIGH-RISK document with multiple fraud indicators such as upfront payment demand, urgency pressure, and lack of job security."
+      : classification === "NORMAL"
+      ? "No strong unfair or risky clauses detected. The agreement appears balanced."
+      : detectedRisks.length > 0
+      ? "The document contains multiple one-sided clauses such as penalties, termination limits, or salary uncertainty."
+      : "No major fraud or penalty signals detected in the offer text.";
+
+  const safeActions = [
+    "Ensure offer details (role, salary, start date) are correct.",
+    "Keep a signed copy safely.",
+    "Follow the agreed terms and notice period.",
+  ];
+  const fraudActions = [
+    "Do NOT pay any money before joining.",
+    "Do NOT share personal details.",
+    "Verify company authenticity from official sources.",
+  ];
+  const cautionActions = [
+    "Verify employer identity and official email domain.",
+    "Avoid paying any fee before joining.",
+    "Ask for clear notice period and termination terms.",
+    "Get written clarification on bond or penalty clauses.",
+  ];
+
+  return {
+    document_type: "Offer Letter",
+    risk_level: riskLevel,
+    decision,
+    classification,
+    key_warning: keyWarning,
+    simple_explanation: simpleExplanation,
+    smart_explanation: smartExplanation,
+    detected_risks: detectedRisks,
+    what_user_should_do:
+      classification === "FRAUD"
+        ? fraudActions
+        : classification === "NORMAL"
+        ? safeActions
+        : cautionActions,
+    law_reference: buildLawReferenceObjects(
+      ["Indian Contract Act", "Relevant Labour Laws"],
+      "Offer letters are contracts. Review unfair or payment-before-joining terms under contract and labour law."
+    ),
+    law_reference_explanation:
+      "Offer letters are contracts. Unfair or payment-before-joining terms should be reviewed under contract and labour law.",
+  };
+}
+
+function buildLegalAgreementAnalysis(documentText, languageInstruction) {
+  const normalized = normalizeForMatching(documentText);
+  const rawText = String(documentText || "");
+  const isHinglish = languageInstruction.includes("Hinglish");
+
+  const detectedRisks = [];
+  let illegalClauseFound = false;
+
+  if (/no\s+legal\s+action|no\s+right\s+to\s+sue|cannot\s+go\s+to\s+court|exclusive\s+jurisdiction|only\s+arbitration\s+and\s+no\s+court/i.test(normalized)) {
+    illegalClauseFound = true;
+    detectedRisks.push(
+      createRisk(
+        "Illegal Restriction",
+        "Agreement restricts access to courts or legal remedies.",
+        "HIGH",
+        extractClauseSnippet(
+          rawText,
+          /no\s+legal\s+action|no\s+right\s+to\s+sue|cannot\s+go\s+to\s+court|exclusive\s+jurisdiction|only\s+arbitration\s+and\s+no\s+court/i
+        )
+      )
+    );
+  }
+
+  if (/penalty|liquidated\s+damages|forfeit|cancellation\s+charge/i.test(normalized)) {
+    const snippet = extractClauseSnippet(
+      rawText,
+      /penalty|liquidated\s+damages|forfeit|cancellation\s+charge/i
+    );
+    detectedRisks.push(
+      createRisk(
+        "Penalty Clause",
+        snippet ? `Penalty clause found: "${snippet}"` : "Penalty clause detected.",
+        "MEDIUM",
+        snippet
+      )
+    );
+  }
+
+  if (/escalation|price\s+increase|cost\s+increase|rate\s+increase/i.test(normalized)) {
+    detectedRisks.push(
+      createRisk(
+        "Cost Escalation",
+        "Cost/price escalation clause detected.",
+        "MEDIUM",
+        extractClauseSnippet(rawText, /escalation|price\s+increase|cost\s+increase|rate\s+increase/i)
+      )
+    );
+  }
+
+  if (/delay|possession|handover|delivery\s+delay/i.test(normalized)) {
+    detectedRisks.push(
+      createRisk(
+        "Delay Clause",
+        "Delay or possession timeline clause detected.",
+        "MEDIUM",
+        extractClauseSnippet(rawText, /delay|possession|handover|delivery\s+delay/i)
+      )
+    );
+  }
+
+  const clauseRisks = detectClauseRisks(rawText);
+  detectedRisks.push(...clauseRisks);
+  const mergedRisks = dedupeDetectedRisks(detectedRisks);
+  const balancedAgreement = detectBalancedAgreementSignals(normalized);
+
+  const propertyKeywords = /builder|developer|rera|possession|allotment|flat|plot|sale\s+deed/i.test(
+    normalized
+  );
+
+  let riskLevel = computeRiskLevelFromDetectedRisks(mergedRisks);
+  let classification = riskLevel === "LOW" ? "NORMAL" : "UNFAIR";
+
+  if (illegalClauseFound) {
+    riskLevel = "HIGH";
+    classification = "ILLEGAL";
+  } else if (balancedAgreement && mergedRisks.length === 0) {
+    riskLevel = "LOW";
+    classification = "NORMAL";
+  }
+
+  const decision =
+    classification === "ILLEGAL"
+      ? "DO_NOT_SIGN"
+      : classification === "UNFAIR"
+      ? "REVIEW_CAUTION"
+      : "SAFE_TO_USE";
+  const keyWarning =
+    classification === "ILLEGAL"
+      ? "Agreement restricts legal remedies. Do not sign without legal review."
+      : classification === "NORMAL"
+      ? "This agreement appears balanced and does not contain major risks."
+      : "This document contains one-sided clauses that may disadvantage you.";
+  const simpleExplanation = "This is a legal agreement. Some clauses may be one-sided or risky.";
+  const smartExplanation =
+    classification === "ILLEGAL"
+      ? "Clauses restricting court access can be unenforceable under Indian Contract Act Section 28."
+      : classification === "NORMAL"
+      ? "No strong unfair or risky clauses detected. The agreement appears balanced."
+      : buildSmartExplanationFromRisks(mergedRisks, "Legal Agreement");
+
+  const safeActions = [
+    "Ensure details (rent, deposit, duration) are correct.",
+    "Keep a signed copy safely.",
+    "Follow the agreed terms.",
+  ];
+  const cautionActions = [
+    "Review penalty, termination, and escalation clauses closely.",
+    "Ask for clarifications on timelines and responsibilities.",
+    "Negotiate one-sided terms if possible.",
+    "Consult a legal expert before signing if risk is medium/high.",
+  ];
+
+  const lawReference = ["Indian Contract Act"];
+  if (propertyKeywords) {
+    lawReference.push("RERA Act");
+  }
+
+  return {
+    document_type: "Legal Agreement",
+    risk_level: riskLevel,
+    decision,
+    classification,
+    key_warning: keyWarning,
+    simple_explanation: simpleExplanation,
+    smart_explanation: smartExplanation,
+    detected_risks: mergedRisks,
+    what_user_should_do: classification === "NORMAL" ? safeActions : cautionActions,
+    law_reference: buildLawReferenceObjects(
+      lawReference,
+      "Legal agreements are governed by contract law; property agreements can also fall under RERA."
+    ),
+    law_reference_explanation:
+      "Legal agreements are governed by contract law; property agreements can also fall under RERA.",
+  };
+}
+
+function buildIdentityDocumentAnalysis(documentText, languageInstruction) {
+  const isHinglish = languageInstruction.includes("Hinglish");
+
+  return {
+    document_type: "Identity Document",
+    risk_level: "LOW",
+    decision: "SAFE_TO_USE",
+    classification: "NORMAL",
+    key_warning: "Do not share ID numbers or OTPs unnecessarily.",
+    simple_explanation: isHinglish
+      ? "This appears to be an identity document. Share it only with trusted parties."
+      : "This appears to be an identity document. Share it only with trusted parties.",
+    smart_explanation:
+      "Identity documents should be protected from unauthorized sharing or OTP requests.",
+    detected_risks: [],
+    what_user_should_do: [
+      "Mask ID numbers before sharing.",
+      "Avoid sharing OTPs or full ID details over chat or email.",
+      "Store the document securely."
+    ],
+    law_reference: [],
+    law_reference_explanation: "",
+  };
+}
+
+function buildFinancialDocumentAnalysis(documentText, languageInstruction) {
+  const normalized = normalizeForMatching(documentText);
+  const isHinglish = languageInstruction.includes("Hinglish");
+  const detectedRisks = [];
+
+  if (/otp|cvv|password|upi\s*pin/i.test(normalized)) {
+    detectedRisks.push(
+      createRisk(
+        "Personal Data Risk",
+        "Document asks for OTP/CVV/password or UPI PIN.",
+        "HIGH",
+        extractClauseSnippet(String(documentText || ""), /otp|cvv|password|upi\s*pin/i)
+      )
+    );
+  }
+
+  const depositRiskLevel = getDepositRiskLevel(normalized);
+  if (depositRiskLevel === "HIGH") {
+    detectedRisks.push(
+      createRisk(
+        "Advance Payment Demand",
+        "Non-refundable or advance payment required before service.",
+        "HIGH",
+        extractClauseSnippet(
+          String(documentText || ""),
+          /non[-\s]?refundable\s+deposit|deposit\s+is\s+non[-\s]?refundable|pay.*before\s+(?:service|joining|delivery|work|activation|possession)|advance\s+payment\s+(?:before|prior)\s+(?:service|joining|delivery|work|activation|possession)/i
+        )
+      )
+    );
+  }
+
+  const hasHighRisk = detectedRisks.some((risk) => risk.level === "HIGH");
+  const riskLevel = hasHighRisk ? "HIGH" : detectedRisks.length > 0 ? "MEDIUM" : "LOW";
+  const hasSensitiveDataRisk = detectedRisks.some((risk) => /Personal Data Risk/i.test(risk.type));
+  const classification = hasSensitiveDataRisk
+    ? "FRAUD"
+    : detectedRisks.length > 0
+    ? "UNFAIR"
+    : "NORMAL";
+  const decision = decisionFromRisk(riskLevel);
+  const keyWarning =
+    classification === "FRAUD"
+      ? "This document shows strong signs of a job scam. Do NOT pay any money or share personal details."
+      : detectedRisks.length > 0
+      ? "Financial document contains payment or sensitive data risks."
+      : "Verify bank or financial details before action.";
+  const simpleExplanation = isHinglish
+    ? "This looks like a financial document. Do not share OTPs or sensitive details."
+    : "This looks like a financial document. Do not share OTPs or sensitive details.";
+  const hasDepositRisk = depositRiskLevel === "HIGH";
+  const smartExplanation = hasSensitiveDataRisk
+    ? "Sensitive data requests are a high-risk fraud signal in financial documents."
+    : hasDepositRisk
+    ? "Advance payment before service is a high-risk fraud indicator in financial documents."
+    : "No strong fraud signals detected, but verify bank details independently.";
+
+  return {
+    document_type: "Financial Document",
+    risk_level: riskLevel,
+    decision,
+    classification,
+    key_warning: keyWarning,
+    simple_explanation: simpleExplanation,
+    smart_explanation: smartExplanation,
+    detected_risks: detectedRisks,
+    what_user_should_do: [
+      "Verify account/beneficiary details independently.",
+      "Never share OTP, CVV, or passwords.",
+      "Confirm payment requests with official channels."
+    ],
+    law_reference: buildLawReferenceObjects(
+      ["RBI Guidelines"],
+      "RBI guidelines advise against sharing OTPs, CVV, or passwords and require safe banking practices."
+    ),
+    law_reference_explanation:
+      "RBI guidelines advise against sharing OTPs, CVV, or passwords and require safe banking practices.",
+  };
+}
+
+function buildOtherDocumentAnalysis(languageInstruction) {
+  const isHinglish = languageInstruction.includes("Hinglish");
+
+  return {
+    document_type: "Other",
+    risk_level: "LOW",
+    decision: "SAFE_TO_USE",
+    classification: "NORMAL",
+    key_warning: "This document appears informational, not a legal or actionable document.",
+    simple_explanation: isHinglish
+      ? "This document is not a legal or actionable document. It appears informational."
+      : "This document is not a legal or actionable document. It appears informational.",
+    smart_explanation:
+      "The document does not match legal, offer, ticket, identity, or financial patterns.",
+    detected_risks: [],
+    what_user_should_do: [
+      "If you expected a legal document, verify the source.",
+      "Share only with trusted parties if it contains personal data."
+    ],
+    law_reference: [],
+    law_reference_explanation: "",
+  };
+}
+
+function routeDocumentAnalysis(documentTypeKey, documentText, languageInstruction) {
+  switch (documentTypeKey) {
+    case "ticket":
+      return buildTicketAnalysis(documentText, languageInstruction);
+    case "offer_letter":
+      return buildOfferLetterAnalysis(documentText, languageInstruction);
+    case "legal_agreement":
+      return buildLegalAgreementAnalysis(documentText, languageInstruction);
+    case "identity_document":
+      return buildIdentityDocumentAnalysis(documentText, languageInstruction);
+    case "financial_document":
+      return buildFinancialDocumentAnalysis(documentText, languageInstruction);
+    default:
+      return buildOtherDocumentAnalysis(languageInstruction);
+  }
+}
+
+function applyHybridHintsToAnalysis(analysis, hints, documentTypeKey) {
+  const updated = { ...analysis };
+  const detectedRisks = [...(updated.detected_risks || [])];
+  let warningOverride = "";
+
+  if (hints.depositRiskLevel === "HIGH") {
+    detectedRisks.push(
+      createRisk(
+        "Advance Payment Demand",
+        "Non-refundable or advance payment required before service.",
+        "HIGH"
+      )
+    );
+    warningOverride =
+      warningOverride || "Advance payment before service is a strong fraud indicator.";
+    if (updated.risk_level !== "HIGH") {
+      updated.risk_level = "HIGH";
+    }
+  }
+
+  if (hints.legalHint && documentTypeKey === "other") {
+    detectedRisks.push(
+      createRisk(
+        "Legal Terminology Detected",
+        "Terms like agreement or clause appear in the document.",
+        "MEDIUM"
+      )
+    );
+    warningOverride = warningOverride || "Legal terms detected. Review if rights or payments are involved.";
+    if (updated.risk_level === "LOW") {
+      updated.risk_level = "MEDIUM";
+    }
+  }
+
+  updated.detected_risks = detectedRisks;
+  updated.decision = decisionFromRisk(updated.risk_level);
+  if (warningOverride) {
+    updated.key_warning = warningOverride;
+  }
+  return updated;
+}
+
+function buildStructuredPipelineOutput({
+  analysis,
+  documentTypeLabel,
+  confidenceScore,
+}) {
+  const resolvedDecision = analysis.decision || decisionFromRisk(analysis.risk_level);
+  const warnings = [];
+  if (analysis.key_warning) {
+    warnings.push(analysis.key_warning);
+  }
+  const detectedRisks = Array.isArray(analysis.detected_risks) ? analysis.detected_risks : [];
+  const topRisks = buildTopRisks(detectedRisks);
+  const lawReferenceObjects = Array.isArray(analysis.law_reference)
+    ? analysis.law_reference
+    : buildLawReferenceObjects(
+        analysis.law_reference || [],
+        analysis.law_reference_explanation
+      );
+
+  return {
+    document_type: documentTypeLabel,
+    classification: analysis.classification || "NORMAL",
+    decision: resolvedDecision,
+    risk_level: analysis.risk_level,
+    confidence_score: confidenceScore,
+    key_warning: analysis.key_warning,
+    simple_explanation: analysis.simple_explanation,
+    smart_explanation: analysis.smart_explanation,
+    top_risks: topRisks,
+    detected_risks: detectedRisks,
+    what_user_should_do: analysis.what_user_should_do || [],
+    law_reference: lawReferenceObjects,
+  };
+}
+
+function buildLegacyRisksFromDetected(risks, riskLevel) {
+  if (!Array.isArray(risks)) {
+    return [];
+  }
+
+  const severity = riskLevel === "HIGH" ? "HIGH" : riskLevel === "MEDIUM" ? "MEDIUM" : "LOW";
+  return risks.map((risk) => ({
+    clause: risk.type || "Risk",
+    severity: risk.level || severity,
+    reason: [risk.reason, risk.snippet].filter(Boolean).join(" ").trim(),
+  }));
+}
+
+function buildEmptyPipelineResult(documentText, languageInstruction) {
+  const analysis = buildOtherDocumentAnalysis(languageInstruction);
+  analysis.risk_level = "LOW";
+  analysis.decision = "REVIEW_CAUTION";
+  analysis.key_warning = "Insufficient text extracted. Please upload a clearer document.";
+  analysis.simple_explanation = "Text extraction is too small. Please upload a clearer document.";
+
+  return analysis;
+}
+
+async function analyzeDocument(documentText, options = {}) {
+  const rawText = String(options.rawText || documentText || "");
+  const maskedText = String(documentText || "");
+  const cleanedMaskedText = cleanExtractedText(maskedText);
+  const resolvedLanguage = ensureSupportedLanguage(options.language);
+  const languageInstruction = getLanguageInstruction(resolvedLanguage);
+  console.log(
+    `[aiService] analyzeDocument language raw="${options.language}" resolved="${resolvedLanguage}" instruction="${languageInstruction}"`
+  );
+
+  if (!cleanedMaskedText || cleanedMaskedText.length < 20) {
+    const analysis = buildEmptyPipelineResult(rawText, languageInstruction);
+    const structured = buildStructuredPipelineOutput({
+      analysis,
+      documentTypeLabel: "Other",
+      confidenceScore: 0,
+    });
+    const localizedStructured = await translateStructuredOutput(structured, resolvedLanguage);
+    const legacyRisks = buildLegacyRisksFromDetected(
+      localizedStructured.detected_risks,
+      localizedStructured.risk_level
+    );
+    return {
+      documentType: "Other",
+      detectedType: "other",
+      summary: localizedStructured.simple_explanation || localizedStructured.key_warning,
+      structured: localizedStructured,
+      legacyRisks,
+      risks: legacyRisks,
+      chunksProcessed: 1,
+      contextUsed: false,
+      contextCount: 0,
+      totalRisksFound: legacyRisks.length,
+    };
+  }
+
+  let classification;
+  try {
+    classification = await classifyDocumentWithGemini(cleanedMaskedText);
+  } catch (error) {
+    console.error("[aiService] Gemini classification failed:", error.message);
+    classification = {
+      document_type: "Other",
+      confidence: 0,
+      reason: "Classification unavailable",
+    };
+  }
+
+  let documentTypeLabel = classification.document_type || "Other";
+  let documentTypeKey = documentTypeLabelToKey(documentTypeLabel);
+  const initialConfidence = computeConfidenceScore(
+    classification.confidence,
+    cleanedMaskedText,
+    documentTypeKey
+  );
+
+  if (initialConfidence < 50) {
+    documentTypeLabel = "Other";
+    documentTypeKey = "other";
+  }
+
+  const analysisBase = routeDocumentAnalysis(
+    documentTypeKey,
+    rawText || cleanedMaskedText,
+    languageInstruction
+  );
+  const hints = detectHybridHints(rawText || cleanedMaskedText);
+  const analysis = applyHybridHintsToAnalysis(analysisBase, hints, documentTypeKey);
+  if (Array.isArray(analysis.detected_risks)) {
+    analysis.detected_risks = dedupeDetectedRisks(analysis.detected_risks);
+    analysis.risk_level = computeRiskLevelFromDetectedRisks(analysis.detected_risks);
+  }
+  const confidenceScore = computeConfidenceScore(
+    classification.confidence,
+    cleanedMaskedText,
+    documentTypeKey
+  );
+
+  let structured = buildStructuredPipelineOutput({
+    analysis,
+    documentTypeLabel,
+    confidenceScore,
+  });
+
+  if (classification.reason) {
+    structured.smart_explanation = `${structured.smart_explanation} Classification reason: ${classification.reason}`;
+  }
+
+  if (initialConfidence < 50) {
+    structured.smart_explanation = `${structured.smart_explanation} Confidence is low, so the document is treated as Other.`;
+  }
+
+  const localizedStructured = await translateStructuredOutput(structured, resolvedLanguage);
+  const legacyRisks = buildLegacyRisksFromDetected(
+    localizedStructured.detected_risks,
+    localizedStructured.risk_level
+  );
+  logPipeline("classification", {
+    documentTypeLabel,
+    confidence: classification.confidence,
+    reason: classification.reason,
+  });
+  logPipeline("routing", {
+    documentTypeKey,
+    riskLevel: structured.risk_level,
+    decision: structured.decision,
+  });
+  logPipeline("hybrid", { hints, riskLevel: structured.risk_level });
+
+  return {
+    documentType: documentTypeLabel,
+    detectedType: documentTypeKey,
+    summary: localizedStructured.simple_explanation || localizedStructured.smart_explanation,
+    structured: localizedStructured,
+    legacyRisks,
+    risks: legacyRisks,
+    chunksProcessed: 1,
+    contextUsed: false,
+    contextCount: 0,
+    totalRisksFound: legacyRisks.length,
+  };
 }
 
 function shouldUseLegalDatasetForQuery(queryText) {
@@ -2473,24 +4123,66 @@ function normalizeQueryAnalysis(rawAnalysis = {}) {
   };
 }
 
-async function analyzeLegalQuery(queryText) {
+async function analyzeLegalQuery(queryText, options = {}) {
   if (!queryText || !queryText.trim()) {
     throw new Error("Query text cannot be empty");
   }
 
   const cleanedQuery = queryText.trim();
+  const resolvedLanguage = ensureSupportedLanguage(options.language);
+  const languageInstruction = getLanguageInstruction(resolvedLanguage);
+  console.log(
+    `[aiService] analyzeLegalQuery language raw="${options.language}" resolved="${resolvedLanguage}" instruction="${languageInstruction}"`
+  );
   const rag = shouldUseLegalDatasetForQuery(cleanedQuery)
     ? await retrieveLegalContext(cleanedQuery, "legal")
     : { context: "", contextUsed: false, contextCount: 0 };
 
   try {
-    const rawAnalysis = await generateStructuredJson(
+    let rawAnalysis = await generateStructuredJson(
       buildQueryPrompt({
         query: cleanedQuery,
         context: rag.context,
-        languageInstruction: inferLanguageInstruction(cleanedQuery),
+        languageInstruction,
       })
     );
+    const requiredTokens = extractNumericTokens(cleanedQuery);
+    const rawText = JSON.stringify(rawAnalysis);
+    const needsRetry =
+      isLanguageMismatch(rawText, resolvedLanguage) ||
+      isMixedLanguage(rawText, resolvedLanguage) ||
+      hasPlaceholders(rawText) ||
+      hasMissingNumericTokens(rawText, requiredTokens);
+
+    if (needsRetry) {
+      console.warn("[aiService] Query language mismatch detected. Retrying with strict language enforcement.");
+      const strictInstruction = `${languageInstruction} IMPORTANT: Respond ONLY in the specified language.`;
+      rawAnalysis = await generateStructuredJson(
+        buildQueryPrompt({
+          query: cleanedQuery,
+          context: rag.context,
+          languageInstruction: strictInstruction,
+        })
+      );
+    }
+
+    const retryText = JSON.stringify(rawAnalysis);
+    const stillBad =
+      isLanguageMismatch(retryText, resolvedLanguage) ||
+      isMixedLanguage(retryText, resolvedLanguage) ||
+      hasPlaceholders(retryText) ||
+      hasMissingNumericTokens(retryText, requiredTokens);
+
+    if (stillBad) {
+      console.warn("[aiService] Query language mismatch after retry; falling back to English output.");
+      rawAnalysis = await generateStructuredJson(
+        buildQueryPrompt({
+          query: cleanedQuery,
+          context: rag.context,
+          languageInstruction: getLanguageInstruction("en"),
+        })
+      );
+    }
 
     return {
       ...normalizeQueryAnalysis(rawAnalysis),
@@ -2500,6 +4192,447 @@ async function analyzeLegalQuery(queryText) {
   } catch (error) {
     console.error("[aiService] Error in analyzeLegalQuery:", error.message);
     throw new Error(`Gemini API error: ${error.message}`);
+  }
+}
+
+function buildFirPrompt(userInput, language) {
+  const resolvedLanguage = ensureSupportedLanguage(language);
+  const languageLabel = getLanguageLabel(resolvedLanguage).toUpperCase();
+  return `You are an experienced Indian legal assistant trained in drafting FIRs and complaints used in real police stations and by advocates in India.
+
+This is a generation task. Do NOT ask questions. Do NOT request missing data.
+
+Language preference: ${languageLabel}. You MUST respond only in this language for the FIR body. Keep law names in English. Keep the Request sentence in English exactly.
+
+Critical legal corrections (mandatory):
+- NEVER use the words "refund", "recover", "recovery", "facilitate refund", or "return my money" anywhere.
+- Subject line must be: "Complaint regarding [issue]" and must not mention refund or recovery.
+- The Request section must use this exact sentence only:
+"I kindly request you to register my complaint and investigate the matter. If any misuse or criminal activity is found, kindly take appropriate legal action."
+
+Core rule:
+You MUST dynamically adapt the FIR based on case type. Do NOT include irrelevant sections.
+Each FIR must be unique and context-aware. Do NOT reuse generic sentences.
+
+Case rules (apply only what is relevant):
+1) Theft: Title "Complaint Regarding Theft of [item]", include item details, location, time, registration number if vehicle; law IPC 379; no bank/UPI steps.
+2) Money transfer mistake: Title "Complaint Regarding Mistaken Fund Transfer", include transaction details, law IPC 403 + IT Act; include bank/UPI step; no theft language.
+3) Assault/harassment: Title "Complaint Regarding Assault and Threat", include incident and accused details; laws IPC 323, IPC 352, IPC 506; no transaction/bank steps.
+4) Accident/rash driving: Title "Complaint Regarding Rash Driving and Assault", include vehicle details, damage, number plate; laws IPC 279, IPC 323, IPC 506.
+5) Lost item: Title "Complaint Regarding Lost [item]", include where it was kept and when it was noticed missing; law IPC 403.
+6) Property issue: Include property/payment details; laws RERA Act + Indian Contract Act as applicable.
+7) Employment issue: Include employer details and timeline; laws Labour Laws.
+
+If any information is missing, use fillable fields like:
+Name: __________
+Address: __________
+
+Output rules:
+Use clean plain text only. Do NOT use markdown, separators, or artificial headings. Keep the tone human and practical.
+
+Smart case detection (adapt FIR accordingly):
+Theft/Lost Property (IPC 379/IPC 403), Fraud/Cheating (IPC 420), Breach of Trust (IPC 406), Cyber Fraud (IT Act + IPC), Job Scam, Property/Builder Issue (RERA + Contract Act), Harassment/Threat, Salary/Employment Issue (Labour Laws).
+If uncertain, write: Possible sections may include...
+
+Follow this format strictly:
+
+Title:
+Complaint Regarding [Issue Type]
+
+To,
+The Station House Officer (SHO)
+[Police Station Name]
+[City]
+
+Date: __________
+Place: __________
+
+Subject:
+Complaint regarding [brief issue]
+
+Respected Sir/Madam,
+
+I, __________, residing at __________, would like to report the following:
+
+Explain clearly:
+what happened
+when
+where
+what loss occurred
+
+Include naturally: Due to this situation, I am facing financial loss and mental stress.
+
+Add only relevant details based on case:
+If financial/cyber case, include Transaction Details:
+Transaction ID: __________
+Bank/UPI: __________
+Amount: __________
+Date/Time: __________
+
+If mobile/device lost:
+Device Model: __________
+IMEI: __________
+
+If property case:
+Property details and payment history.
+
+Legal Grounds:
+Possible sections may include:
+* IPC 403 (Dishonest Misappropriation of Property): If the receiver knowingly keeps the money without returning it.
+* IT Act: If the issue involves digital transaction misuse.
+
+Modify or add relevant laws based on the case (IPC 420, IPC 406, IPC 379, RERA Act, Labour Laws) if applicable.
+
+Request:
+I kindly request you to register my complaint and investigate the matter. If any misuse or criminal activity is found, kindly take appropriate legal action.
+
+Closing:
+Thanking you,
+
+Yours faithfully,
+[Name: __________]
+[Contact Number: __________]
+
+Signature: __________
+
+Suggested Actions:
+* Visit nearest police station
+* Carry relevant proof (documents/screenshots)
+* Keep ID proof ready
+* Immediately report the issue to your bank or UPI app
+
+Important Notes:
+FIR registration depends on police verification.
+Some cases may be civil in nature.
+You may approach higher authorities if FIR is not registered.
+
+User Input:
+${userInput}`;
+}
+
+function detectFirCase(userInput) {
+  const normalized = normalizeForMatching(userInput || "");
+
+  if (/upi|transaction|fund\s+transfer|imps|neft|rtgs|bank\s+transfer|money\s+transfer|mistaken\s+transfer/i.test(normalized)) {
+    return "money_transfer";
+  }
+  if (/theft|stolen|robbed|steal|burglary/i.test(normalized)) {
+    return "theft";
+  }
+  if (/lost|missing|misplaced/i.test(normalized)) {
+    return "lost_item";
+  }
+  if (/assault|attack|harass|threat|abuse|intimidat|molest/i.test(normalized)) {
+    return "assault";
+  }
+  if (/accident|rash\s+driving|hit\s+and\s+run|collision/i.test(normalized)) {
+    return "accident";
+  }
+  if (/builder|property|flat|plot|developer|rera|possession|handover/i.test(normalized)) {
+    return "property";
+  }
+  if (/job|offer|employment|salary|company|hr|recruit/i.test(normalized)) {
+    return "job";
+  }
+  if (/fraud|scam|cheat|cheated|fake/i.test(normalized)) {
+    return "fraud";
+  }
+
+  return "general";
+}
+
+function buildFirFallback(userInput) {
+  const caseType = detectFirCase(userInput);
+  const incidentText = userInput || "The incident details are not fully available in this draft.";
+
+  const baseHeader = (subjectLine) => `To,
+The Station House Officer (SHO)
+[Police Station Name]
+[City]
+
+Date: __________
+Place: __________
+
+Subject:
+${subjectLine}
+
+Respected Sir/Madam,
+
+I, __________, residing at __________, would like to report the following:
+
+${incidentText}
+
+Due to this situation, I am facing financial loss and mental stress.
+`;
+
+  const requestBlock = `Request:
+I kindly request you to register my complaint and investigate the matter. If any misuse or criminal activity is found, kindly take appropriate legal action.
+`;
+
+  const closingBlock = `Closing:
+Thanking you,
+
+Yours faithfully,
+[Name: __________]
+[Contact Number: __________]
+
+Signature: __________
+
+Important Notes:
+FIR registration depends on police verification.
+Some cases may be civil in nature.
+You may approach higher authorities if FIR is not registered`;
+
+  if (caseType === "theft") {
+    return `Title:
+Complaint Regarding Theft of [item]
+
+  ${baseHeader("Complaint regarding theft of property")}
+Item details: __________
+Location: __________
+Date/Time: __________
+If vehicle: Registration Number: __________
+
+Legal Grounds:
+IPC 379 (Theft): Taking property without permission
+
+${requestBlock}
+Suggested Actions:
+* Visit nearest police station
+* Carry relevant proof (documents/screenshots)
+* Keep ID proof ready
+
+${closingBlock}`;
+  }
+
+  if (caseType === "lost_item") {
+    return `Title:
+Complaint Regarding Lost [item]
+
+  ${baseHeader("Complaint regarding lost property")}
+Item details: __________
+Last seen at: __________
+Date/Time: __________
+If mobile/device: Device Model: __________, IMEI: __________
+
+Legal Grounds:
+IPC 403 (Misappropriation): Keeping property dishonestly
+
+${requestBlock}
+Suggested Actions:
+* Visit nearest police station
+* Carry relevant proof (documents/screenshots)
+* Keep ID proof ready
+
+${closingBlock}`;
+  }
+
+  if (caseType === "money_transfer") {
+    return `Title:
+Complaint Regarding Mistaken Fund Transfer
+
+  ${baseHeader("Complaint regarding mistaken fund transfer")}
+Transaction Details:
+* Transaction ID: __________
+* Bank/UPI: __________
+* Amount: __________
+* Date/Time: __________
+
+Legal Grounds:
+Possible sections may include:
+* IPC 403 (Dishonest Misappropriation of Property): If the receiver knowingly keeps the money without returning it.
+* IT Act: If the issue involves digital transaction misuse.
+
+${requestBlock}
+Suggested Actions:
+* Visit nearest police station
+* Carry relevant proof (documents/screenshots)
+* Keep ID proof ready
+* Immediately report the issue to your bank or UPI app
+
+${closingBlock}`;
+  }
+
+  if (caseType === "assault") {
+    return `Title:
+Complaint Regarding Assault and Threat
+
+  ${baseHeader("Complaint regarding assault and threat")}
+Accused details (if known): __________
+Location: __________
+Date/Time: __________
+
+Legal Grounds:
+IPC 323 (Voluntarily causing hurt)
+IPC 352 (Assault or criminal force)
+IPC 506 (Criminal intimidation)
+
+${requestBlock}
+Suggested Actions:
+* Visit nearest police station
+* Carry relevant proof (medical report, messages)
+* Keep ID proof ready
+
+${closingBlock}`;
+  }
+
+  if (caseType === "accident") {
+    return `Title:
+Complaint Regarding Rash Driving and Assault
+
+  ${baseHeader("Complaint regarding rash driving and assault")}
+Vehicle details: __________
+Number plate: __________
+Damage details: __________
+Location: __________
+Date/Time: __________
+
+Legal Grounds:
+IPC 279 (Rash driving)
+IPC 323 (Voluntarily causing hurt)
+IPC 506 (Criminal intimidation)
+
+${requestBlock}
+Suggested Actions:
+* Visit nearest police station
+* Carry relevant proof (photos, medical report)
+* Keep ID proof ready
+
+${closingBlock}`;
+  }
+
+  if (caseType === "property") {
+    return `Title:
+Complaint Regarding Property Dispute
+
+  ${baseHeader("Complaint regarding property dispute")}
+Property details: __________
+Payment details: __________
+
+Legal Grounds:
+RERA Act: For builder/property issues
+Indian Contract Act: For agreement-related obligations
+
+${requestBlock}
+Suggested Actions:
+* Visit nearest police station
+* Carry relevant proof (documents, receipts)
+* Keep ID proof ready
+
+${closingBlock}`;
+  }
+
+  if (caseType === "job") {
+    return `Title:
+Complaint Regarding Job Scam
+
+  ${baseHeader("Complaint regarding job scam")}
+Company/HR details: __________
+Offer details: __________
+Payment details (if any): __________
+
+Legal Grounds:
+IPC 420 (Cheating): When someone deceives and causes financial loss
+Labour Laws: For job/salary issues
+
+${requestBlock}
+Suggested Actions:
+* Visit nearest police station
+* Carry relevant proof (emails, messages, receipts)
+* Keep ID proof ready
+
+${closingBlock}`;
+  }
+
+  if (caseType === "fraud") {
+    return `Title:
+Complaint Regarding Fraud and Cheating
+
+  ${baseHeader("Complaint regarding fraud and cheating")}
+Payment details (if any): __________
+Mode of payment: __________
+Date/Time: __________
+
+Legal Grounds:
+IPC 420 (Cheating): When someone deceives and causes financial loss
+IT Act: For cyber fraud or digital misuse
+
+${requestBlock}
+Suggested Actions:
+* Visit nearest police station
+* Carry relevant proof (documents/screenshots)
+* Keep ID proof ready
+* Immediately report the issue to your bank or UPI app
+
+${closingBlock}`;
+  }
+
+  return `Title:
+Complaint Regarding Incident
+
+${baseHeader("Complaint regarding the incident")}
+Legal Grounds:
+Possible sections may include relevant IPC sections based on the facts.
+
+${requestBlock}
+Suggested Actions:
+* Visit nearest police station
+* Carry relevant proof (documents/screenshots)
+* Keep ID proof ready
+
+${closingBlock}`;
+}
+
+function sanitizeFirOutput(rawText) {
+  if (!rawText) {
+    return rawText;
+  }
+
+  let cleaned = String(rawText);
+  cleaned = cleaned.replace(/return\s+my\s+money/gi, "address this matter");
+  cleaned = cleaned.replace(/facilitate\s+refund/gi, "appropriate legal action");
+  cleaned = cleaned.replace(/refund|recover|recovery/gi, "appropriate legal action");
+
+  cleaned = cleaned.replace(/Complaint regarding the issue/gi, "Complaint regarding the matter");
+
+  cleaned = cleaned.replace(
+    /Request:[\s\S]*?(?=\n\nClosing:|\nClosing:|\n\nSuggested Actions:|\nSuggested Actions:|\n\nImportant Notes:|\nImportant Notes:|$)/i,
+    "Request:\nI kindly request you to register my complaint and investigate the matter. If any misuse or criminal activity is found, kindly take appropriate legal action.\n"
+  );
+
+  return cleaned;
+}
+
+async function generateFirDraft(userInput, options = {}) {
+  const cleanedInput = String(userInput || "").trim();
+  if (!cleanedInput) {
+    throw new Error("User input is required");
+  }
+
+  const resolvedLanguage = ensureSupportedLanguage(options.language);
+  const languageInstruction = getLanguageInstruction(resolvedLanguage);
+  console.log(
+    `[aiService] generateFirDraft language raw="${options.language}" resolved="${resolvedLanguage}" instruction="${languageInstruction}"`
+  );
+  const prompt = buildFirPrompt(cleanedInput, resolvedLanguage);
+
+  try {
+    let result = await generateContentWithFallback(prompt);
+    let responseText = result.response.text().trim();
+
+    if (isLanguageMismatch(responseText, resolvedLanguage) || isMixedLanguage(responseText, resolvedLanguage)) {
+      console.warn(
+        "[aiService] FIR language mismatch detected. Retrying with strict language enforcement."
+      );
+      const strictPrompt = `${prompt}\n\nIMPORTANT: Respond ONLY in ${resolvedLanguage.toUpperCase()} as specified. Do not use any other language.`;
+      result = await generateContentWithFallback(strictPrompt);
+      responseText = result.response.text().trim();
+    }
+
+    return sanitizeFirOutput(responseText);
+  } catch (error) {
+    console.error("[aiService] FIR generation failed:", error.message);
+    return sanitizeFirOutput(buildFirFallback(cleanedInput));
   }
 }
 
@@ -2524,6 +4657,13 @@ export {
   chunkText,
   detectDocumentType,
   extractTextFromDocx,
+  generateFirDraft,
+  extractNumericTokens,
+  hasMissingNumericTokens,
+  hasPlaceholders,
+  isLanguageMismatch,
+  isMixedLanguage,
   parseJSONResponse,
   removeMarkdownFormatting,
+  translateStructuredOutput,
 };

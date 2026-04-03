@@ -51,6 +51,7 @@
 import { spawn } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
+import { ensureSupportedLanguage } from "../config/languages.js";
 import { analyzeDocument } from "../services/aiService.js";
 import { maskSensitiveData } from "../utils/dataMasking.js";
 
@@ -114,7 +115,11 @@ export const analyseText = (req, res) => {
  */
 export const analyzeWithGemini = async (req, res) => {
   try {
-    const { documentText } = req.body;
+    const { documentText, language: rawLanguage } = req.body;
+    const language = ensureSupportedLanguage(rawLanguage);
+    console.log(
+      `[analysisController] language raw="${rawLanguage}" resolved="${language}"`
+    );
 
     console.log("[Controller] Received analysis request with text length:", documentText?.length);
 
@@ -133,6 +138,7 @@ export const analyzeWithGemini = async (req, res) => {
     const analysis = await analyzeDocument(documentText, {
       detectionText: documentText,
       rawText: documentText,
+      language,
     });
 
     console.log("[Controller] Analysis complete. Sending response...");
@@ -180,7 +186,7 @@ export const analyzeWithGemini = async (req, res) => {
  */
 export const comprehensiveAnalysis = async (req, res) => {
   try {
-    const { documentText } = req.body;
+    const { documentText, language } = req.body;
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // VALIDATION
@@ -201,49 +207,42 @@ export const comprehensiveAnalysis = async (req, res) => {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // STEP 1: MASK SENSITIVE DATA (Privacy Protection)
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    console.log("[Step 1/4] 🔒 Masking sensitive data...");
+    console.log("[Step 1/3] 🔒 Masking sensitive data...");
     const maskingResult = maskSensitiveData(documentText);
     const { maskedText, replacements, hasSensitiveData, summary } = maskingResult;
 
     if (hasSensitiveData) {
-      console.log(`[Step 1/4] ✅ Masked ${replacements.length} sensitive fields:`, summary);
+      console.log(`[Step 1/3] ✅ Masked ${replacements.length} sensitive fields:`, summary);
     } else {
-      console.log("[Step 1/4] ✅ No sensitive data detected");
+      console.log("[Step 1/3] ✅ No sensitive data detected");
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 2: DATASET CHECK (TF-IDF + Cosine Similarity)
+    // STEP 2: GEMINI AI CLASSIFICATION + ANALYSIS
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    console.log("[Step 2/4] 📊 Checking dataset for similar documents...");
-
-    // Call Python ML service for dataset analysis
-    const datasetResult = await callPythonMLService(maskedText);
-
-    console.log(`[Step 2/4] ✅ Dataset analysis complete`);
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 3: GEMINI AI ANALYSIS (Intelligent Risk Assessment)
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    console.log("[Step 3/4] 🤖 Sending to Gemini AI for deep analysis...");
+    console.log("[Step 2/3] 🤖 Sending to Gemini AI for classification and analysis...");
 
     const geminiAnalysis = await analyzeDocument(maskedText, {
       detectionText: documentText,
       rawText: documentText,
+      language,
     });
+    const risks = geminiAnalysis.risks || geminiAnalysis.legacyRisks || [];
 
-    console.log(`[Step 3/4] ✅ Gemini identified ${geminiAnalysis.risks.length} risks`);
+    console.log(`[Step 2/3] ✅ Gemini identified ${risks.length} risks`);
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 4: COMBINE RESULTS INTO COMPREHENSIVE REPORT
+    // STEP 3: COMBINE RESULTS INTO COMPREHENSIVE REPORT
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    console.log("[Step 4/4] 📋 Generating comprehensive report...");
+    console.log("[Step 3/3] 📋 Generating comprehensive report...");
 
-    // Calculate risk severity distribution
     const riskDistribution = {
-      high: geminiAnalysis.risks.filter(r => r.severity === 'HIGH').length,
-      medium: geminiAnalysis.risks.filter(r => r.severity === 'MEDIUM').length,
-      low: geminiAnalysis.risks.filter(r => r.severity === 'LOW').length,
+      high: risks.filter((risk) => risk.severity === "HIGH").length,
+      medium: risks.filter((risk) => risk.severity === "MEDIUM").length,
+      low: risks.filter((risk) => risk.severity === "LOW").length,
     };
+
+    const structured = geminiAnalysis.structured || {};
 
     // Build comprehensive report
     const comprehensiveReport = {
@@ -258,29 +257,24 @@ export const comprehensiveAnalysis = async (req, res) => {
           : "ℹ️ No sensitive data detected"
       },
 
-      // Dataset Analysis (Document Type Identification)
-      datasetAnalysis: {
-        similarDocuments: datasetResult.results || [],
-        topMatch: datasetResult.results && datasetResult.results.length > 0 
-          ? datasetResult.results[0] 
-          : null,
-        confidence: datasetResult.results && datasetResult.results.length > 0 
-          ? datasetResult.results[0].similarity || 0 
-          : 0,
-        message: datasetResult.results && datasetResult.results.length > 0
-          ? `Found ${datasetResult.results.length} similar document(s) in database`
-          : "No similar documents found in database"
+      // Gemini Classification Summary
+      classification: {
+        documentType: structured.document_type || geminiAnalysis.documentType,
+        decision: structured.decision,
+        riskLevel: structured.risk_level,
+        confidenceScore: structured.confidence_score,
+        keyWarning: structured.key_warning || "",
       },
 
       // Gemini AI Analysis (Risk Assessment)
       aiAnalysis: {
         summary: geminiAnalysis.summary,
-        risks: geminiAnalysis.risks,
+        risks: risks,
         riskDistribution: riskDistribution,
-        totalRisks: geminiAnalysis.risks.length,
+        totalRisks: risks.length,
         chunksProcessed: geminiAnalysis.chunksProcessed || 1,
-        message: geminiAnalysis.risks.length > 0
-          ? `⚠️ Identified ${geminiAnalysis.risks.length} potential risk(s)`
+        message: risks.length > 0
+          ? `⚠️ Identified ${risks.length} potential risk(s)`
           : "✅ No significant risks detected"
       },
 
@@ -288,22 +282,20 @@ export const comprehensiveAnalysis = async (req, res) => {
       metadata: {
         processingSteps: [
           "✅ Step 1: Data masking completed",
-          "✅ Step 2: Dataset analysis completed", 
-          "✅ Step 3: AI analysis completed",
-          "✅ Step 4: Report generation completed"
+          "✅ Step 2: Gemini classification and analysis completed",
+          "✅ Step 3: Report generation completed"
         ],
         documentSize: documentText.length,
         maskedDocumentSize: maskedText.length,
         timestamp: new Date().toISOString(),
-        processingVersion: "v1.0.0"
+        processingVersion: "v2.0.0"
       }
     };
 
     console.log("[Comprehensive] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     console.log("[Comprehensive] ✅ Analysis complete!");
     console.log("[Comprehensive] Privacy:", hasSensitiveData ? `${replacements.length} fields masked` : "No sensitive data");
-    console.log("[Comprehensive] Dataset:", datasetResult.results?.length || 0, "matches");
-    console.log("[Comprehensive] AI Risks:", geminiAnalysis.risks.length);
+    console.log("[Comprehensive] AI Risks:", risks.length);
     console.log("[Comprehensive] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
     // Return comprehensive report
@@ -324,68 +316,3 @@ export const comprehensiveAnalysis = async (req, res) => {
     });
   }
 };
-
-/**
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * HELPER FUNCTION: Call Python ML Service
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * This function spawns a Python process to run TF-IDF analysis
- * using the existing ml-service/test_search.py script.
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- */
-function callPythonMLService(text) {
-  return new Promise((resolve, reject) => {
-    const pythonPath = path.join(__dirname, "../../ml-service/test_search.py");
-
-    console.log("[ML Service] Spawning Python process:", pythonPath);
-
-    const pythonProcess = spawn("python", [pythonPath, text]);
-
-    let output = "";
-    let errorOutput = "";
-
-    pythonProcess.stdout.on("data", (data) => {
-      output += data.toString();
-    });
-
-    pythonProcess.stderr.on("data", (data) => {
-      errorOutput += data.toString();
-      console.error("[ML Service] Python stderr:", data.toString());
-    });
-
-    pythonProcess.on("close", (code) => {
-      console.log("[ML Service] Python process exited with code:", code);
-
-      if (code !== 0) {
-        console.error("[ML Service] Error output:", errorOutput);
-        // Return empty result instead of rejecting
-        resolve({
-          results: [],
-          message: "ML service unavailable or failed"
-        });
-        return;
-      }
-
-      try {
-        const parsed = JSON.parse(output);
-        resolve(parsed);
-      } catch (err) {
-        console.error("[ML Service] JSON Parse Error:", err.message);
-        // Return empty result instead of rejecting
-        resolve({
-          results: [],
-          message: "Failed to parse ML service response"
-        });
-      }
-    });
-
-    pythonProcess.on("error", (err) => {
-      console.error("[ML Service] Process error:", err.message);
-      // Return empty result instead of rejecting
-      resolve({
-        results: [],
-        message: "Failed to start ML service"
-      });
-    });
-  });
-}

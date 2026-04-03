@@ -8,8 +8,9 @@ import {
   extractTextFromDocx,
 } from "../services/aiService.js";
 import { maskSensitiveData } from "../utils/dataMasking.js";
+import { ensureSupportedLanguage } from "../config/languages.js";
 import Analysis from "../models/Analysis.js";
-import { processAndEncrypt, encryptData, decryptData } from "../utils/cryptoUtils.js";
+import { encryptData, decryptData } from "../utils/cryptoUtils.js";
 
 const require = createRequire(import.meta.url);
 const pdf = require("pdf-parse");
@@ -100,19 +101,26 @@ export async function getAnalysisHistoryBySession(req, res) {
 
 
 async function extractTextFromPDF(filePath) {
-  const dataBuffer = fs.readFileSync(filePath);
-  const pdfData = await pdf(dataBuffer);
-  const extractedText = pdfData.text.trim();
+  try {
+    const dataBuffer = fs.readFileSync(filePath);
+    const pdfData = await pdf(dataBuffer);
+    const extractedText = pdfData.text.trim();
 
-  if (!extractedText || extractedText.length < 30) {
-    throw new Error("PDF appears to be scanned. Use OCR for image-based PDFs.");
+    if (!extractedText || extractedText.length < 30) {
+      throw new Error("PDF appears to be scanned. Use OCR for image-based PDFs.");
+    }
+
+    return {
+      text: extractedText,
+      pages: pdfData.numpages,
+      method: "pdf-parse",
+    };
+  } catch (error) {
+    if (error.message?.includes("bad XRef entry") || error.message?.includes("Invalid PDF structure") || error.message?.includes("Password")) {
+      throw new Error("The PDF file is corrupted, natively encrypted, or malformed (bad XRef entry). Please open the file in your system, 'Print to PDF' to create a clean copy, and try uploading again.");
+    }
+    throw error;
   }
-
-  return {
-    text: extractedText,
-    pages: pdfData.numpages,
-    method: "pdf-parse",
-  };
 }
 
 async function extractTextFromImage(filePath) {
@@ -257,45 +265,58 @@ function buildFallbackQueryAnalysis(queryText) {
   };
 }
 
+function buildFallbackLawReferenceObjects(laws, description) {
+  if (!Array.isArray(laws)) {
+    return [];
+  }
+
+  return laws.map((law) => ({
+    law,
+    description: description || "Relevant legal guidance applies.",
+  }));
+}
+
 function buildFallbackDocumentAnalysis(documentText) {
   const detectedType = detectDocumentType(documentText);
   const normalizedText = documentText.toLowerCase();
-  const risks = [];
+  const detectedRisks = [];
 
   if (/delay|possession|handover/i.test(normalizedText)) {
-    risks.push({
-      clause: "Delay Risk",
-      severity: "HIGH",
+    detectedRisks.push({
+      level: "HIGH",
+      type: "Delay Risk",
       reason: "Document contains delay/possession terms that may postpone expected delivery.",
     });
   }
 
   if (/penalt|cancellation|deduct|forfeit/i.test(normalizedText)) {
-    risks.push({
-      clause: "Penalty Risk",
-      severity: "HIGH",
+    detectedRisks.push({
+      level: "HIGH",
+      type: "Penalty Risk",
       reason: "Document contains penalty/cancellation deduction clauses that may cause financial loss.",
     });
   }
 
   if (/jurisdiction|sole discretion|builder|developer/i.test(normalizedText)) {
-    risks.push({
-      clause: "One-sided Clause Risk",
-      severity: "HIGH",
+    detectedRisks.push({
+      level: "HIGH",
+      type: "One-sided Clause Risk",
       reason: "Document contains one-sided terms that can reduce user legal protection.",
     });
   }
 
-  const riskLevel = risks.length >= 2 ? "HIGH" : risks.length === 1 ? "MEDIUM" : "LOW";
+  const riskLevel =
+    detectedRisks.length >= 2 ? "HIGH" : detectedRisks.length === 1 ? "MEDIUM" : "LOW";
   const classification =
     detectedType === "property_document" || detectedType === "rental_agreement" || detectedType === "legal"
       ? "UNFAIR"
-      : risks.length > 0
+      : detectedRisks.length > 0
       ? "UNFAIR"
       : "NORMAL";
 
-  const isTicket = detectedType === "ticket";
-  const safeDecision = isTicket ? "SAFE_TO_USE" : "SAFE_TO_SIGN";
+  const safeDecision = "SAFE_TO_USE";
+
+  const topRisks = detectedRisks.map((risk) => risk.type);
 
   const structured = {
     document_type:
@@ -317,11 +338,8 @@ function buildFallbackDocumentAnalysis(documentText) {
     classification,
     risk_level: riskLevel,
     suspicious_clauses: [],
-    top_risks: risks.map((risk) => ({
-      type: risk.clause,
-      description: risk.reason,
-      impact: "Review with legal caution before signing.",
-    })),
+    top_risks: topRisks,
+    detected_risks: detectedRisks,
     warnings: [
       "AI detailed analysis is temporarily unavailable due to quota limits.",
       "This is a local fallback assessment and may miss nuanced issues.",
@@ -340,39 +358,29 @@ function buildFallbackDocumentAnalysis(documentText) {
     lawyer_suggestion: "Consult a legal expert before taking final action.",
     law_reference:
       detectedType === "property_document"
-        ? {
-            applicable: true,
-            laws: ["RERA Act", "Indian Contract Act"],
-            simple_explanation:
-              "Property agreements are generally assessed under RERA and contract law principles.",
-          }
+        ? buildFallbackLawReferenceObjects(
+            ["RERA Act", "Indian Contract Act"],
+            "Property agreements are generally assessed under RERA and contract law principles."
+          )
         : detectedType === "rental_agreement"
-        ? {
-            applicable: true,
-            laws: ["Model Tenancy Act / State Rent Act", "Indian Contract Act"],
-            simple_explanation:
-              "Rental agreements are generally assessed under tenancy laws and contract law principles.",
-          }
+        ? buildFallbackLawReferenceObjects(
+            ["Model Tenancy Act / State Rent Act", "Indian Contract Act"],
+            "Rental agreements are generally assessed under tenancy laws and contract law principles."
+          )
         : detectedType === "ticket"
-        ? {
-            applicable: true,
-            laws: ["Indian Railways Rules"],
-            simple_explanation:
-              "Tickets and travel documents should be checked for validity and timing conditions before travel.",
-          }
+        ? buildFallbackLawReferenceObjects(
+            ["Indian Railways Rules"],
+            "Tickets and travel documents should be checked for validity and timing conditions before travel."
+          )
         : detectedType === "bank_financial"
-        ? {
-            applicable: true,
-            laws: ["RBI Guidelines"],
-            simple_explanation:
-              "Banking and financial documents should follow RBI fair practice and customer protection rules.",
-          }
-        : {
-            applicable: true,
-            laws: ["Indian Contract Act"],
-            simple_explanation:
-              "Contract terms should be fair, transparent, and clearly understood before acceptance.",
-          },
+        ? buildFallbackLawReferenceObjects(
+            ["RBI Guidelines"],
+            "Banking and financial documents should follow RBI fair practice and customer protection rules."
+          )
+        : buildFallbackLawReferenceObjects(
+            ["Indian Contract Act"],
+            "Contract terms should be fair, transparent, and clearly understood before acceptance."
+          ),
     note_for_user:
       "AI guidance is currently in fallback mode due to quota limits. For serious matters, consult a legal expert.",
     fallback: true,
@@ -382,8 +390,12 @@ function buildFallbackDocumentAnalysis(documentText) {
     documentType: detectedType,
     detectedType,
     summary: structured.reason_for_decision,
-    risks,
-    legacyRisks: risks,
+    risks: detectedRisks,
+    legacyRisks: detectedRisks.map((risk) => ({
+      clause: risk.type,
+      severity: risk.level,
+      reason: risk.reason,
+    })),
     structured,
     chunksProcessed: 1,
     contextUsed: false,
@@ -396,8 +408,11 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
   let filePath = null;
 
   try {
-    const { sessionId, instructions } = req.body ?? {};
-
+    const { language: rawLanguage, sessionId } = req.body ?? {};
+    const language = ensureSupportedLanguage(rawLanguage);
+    console.log(
+      `[documentController] upload language raw="${rawLanguage}" resolved="${language}"`
+    );
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -439,6 +454,7 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
       aiAnalysis = await analyzeDocument(maskingResult.maskedText, {
         detectionText: extractedText,
         rawText: extractedText,
+        language,
       });
     } catch (error) {
       if (!isQuotaOrRateLimitError(error)) {
@@ -463,7 +479,6 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
       const parts = [];
       parts.push(`Uploaded: ${fileName}`);
       parts.push(`Size: ${(fileSize / 1024).toFixed(2)} KB`);
-      if (instructions) parts.push(instructions);
       
       const userMessage = parts.join("\n");
       const userEncrypted = encryptData(JSON.stringify(userMessage));
@@ -518,7 +533,11 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
 
 export const analyzeTextOnly = async (req, res) => {
   try {
-    const { text, sessionId } = req.body ?? {};
+    const { text, language: rawLanguage, sessionId } = req.body ?? {};
+    const language = ensureSupportedLanguage(rawLanguage);
+    console.log(
+      `[documentController] analyzeText language raw="${rawLanguage}" resolved="${language}"`
+    );
 
     if (!text || !text.trim()) {
       return res.status(400).json({
@@ -533,7 +552,7 @@ export const analyzeTextOnly = async (req, res) => {
     if (isLikelyUserQuery(trimmedText)) {
       let queryAnalysis;
       try {
-        queryAnalysis = await analyzeLegalQuery(trimmedText);
+        queryAnalysis = await analyzeLegalQuery(trimmedText, { language });
       } catch (error) {
         if (!isQuotaOrRateLimitError(error)) {
           throw error;
@@ -566,6 +585,7 @@ export const analyzeTextOnly = async (req, res) => {
       aiAnalysis = await analyzeDocument(maskingResult.maskedText, {
         detectionText: trimmedText,
         rawText: trimmedText,
+        language,
       });
     } catch (error) {
       if (!isQuotaOrRateLimitError(error)) {

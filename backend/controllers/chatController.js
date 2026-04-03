@@ -1,48 +1,33 @@
+import { ensureSupportedLanguage } from "../config/languages.js";
 import { generateLegalChatResponse } from "../services/geminiChat.js";
 import Message from "../models/Message.js";
 import { encryptData, decryptData } from "../utils/cryptoUtils.js";
 
 export async function chatWithLegalAssistant(req, res) {
   try {
-    const { message, sessionId } = req.body ?? {};
+    const { message, language: rawLanguage } = req.body ?? {};
+    const language = ensureSupportedLanguage(rawLanguage);
+    console.log(
+      `[chatController] language raw="${rawLanguage}" resolved="${language}"`
+    );
 
     if (!message || typeof message !== "string" || !message.trim()) {
-      return res.status(400).json({
-        reply: "Message is required.",
+      return res.status(503).json({
+        success: false,
+        reply:
+          "Sorry, the legal assistant is temporarily unavailable. Please try again in a short while.",
         suggestions: ["See Steps"],
         contextUsed: false,
       });
     }
-
-    if (req.user) {
-      const userEncrypted = encryptData(JSON.stringify(message.trim()));
-      await Message.create({
-        userId: req.user._id,
-        sessionId: sessionId || "default",
-        role: "user",
-        encryptedContent: userEncrypted
-      });
-    }
-
-    const result = await generateLegalChatResponse(message.trim());
-
-    if (req.user) {
-      const assistantEncrypted = encryptData(JSON.stringify(result));
-      await Message.create({
-        userId: req.user._id,
-        sessionId: sessionId || "default",
-        role: "assistant",
-        encryptedContent: assistantEncrypted
-      });
-    }
-
+    const result = await generateLegalChatResponse(message.trim(), { language });
     return res.status(200).json(result);
   } catch (error) {
     console.error("[chatController] Chat request failed:", error.message);
 
     return res.status(500).json({
       reply:
-        "Maaf kijiye, abhi legal assistant temporarily unavailable hai. Thodi der baad phir try kariye.",
+        "Sorry, the legal assistant is temporarily unavailable. Please try again in a short while.",
       suggestions: ["See Steps"],
       contextUsed: false,
     });
