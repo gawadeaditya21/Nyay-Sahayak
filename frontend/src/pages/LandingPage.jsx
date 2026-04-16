@@ -6,6 +6,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 import Hero from '../components/landing/Hero';
+import LegaleseDecoder from '../components/landing/LegaleseDecoder';
 import AiAdvocateSection from '../components/landing/AiAdvocateSection';
 import Features from '../components/landing/Features';
 import DocumentScanner from '../components/landing/DocumentScanner';
@@ -121,6 +122,7 @@ export default function LandingPage() {
       {/* Changed overflow-hidden to overflow-x-clip for better GSAP performance */}
       <main className="relative z-10 w-full overflow-x-clip">
         <Hero />
+        <LegaleseDecoder />
         <AiAdvocateSection />
         <Features />
         <DocumentScanner />
