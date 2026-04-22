@@ -268,12 +268,16 @@ export async function checkHealth() {
 /**
  * Generate FIR / complaint draft
  *
- * @param {string} userInput - Problem description
+ * @param {string|Object} userInput - Problem description or guided FIR answers
  * @returns {Promise<Object>} FIR draft
  */
 export async function generateFir(userInput, options = {}) {
   try {
-    if (!userInput || !userInput.trim()) {
+    const isStructuredInput =
+      userInput && typeof userInput === "object" && !Array.isArray(userInput);
+    const textInput = typeof userInput === "string" ? userInput.trim() : "";
+
+    if (!isStructuredInput && !textInput) {
       throw new Error("User input cannot be empty");
     }
 
@@ -288,7 +292,9 @@ export async function generateFir(userInput, options = {}) {
         ...(token ? { "Authorization": `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
-        user_input: userInput.trim(),
+        user_input: textInput,
+        ...(isStructuredInput ? { fir_answers: userInput } : {}),
+        ...(normalizedOptions.answerLabels ? { answer_labels: normalizedOptions.answerLabels } : {}),
         language: normalizedOptions.language || getStoredLanguage(),
         mode: resolvedMode,
         userId,
@@ -469,6 +475,7 @@ const api = {
   analyzeDocument,
   analyzeText,
   checkHealth,
+  generateFir,
   sendChatMessage,
   fetchChatHistory,
   fetchChatSessions,

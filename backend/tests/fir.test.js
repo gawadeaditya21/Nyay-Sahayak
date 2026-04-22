@@ -48,6 +48,7 @@ jest.unstable_mockModule("../services/aiService.js", () => ({
   parseJSONResponse: (value) => JSON.parse(value),
   removeMarkdownFormatting: (value) => value,
   translateStructuredOutput: async (value) => value,
+  truncateText: (value) => value,
 }));
 
 jest.unstable_mockModule("pdf-parse", () => (
@@ -83,6 +84,31 @@ test("POST /api/generate-fir succeeds for guest", async () => {
       userId: makeGuestId(),
       sessionId: crypto.randomUUID(),
       user_input: "Test FIR input",
+      language: "en",
+      mode: "save",
+    })
+    .expect(200);
+
+  expect(response.body.success).toBe(true);
+  expect(response.body.fir_text).toContain("FIR DRAFT TEXT");
+});
+
+test("POST /api/generate-fir accepts guided FIR answers", async () => {
+  const response = await request(app)
+    .post("/api/generate-fir")
+    .send({
+      userId: makeGuestId(),
+      sessionId: crypto.randomUUID(),
+      fir_answers: {
+        incidentType: "Theft",
+        incidentDate: "2026-04-20",
+        incidentLocation: "MG Road Police Station area",
+        incidentDescription: "My phone was stolen from my bag.",
+        victimDetails: "Test User, Pune, 9999999999",
+      },
+      answer_labels: {
+        incidentType: "What type of incident are you reporting?",
+      },
       language: "en",
       mode: "save",
     })

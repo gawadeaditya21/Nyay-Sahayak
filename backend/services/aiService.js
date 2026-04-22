@@ -4295,16 +4295,6 @@ Yours faithfully,
 
 Signature: __________
 
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (documents/screenshots)
-* Keep ID proof ready
-* Immediately report the issue to your bank or UPI app
-
-Important Notes:
-FIR registration depends on police verification.
-Some cases may be civil in nature.
-You may approach higher authorities if FIR is not registered.
 
 User Input:
 ${userInput}`;

@@ -1,173 +1,233 @@
-import { useEffect, useState } from "react";
-import { Copy, Download, FileText, Loader2, Sparkles } from "lucide-react";
-import { jsPDF } from "jspdf";
+import React, { useState } from "react";
+import flowData from "./firFlow.json";
 import { generateFir } from "../../services/api";
-import { useTranslation } from "react-i18next";
-import { useLanguage } from "../../context/LanguageContext.jsx";
-import PrivacyToggle from "../common/PrivacyToggle.jsx";
-import {
-  canUseGuestFeature,
-  getOrCreateGuestSessionId,
-  getPrivacyMode,
-  incrementGuestUsage,
-  isGuestUser,
-  setPrivacyMode,
-} from "../../utils/guestIdentity";
 
 export default function FIRGenerator() {
-  const { t } = useTranslation();
-  const { language } = useLanguage();
-  const [userInput, setUserInput] = useState("");
+
+  const flow = flowData.flow;
+
+  // 🔥 MODE (future use)
+  const mode = "guided";
+
+  // EXISTING STATES
   const [loading, setLoading] = useState(false);
-  const [firText, setFirText] = useState("");
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [privacyMode, setPrivacyModeState] = useState(getPrivacyMode());
+  const [firText, setFirText] = useState("");
 
-  useEffect(() => {
-    setPrivacyMode(privacyMode);
-  }, [privacyMode]);
+  // 🔥 CHAT STATES
+  const [step, setStep] = useState("start");
+  const [answers, setAnswers] = useState({});
+  const [messages, setMessages] = useState([
+    { sender: "bot", text: flow.start.question }
+  ]);
+  const [input, setInput] = useState("");
 
-  const handleGenerate = async () => {
-    if (!userInput.trim()) {
-      setError("Please enter your problem description.");
-      return;
-    }
+  // 🔥 HANDLE CHAT ANSWER
+  const handleChatAnswer = (value) => {
+    const current = flow[step];
 
-    if (isGuestUser() && !canUseGuestFeature("fir")) {
-      setError("Please login to continue");
-      return;
-    }
+    const updatedAnswers = {
+      ...answers,
+      [current.field]: value
+    };
 
-    setLoading(true);
-    setError("");
-    setCopied(false);
-    setFirText("");
+    setAnswers(updatedAnswers);
 
-    try {
-      const sessionId = getOrCreateGuestSessionId("fir");
-      const response = await generateFir(userInput.trim(), {
-        language,
-        mode: privacyMode,
-        sessionId,
-      });
-      setFirText(response?.fir_text || "");
-      if (isGuestUser()) {
-        incrementGuestUsage("fir");
+    setMessages(prev => [
+      ...prev,
+      { sender: "user", text: value }
+    ]);
+
+    let nextStep;
+
+    if (typeof current.next === "object") {
+      if (value === "Yes") {
+        nextStep = current.next.true;
+      } else {
+        nextStep = current.next.false;
       }
+    } else {
+      nextStep = current.next;
+    }
+
+    if (nextStep === "end") {
+      generateFIR(updatedAnswers);
+    } else {
+      setStep(nextStep);
+      setMessages(prev => [
+        ...prev,
+        { sender: "bot", text: flow[nextStep].question }
+      ]);
+    }
+  };
+
+  // 🔥 GENERATE FIR
+  const generateFIR = async (data) => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const answerLabels = Object.values(flow).reduce((labels, question) => {
+        labels[question.field] = question.question;
+        return labels;
+      }, {});
+      const result = await generateFir(data, { answerLabels });
+
+      setFirText(result.fir_text || "");
+
+      setMessages(prev => [
+        ...prev,
+        { sender: "bot", text: "FIR Generated Successfully ✅" }
+      ]);
+
     } catch (err) {
-      setError(err.message || "Unable to generate FIR.");
+      setError(err.message || "Failed to generate FIR");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCopy = async () => {
-    if (!firText) {
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(firText);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch (err) {
-      setError("Copy failed. Please try again.");
-    }
-  };
-
-  const handleDownload = () => {
-    if (!firText) {
-      return;
-    }
-
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
-    const margin = 40;
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const maxWidth = pageWidth - margin * 2;
-    const lines = doc.splitTextToSize(firText, maxWidth);
-
-    doc.setFont("Times", "Normal");
-    doc.setFontSize(12);
-    doc.text(lines, margin, 60);
-    doc.save("FIR_Complaint.pdf");
-  };
-
   return (
-    <div className="mx-auto w-full max-w-4xl">
-      <div className="rounded-2xl border border-white/10 bg-[#121215] p-6 shadow-2xl">
-        <div className="flex items-center gap-3">
-          <Sparkles className="text-indigo-400" size={22} />
-          <div>
-            <h1 className="text-2xl font-semibold text-white">{t("fir.title")}</h1>
-            <p className="text-sm text-slate-400">
-              {t("fir.subtitle")}
-            </p>
-          </div>
-        </div>
-        {/* <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-400">
-          <PrivacyToggle value={privacyMode} onChange={setPrivacyModeState} />
-          <span>Private mode skips saving FIR history.</span>
-          {isGuestUser() && <span className="text-amber-300">Guest limit: 1 FIR.</span>}
-        </div> */}
+    <div className="p-6">
 
-        <textarea
-          value={userInput}
-          onChange={(event) => setUserInput(event.target.value)}
-          placeholder={t("fir.placeholder")}
-          className="mt-6 min-h-[160px] w-full resize-none rounded-2xl border border-white/10 bg-[#0a0a0b] px-4 py-3 text-sm text-slate-200 outline-none focus:border-indigo-500"
-        />
-
-        {error && (
-          <p className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
-            {error}
-          </p>
-        )}
-
+      {/* 🔴 FUTURE MODE TOGGLE (currently not needed) */}
+      {/*
+      <div className="flex gap-3 mb-4">
         <button
-          onClick={handleGenerate}
-          disabled={loading}
-          className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
+          onClick={() => setMode("manual")}
+          className={`px-4 py-2 rounded-xl text-sm ${
+            mode === "manual"
+              ? "bg-indigo-600 text-white"
+              : "bg-gray-200"
+          }`}
         >
-          {loading ? <Loader2 size={18} className="animate-spin" /> : <FileText size={18} />}
-          {t("fir.generate")}
+          Manual FIR
         </button>
 
-        {loading && (
-          <div className="mt-3 flex items-center gap-2 text-sm text-slate-400">
-            <Loader2 size={16} className="animate-spin" />
-            {t("fir.generating")}
-          </div>
-        )}
+        <button
+          onClick={() => setMode("guided")}
+          className={`px-4 py-2 rounded-xl text-sm ${
+            mode === "guided"
+              ? "bg-indigo-600 text-white"
+              : "bg-gray-200"
+          }`}
+        >
+          Smart Assistant
+        </button>
       </div>
+      */}
 
-      {firText && (
-        <div className="mt-6 rounded-2xl bg-white p-6 shadow-2xl">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-slate-900">{t("fir.generatedTitle")}</h2>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleCopy}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+      {/* 🔴 ERROR */}
+      {error && (
+        <p className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-600">
+          {error}
+        </p>
+      )}
+
+      {/* ========================= */}
+      {/* 🔥 GUIDED MODE (ACTIVE) */}
+      {/* ========================= */}
+
+      {mode === "guided" && (
+        <div className="mt-6 rounded-2xl bg-white p-4 shadow-xl">
+          <h2 className="mb-3 text-lg font-semibold text-slate-800">
+            Smart FIR Assistant
+          </h2>
+
+          <div className="h-72 overflow-y-auto rounded-xl border p-3">
+            {messages.map((msg, i) => (
+              <div
+                key={i}
+                className={`mb-2 flex ${
+                  msg.sender === "user" ? "justify-end" : "justify-start"
+                }`}
               >
-                <Copy size={14} />
-                {copied ? t("fir.copied") : t("fir.copy")}
-              </button>
+                <div
+                  className={`rounded-xl px-3 py-2 text-sm ${
+                    msg.sender === "user"
+                      ? "bg-indigo-600 text-white"
+                      : "bg-gray-100 text-gray-800"
+                  }`}
+                >
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {step !== "end" && (
+            <div className="mt-3 flex gap-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Type your answer..."
+                className="flex-1 rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && input.trim()) {
+                    handleChatAnswer(input);
+                    setInput("");
+                  }
+                }}
+              />
+
               <button
-                onClick={handleDownload}
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+                onClick={() => {
+                  if (input.trim()) {
+                    handleChatAnswer(input);
+                    setInput("");
+                  }
+                }}
+                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700"
               >
-                <Download size={14} />
-                {t("fir.download")}
+                Send
               </button>
             </div>
-          </div>
+          )}
 
-          <div className="mt-4 max-h-[520px] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-800">
-            <pre className="whitespace-pre-wrap font-sans">{firText}</pre>
-          </div>
+          {loading && (
+            <div className="mt-3 text-sm text-slate-500">
+              Generating FIR...
+            </div>
+          )}
         </div>
       )}
+
+      {/* ========================= */}
+      {/* 📝 MANUAL MODE (COMMENTED - FUTURE USE) */}
+      {/* ========================= */}
+
+      {/*
+      {mode === "manual" && (
+        <div className="mt-6 rounded-2xl bg-white p-6 shadow-xl">
+          <h2 className="text-lg font-semibold text-slate-800">
+            Manual FIR Input
+          </h2>
+
+          <textarea
+            className="mt-3 w-full rounded-xl border p-3"
+            placeholder="Write your FIR details here..."
+          />
+
+          <button className="mt-3 rounded-xl bg-indigo-600 px-4 py-2 text-white">
+            Generate FIR
+          </button>
+        </div>
+      )}
+      */}
+
+      {/* 🔥 OUTPUT */}
+      {firText && (
+        <div className="mt-6 rounded-2xl bg-white p-6 shadow-2xl">
+          <h2 className="text-lg font-semibold text-slate-900">
+            Generated FIR
+          </h2>
+          <p className="mt-3 whitespace-pre-line text-sm text-slate-700">
+            {firText}
+          </p>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -6,10 +6,78 @@ import { maskSensitiveData } from "../utils/dataMasking.js";
 import { checkAndIncrementGuestUsage } from "../utils/guestLimits.js";
 import { resolveMode, resolveRequestIdentity } from "../utils/requestIdentity.js";
 
+const FIR_ANSWER_LABELS = {
+  incidentType: "Incident type",
+  incidentDate: "Incident date",
+  incidentTime: "Incident time",
+  incidentLocation: "Incident location",
+  incidentDescription: "Incident description",
+  propertyInvolved: "Property, item, or money involved",
+  propertyDetails: "Property details",
+  accusedKnown: "Accused known",
+  accusedDetails: "Accused details",
+  suspectDescription: "Suspect description",
+  witnessAvailable: "Witnesses available",
+  witnessDetails: "Witness details",
+  evidenceAvailable: "Evidence available",
+  evidenceDetails: "Evidence details",
+  victimDetails: "Complainant details",
+  additionalInfo: "Additional information",
+};
+
+function sanitizeAnswer(value) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(sanitizeAnswer).filter(Boolean).join(", ");
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return String(value).trim();
+}
+
+function buildFirInputFromAnswers(answers, labels = {}) {
+  if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
+    return "";
+  }
+
+  const safeLabels =
+    labels && typeof labels === "object" && !Array.isArray(labels) ? labels : {};
+  const mergedLabels = { ...FIR_ANSWER_LABELS, ...safeLabels };
+  const knownFields = Object.keys(FIR_ANSWER_LABELS);
+  const extraFields = Object.keys(answers).filter(
+    (field) => !knownFields.includes(field)
+  );
+
+  const lines = [...knownFields, ...extraFields]
+    .map((field) => {
+      const value = sanitizeAnswer(answers[field]);
+      if (!value) return null;
+      return `${mergedLabels[field] || field}: ${value}`;
+    })
+    .filter(Boolean);
+
+  if (lines.length === 0) {
+    return "";
+  }
+
+  return [
+    "Generate an FIR/complaint draft using the following structured answers.",
+    ...lines,
+  ].join("\n");
+}
+
 export async function generateFir(req, res) {
   try {
     const {
       user_input,
+      fir_answers,
+      answer_labels,
       language: rawLanguage,
       userId: rawUserId,
       mode: rawMode,
@@ -41,16 +109,19 @@ export async function generateFir(req, res) {
       }
     }
 
-    if (!user_input || typeof user_input !== "string" || !user_input.trim()) {
+    const structuredInput = buildFirInputFromAnswers(fir_answers, answer_labels);
+    const plainInput = typeof user_input === "string" ? user_input.trim() : "";
+    const inputForDraft = structuredInput || plainInput;
+
+    if (!inputForDraft) {
       return res.status(400).json({
         success: false,
-        message: "User input is required",
+        message: "User input or FIR answers are required",
         error: "USER_INPUT_MISSING",
       });
     }
 
-    const trimmedInput = user_input.trim();
-    const maskedInput = maskSensitiveData(trimmedInput).maskedText;
+    const maskedInput = maskSensitiveData(inputForDraft).maskedText;
     const firText = await generateFirDraft(maskedInput, { language });
 
     const shouldStore = identity.isAuthenticated && mode === "save";
