@@ -20,7 +20,6 @@ import {
   analyzeText,
   fetchAnalysisHistory,
 } from "../services/api";
-import { useTranslation } from "react-i18next";
 import { useLanguage } from "../context/LanguageContext.jsx";
 import { formatAnalysisResponse } from "../utils/formatAnalysis";
 import PrivacyToggle from "../components/common/PrivacyToggle.jsx";
@@ -47,7 +46,7 @@ const warningStyles = {
   HIGH: "border-rose-500/30 bg-rose-500/10 text-rose-100",
 };
 
-const AIAnalysisCard = ({ analysis, t }) => {
+const AIAnalysisCard = ({ analysis }) => {
   const [expanded, setExpanded] = useState(false);
   const riskLevel = String(analysis?.risk_level || "LOW").toUpperCase();
   const badgeClass = riskBadgeStyles[riskLevel] || riskBadgeStyles.LOW;
@@ -63,27 +62,27 @@ const AIAnalysisCard = ({ analysis, t }) => {
     <div className="w-full rounded-2xl border border-white/10 bg-[#121215] p-5 shadow-xl">
       <div className="flex items-center gap-2 text-slate-200">
         <Sparkles className="text-indigo-400" size={18} />
-        <span className="font-semibold">{t("analysis.aiAnalysis")}</span>
+        <span className="font-semibold">AI Analysis</span>
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <div className="rounded-2xl border border-white/10 bg-[#0f0f12] p-4 shadow-sm">
           <div className="flex items-center gap-2 text-slate-200">
             <FileText size={16} className="text-indigo-300" />
-            <span className="font-semibold">{t("analysis.documentInfo")}</span>
+            <span className="font-semibold">Document Info</span>
           </div>
           <div className="mt-3 space-y-2 text-sm text-slate-300">
             <div>
-              {t("analysis.type")}: <span className="text-white font-semibold">{analysis.document_type}</span>
+              Type: <span className="text-white font-semibold">{analysis.document_type}</span>
             </div>
             <div>
-              {t("analysis.classification")}: <span className="text-white font-semibold">{analysis.classification}</span>
+              Classification: <span className="text-white font-semibold">{analysis.classification}</span>
             </div>
             <div>
-              {t("analysis.decision")}: <span className="text-white font-semibold">{analysis.decision}</span>
+              Decision: <span className="text-white font-semibold">{analysis.decision}</span>
             </div>
             <div>
-              {t("analysis.confidence")}: <span className="text-white font-semibold">{analysis.confidence_score}</span>
+              Confidence: <span className="text-white font-semibold">{analysis.confidence_score}</span>
             </div>
           </div>
         </div>
@@ -92,10 +91,10 @@ const AIAnalysisCard = ({ analysis, t }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <AlertTriangle size={16} />
-              <span className="font-semibold">{t("analysis.keyWarning")}</span>
+              <span className="font-semibold">Key Warning</span>
             </div>
             <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${badgeClass}`}>
-              {riskLevel} {t("analysis.risk")}
+              {riskLevel} RISK
             </span>
           </div>
           <p className="mt-3 text-sm">{analysis.key_warning}</p>
@@ -105,11 +104,11 @@ const AIAnalysisCard = ({ analysis, t }) => {
       <div className="mt-4 rounded-2xl border border-white/10 bg-[#0f0f12] p-4 shadow-sm">
         <div className="flex items-center gap-2 text-slate-200">
           <Sparkles size={16} className="text-indigo-300" />
-          <span className="font-semibold">{t("analysis.smartExplanation")}</span>
+          <span className="font-semibold">Smart Explanation</span>
         </div>
         <p className="mt-3 text-sm text-slate-300">{analysis.smart_explanation}</p>
         {analysis.simple_explanation && (
-          <p className="mt-3 text-sm text-slate-400">{t("analysis.simple")}: {analysis.simple_explanation}</p>
+          <p className="mt-3 text-sm text-slate-400">Simple: {analysis.simple_explanation}</p>
         )}
       </div>
 
@@ -117,11 +116,11 @@ const AIAnalysisCard = ({ analysis, t }) => {
         <div className="rounded-2xl border border-white/10 bg-[#0f0f12] p-4 shadow-sm">
           <div className="flex items-center gap-2 text-slate-200">
             <CheckCircle2 size={16} className="text-emerald-400" />
-            <span className="font-semibold">{t("analysis.topRisks")}</span>
+            <span className="font-semibold">Top Risks</span>
           </div>
           <ul className="mt-3 space-y-2 text-sm text-slate-300">
             {topRisks.length === 0 ? (
-              <li>{t("analysis.noMajorRisksDetected")}</li>
+              <li>No major risks detected.</li>
             ) : (
               topRisks.map((risk, index) => <li key={index}>- {risk}</li>)
             )}
@@ -131,11 +130,11 @@ const AIAnalysisCard = ({ analysis, t }) => {
         <div className="rounded-2xl border border-white/10 bg-[#0f0f12] p-4 shadow-sm">
           <div className="flex items-center gap-2 text-slate-200">
             <CheckCircle2 size={16} className="text-emerald-400" />
-            <span className="font-semibold">{t("analysis.whatToDo")}</span>
+            <span className="font-semibold">What To Do</span>
           </div>
           <ul className="mt-3 space-y-2 text-sm text-slate-300">
             {actions.length === 0 ? (
-              <li>{t("analysis.noActionItemsProvided")}</li>
+              <li>No action items provided.</li>
             ) : (
               actions.map((step, index) => (
                 <li key={index} className="flex items-start gap-2">
@@ -154,13 +153,13 @@ const AIAnalysisCard = ({ analysis, t }) => {
           onClick={() => setExpanded((prev) => !prev)}
           className="flex w-full items-center justify-between text-slate-200"
         >
-          <span className="font-semibold">{t("analysis.detailedRisks")}</span>
+          <span className="font-semibold">Detailed Risks</span>
           {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </button>
         {expanded && (
           <div className="mt-4 space-y-3 text-sm text-slate-300">
             {detectedRisks.length === 0 ? (
-              <p>{t("analysis.noDetailedRisksFound")}</p>
+              <p>No detailed risks found.</p>
             ) : (
               detectedRisks.map((risk, index) => (
                 <div key={index} className="rounded-xl border border-white/10 bg-[#121215] p-3">
@@ -170,7 +169,7 @@ const AIAnalysisCard = ({ analysis, t }) => {
                   </div>
                   <p className="mt-2 text-sm text-slate-300">{risk.reason}</p>
                   {risk.snippet && (
-                    <p className="mt-2 text-xs italic text-slate-500">{t("analysis.snippet")}: {risk.snippet}</p>
+                    <p className="mt-2 text-xs italic text-slate-500">Snippet: {risk.snippet}</p>
                   )}
                 </div>
               ))
@@ -182,11 +181,11 @@ const AIAnalysisCard = ({ analysis, t }) => {
       <div className="mt-4 rounded-2xl border border-white/10 bg-[#0f0f12] p-4 shadow-sm">
         <div className="flex items-center gap-2 text-slate-200">
           <Info size={16} className="text-indigo-300" />
-          <span className="font-semibold">{t("analysis.lawReference")}</span>
+          <span className="font-semibold">Law Reference</span>
         </div>
         <div className="mt-3 flex flex-wrap gap-3">
           {lawReferences.length === 0 ? (
-            <span className="text-sm text-slate-400">{t("analysis.noLegalReferencesDetected")}</span>
+            <span className="text-sm text-slate-400">No legal references detected.</span>
           ) : (
             lawReferences.map((law, index) => (
               <div key={index} className="group relative">
@@ -206,7 +205,6 @@ const AIAnalysisCard = ({ analysis, t }) => {
 };
 
 export default function AnalyzePage() {
-  const { t } = useTranslation();
   const { language } = useLanguage();
   const [file, setFile] = useState(null);
   const [inputText, setInputText] = useState("");
@@ -303,12 +301,12 @@ export default function AnalyzePage() {
     ];
 
     if (selectedFile.size > maxSize) {
-      addAIMessage(t("analysis.fileSizeExceeded"), true);
+      addAIMessage("File size exceeds 15MB limit. Please upload a smaller file.", true);
       return;
     }
 
     if (!allowedTypes.includes(selectedFile.type)) {
-      addAIMessage(t("analysis.invalidFileType"), true);
+      addAIMessage("Invalid file type. Please upload a PDF, image, or DOCX file.", true);
       return;
     }
 
@@ -322,7 +320,7 @@ export default function AnalyzePage() {
 
     const guest = isGuestUser();
     if (guest && !canUseGuestFeature("analysis")) {
-      addAIMessage(t("common.pleaseLoginToContinue"), true);
+      addAIMessage("Please login to continue", true);
       return;
     }
 
@@ -338,8 +336,8 @@ export default function AnalyzePage() {
     const parts = [];
 
     if (currentFile) {
-      parts.push(t("analysis.uploadedDocument", { name: currentFile.name }));
-      parts.push(t("analysis.fileSize", { size: (currentFile.size / 1024).toFixed(2) }));
+      parts.push(`Uploaded: ${currentFile.name}`);
+      parts.push(`Size: ${(currentFile.size / 1024).toFixed(2)} KB`);
     }
 
     if (currentText) {
@@ -350,7 +348,7 @@ export default function AnalyzePage() {
     setInputText("");
     removeFile();
     setLoading(true);
-    setAnalysisProgress(t("analysis.preparingAnalysis"));
+    setAnalysisProgress("Preparing analysis...");
 
     try {
       let response;
@@ -358,15 +356,15 @@ export default function AnalyzePage() {
       if (currentFile) {
         response = await analyzeDocument(currentFile, (progress) => {
           if (progress.stage === "uploading") {
-            setAnalysisProgress(t("analysis.uploadingAndExtractingText"));
+            setAnalysisProgress("Uploading and extracting text...");
           } else if (progress.stage === "analyzing") {
-            setAnalysisProgress(t("analysis.analyzingWithAi"));
+            setAnalysisProgress("Analyzing with AI...");
           } else if (progress.stage === "completed") {
-            setAnalysisProgress(t("analysis.finalizingReport"));
+            setAnalysisProgress("Finalizing report...");
           }
         }, { sessionId: targetSessionId, instructions: currentText, language, mode: privacyMode });
       } else {
-        setAnalysisProgress(t("analysis.analyzingText"));
+        setAnalysisProgress("Analyzing text...");
         response = await analyzeText(currentText, { sessionId: targetSessionId, language, mode: privacyMode });
       }
 
@@ -395,7 +393,7 @@ export default function AnalyzePage() {
         setSearchParams({ session: targetSessionId }, { replace: true });
       }
     } catch (error) {
-      addAIMessage(error.message || t("analysis.analysisFailed"), true);
+      addAIMessage(error.message || "Analysis failed. Please try again.", true);
     } finally {
       setLoading(false);
       setAnalysisProgress(null);
@@ -420,9 +418,9 @@ export default function AnalyzePage() {
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600/20">
                 <Shield className="text-indigo-400" size={28} />
               </div>
-              <h1 className="mb-3 text-3xl font-bold text-white">{t("analysis.documentAnalysis")}</h1>
+              <h1 className="mb-3 text-3xl font-bold text-white">Document Analysis</h1>
               <p className="mx-auto max-w-xl text-sm leading-7 text-slate-400">
-                {t("analysis.documentAnalysisSubtitle")}
+                Upload agreements, notices, or legal documents for OCR, privacy masking, and Gemini-powered risk analysis.
               </p>
             </div>
           ) : (
@@ -435,7 +433,7 @@ export default function AnalyzePage() {
                     </div>
                   )}
                   {msg.role === "ai" && msg.structured ? (
-                    <AIAnalysisCard analysis={msg.structured} t={t} />
+                    <AIAnalysisCard analysis={msg.structured} />
                   ) : (
                     <div
                       className={`max-w-[85%] rounded-2xl p-4 text-sm leading-7 ${
@@ -447,7 +445,7 @@ export default function AnalyzePage() {
                       }`}
                     >
                       {msg.role === "ai" && typeof msg.content === "object" ? (
-                        <div className="whitespace-pre-wrap wrap-break-word">
+                        <div className="whitespace-pre-wrap break-words">
                           {formatAnalysisResponse(
                             msg.content.success !== undefined
                               ? msg.content
@@ -455,7 +453,7 @@ export default function AnalyzePage() {
                           )}
                         </div>
                       ) : (
-                        <div className="whitespace-pre-wrap wrap-break-word">{msg.content}</div>
+                        <div className="whitespace-pre-wrap break-words">{msg.content}</div>
                       )}
                     </div>
                   )}
@@ -468,7 +466,7 @@ export default function AnalyzePage() {
                     <Loader2 size={18} className="animate-spin text-indigo-400" />
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-[#121215] px-4 py-3 text-sm italic text-slate-400">
-                    {analysisProgress || t("common.processing")}
+                    {analysisProgress || "Processing..."}
                   </div>
                 </div>
               )}
@@ -498,7 +496,7 @@ export default function AnalyzePage() {
               onClick={() => fileInputRef.current?.click()}
               disabled={loading}
               className="rounded-xl p-3 text-slate-400 transition hover:bg-white/5 hover:text-white"
-              title={t("analysis.uploadDocument")}
+              title="Upload document"
             >
               <Upload size={20} />
             </button>
@@ -507,7 +505,7 @@ export default function AnalyzePage() {
             <textarea
               value={inputText}
               onChange={(event) => setInputText(event.target.value)}
-              placeholder={t("analysis.pasteLegalTextOrInstructions")}
+              placeholder="Paste legal text or add instructions for the uploaded document..."
               className="max-h-32 flex-1 resize-none bg-transparent py-3 text-[15px] text-slate-200 outline-none placeholder:text-slate-600"
               rows={1}
               disabled={loading}

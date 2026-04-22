@@ -4,7 +4,6 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { useTranslation } from 'react-i18next';
 
 import Hero from '../components/landing/Hero';
 import CinematicRevealSection from '../components/landing/CinematicRevealSection';
@@ -88,7 +87,6 @@ const CustomCursor = () => {
 };
 
 export default function LandingPage() {
-  const { t } = useTranslation();
   
   useLayoutEffect(() => {
     const lenis = new Lenis({
@@ -134,7 +132,7 @@ export default function LandingPage() {
       </main>
       
       <footer className="relative z-10 py-10 border-t border-white/5 text-center text-slate-500 text-sm bg-[#050505]">
-        <p>{t("landing.footerCopyright")}</p>
+        <p>© 2026 Nyay Sahayak. All rights reserved.</p>
       </footer>
     </div>
   );

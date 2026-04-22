@@ -17,7 +17,7 @@ export default function SettingsPage() {
       >
         <div className="mb-10">
           <h1 className="text-3xl font-bold text-white tracking-tight">{t('settings.title') || 'Settings'}</h1>
-          <p className="mt-2 text-sm text-slate-400">{t('settings.description')}</p>
+          <p className="mt-2 text-sm text-slate-400">Manage your account preferences and application settings.</p>
         </div>
         
         <div className="rounded-[28px] border border-white/5 bg-[#121215] shadow-2xl overflow-hidden backdrop-blur-md">
@@ -26,13 +26,13 @@ export default function SettingsPage() {
               <div className="p-2 bg-indigo-500/10 rounded-xl">
                 <Globe size={20} className="text-indigo-400" />
               </div>
-              <h2 className="text-xl font-semibold text-white">{t('settings.preferences')}</h2>
+              <h2 className="text-xl font-semibold text-white">{t('settings.preferences') || 'Preferences'}</h2>
             </div>
             
             <div className="flex flex-col sm:flex-row sm:items-center justify-between py-4 border-b border-white/5 gap-4">
               <div>
                 <h3 className="text-base font-medium text-slate-200">{t('settings.language') || 'Language'}</h3>
-                <p className="text-xs text-slate-500 mt-1">{t('settings.languageDescription')}</p>
+                <p className="text-xs text-slate-500 mt-1">Select your preferred language for the legal assistant interface.</p>
               </div>
               <select
                 value={language}
@@ -55,12 +55,12 @@ export default function SettingsPage() {
               <div className="p-2 bg-white/5 rounded-xl">
                 <User size={20} className="text-slate-400" />
               </div>
-              <h2 className="text-xl font-semibold text-white">{t('settings.accountDetails')}</h2>
+              <h2 className="text-xl font-semibold text-white">Account Details</h2>
             </div>
             <div className="py-4 border-b border-white/5 flex justify-between items-center">
               <div>
-                <h3 className="text-base font-medium text-slate-200">{t('settings.basicPlan')}</h3>
-                <p className="text-xs text-slate-500 mt-1">{t('settings.billingAndFeatures')}</p>
+                <h3 className="text-base font-medium text-slate-200">Basic Plan</h3>
+                <p className="text-xs text-slate-500 mt-1">Manage billing and features.</p>
               </div>
               {/* <span className="text-xs font-bold uppercase tracking-widest text-indigo-400 bg-indigo-500/10 px-3 py-1.5 rounded-lg">Professional</span> */}
             </div>

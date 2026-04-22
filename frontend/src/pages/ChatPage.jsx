@@ -28,12 +28,6 @@ const ACTION_ROUTES = {
   "Analyze Document": "/analyze",
 };
 
-const SUGGESTION_LABEL_KEYS = {
-  "Generate FIR": "chat.suggestions.generateFir",
-  "See Steps": "chat.suggestions.seeSteps",
-  "Analyze Document": "chat.suggestions.analyzeDocument",
-};
-
 const buildWelcomeMessage = (t) => ({
   role: "assistant",
   content: {
@@ -52,7 +46,7 @@ export default function ChatPage() {
   const { language } = useLanguage();
   const navigate = useNavigate();
   const messagesEndRef = useRef(null);
-  const initialMessage = useMemo(() => buildWelcomeMessage(t), [t, language]);
+  const initialMessage = useMemo(() => buildWelcomeMessage(t), [t]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -66,22 +60,6 @@ export default function ChatPage() {
   useEffect(() => {
     setPrivacyMode(privacyMode);
   }, [privacyMode]);
-
-  useEffect(() => {
-    if (!sessionId) {
-      setMessages((prev) => {
-        if (prev.length === 0) {
-          return [initialMessage];
-        }
-
-        if (prev[0]?.role !== "assistant") {
-          return prev;
-        }
-
-        return [initialMessage, ...prev.slice(1)];
-      });
-    }
-  }, [initialMessage, sessionId]);
 
   useEffect(() => {
     const initializeChat = async () => {
@@ -137,7 +115,7 @@ export default function ChatPage() {
         ...prev,
         {
           role: "assistant",
-            content: t("common.pleaseLoginToContinue"),
+          content: "Please login to continue",
           isError: true,
         },
       ]);
@@ -213,7 +191,7 @@ export default function ChatPage() {
     <div className="flex h-full flex-col overflow-hidden bg-[#0a0a0b] text-slate-300">
       <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-6">
         <div className="mx-auto w-full max-w-4xl">
-          <div className="mb-8 rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.22),transparent_50%),#121215] p-8 shadow-2xl">
+          <div className="mb-8 rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(99,102,241,0.22),_transparent_50%),#121215] p-8 shadow-2xl">
             <div className="mb-4 flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white">
                 <Sparkles size={22} />
@@ -226,8 +204,8 @@ export default function ChatPage() {
             <p className="text-sm text-slate-400">{t("chat.example")}</p>
             <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-400">
               <PrivacyToggle value={privacyMode} onChange={setPrivacyModeState} />
-              <span>{t("chat.privateModeSkipsSavingChatHistory")}</span>
-              {isGuestUser() && <span className="text-amber-300">{t("chat.guestLimit")}</span>}
+              <span>Private mode skips saving chat history.</span>
+              {isGuestUser() && <span className="text-amber-300">Guest limit: 3 messages.</span>}
             </div>
           </div>
 
@@ -255,10 +233,10 @@ export default function ChatPage() {
                             : "rounded-tl-none border border-white/10 bg-[#121215] text-slate-200"
                       }`}
                     >
-                      <StructuredReply content={message.content} t={t} />
+                      <StructuredReply content={message.content} />
                       {message.role === "assistant" && !message.isError && (
                         <div className="mt-3 flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                          <span>{message.contextUsed ? t("chat.ragContextUsed") : t("chat.generalLegalGuidance")}</span>
+                          <span>{message.contextUsed ? "RAG context used" : "General legal guidance"}</span>
                           {message.createdAt && <span className="opacity-60">{new Date(message.createdAt).toLocaleTimeString()}</span>}
                         </div>
                       )}
@@ -272,7 +250,7 @@ export default function ChatPage() {
                             onClick={() => handleSuggestion(suggestion)}
                             className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-200 transition hover:bg-indigo-500/20"
                           >
-                            {t(SUGGESTION_LABEL_KEYS[suggestion] || suggestion)}
+                            {suggestion}
                           </button>
                         ))}
                       </div>
@@ -305,7 +283,7 @@ export default function ChatPage() {
       </div>
 
       <div className="border-t border-white/5 bg-[#0a0a0b] p-4 sm:p-6">
-        <div className="mx-auto max-w-4xl rounded-3xl border border-white/10 bg-[#121215] p-2 shadow-2xl">
+        <div className="mx-auto max-w-4xl rounded-[24px] border border-white/10 bg-[#121215] p-2 shadow-2xl">
           <div className="flex items-end gap-2">
             <textarea
               value={input}
@@ -336,13 +314,13 @@ export default function ChatPage() {
   );
 }
 
-function StructuredReply({ content, t }) {
+function StructuredReply({ content }) {
   if (typeof content === "string") {
-    return <div className="whitespace-pre-wrap wrap-break-word">{content}</div>;
+    return <div className="whitespace-pre-wrap break-words">{content}</div>;
   }
 
-  let topic = content.topic || content.document_type || t("chat.legalGuidance");
-  if (String(topic).toLowerCase() === "unknown") topic = t("chat.aiAnalysis");
+  let topic = content.topic || content.document_type || "Legal Guidance";
+  if (topic.toLowerCase() === "unknown") topic = "AI Analysis";
   const explanation = content.simple_explanation || content.reason_for_decision;
 
   return (
@@ -370,41 +348,41 @@ function StructuredReply({ content, t }) {
       )}
 
       {explanation && (
-        <div className="whitespace-pre-wrap wrap-break-word text-[15px]">{explanation}</div>
+        <div className="whitespace-pre-wrap break-words text-[15px]">{explanation}</div>
       )}
 
       {Array.isArray(content.rules) && content.rules.length > 0 && (
-        <SectionList title={t("chat.rules")} items={content.rules} />
+        <SectionList title="Rules" items={content.rules} />
       )}
       {Array.isArray(content.penalties) && content.penalties.length > 0 && (
-        <SectionList title={t("chat.penalties")} items={content.penalties} />
+        <SectionList title="Penalties" items={content.penalties} />
       )}
       
       {Array.isArray(content.suspicious_clauses) && content.suspicious_clauses.length > 0 && (
-        <SectionList title={t("chat.suspiciousClauses")} items={content.suspicious_clauses} />
+        <SectionList title="Suspicious Clauses" items={content.suspicious_clauses} />
       )}
       {Array.isArray(content.top_risks) && content.top_risks.length > 0 && (
-        <SectionList title={t("chat.topRisks")} items={content.top_risks} />
+        <SectionList title="Top Risks" items={content.top_risks} />
       )}
       {Array.isArray(content.warnings) && content.warnings.length > 0 && (
-        <SectionList title={t("chat.warnings")} items={content.warnings} />
+        <SectionList title="Warnings" items={content.warnings} />
       )}
 
       {Array.isArray(content.user_guidance) && content.user_guidance.length > 0 && (
-        <SectionList title={t("chat.whatYouShouldDo")} items={content.user_guidance} />
+        <SectionList title="What You Should Do" items={content.user_guidance} />
       )}
       {Array.isArray(content.what_user_should_do) && content.what_user_should_do.length > 0 && (
-        <SectionList title={t("chat.actionPlan")} items={content.what_user_should_do} />
+        <SectionList title="Action Plan" items={content.what_user_should_do} />
       )}
 
       {Array.isArray(content.quantified_impact) && content.quantified_impact.length > 0 && (
-        <SectionList title={t("chat.quantifiedImpact")} items={content.quantified_impact} />
+        <SectionList title="Quantified Impact" items={content.quantified_impact} />
       )}
       
       {content.law_reference && content.law_reference.applicable && (
         <div className="mt-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-4">
           <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-indigo-400">
-            {t("chat.applicableLaws")}
+            Applicable Laws
           </div>
           {Array.isArray(content.law_reference.laws) && content.law_reference.laws.length > 0 && (
             <ul className="mb-2 list-none space-y-1">
@@ -425,7 +403,7 @@ function StructuredReply({ content, t }) {
 
       {Array.isArray(content.legal_validity_flags) && content.legal_validity_flags.length > 0 && (
         <SectionList
-          title={t("chat.legalValidityFlags")}
+          title="Legal Validity Flags"
           items={content.legal_validity_flags.map((flag) => {
             if (typeof flag === 'string') return flag;
             const parts = [flag.type, flag.clause, flag.law, flag.explanation]

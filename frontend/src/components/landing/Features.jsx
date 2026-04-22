@@ -3,7 +3,6 @@ import {
   ShieldAlert, FileSearch, Zap,
   Lock, Scale, MessageSquare, Sparkles,
 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 
 /* ─── Data ─────────────────────────────────────────────────────────── */
 const FEATURES = [
@@ -70,7 +69,6 @@ const lerp  = (a, b, t) => a + (b - a) * t;
 
 /* ─── Component ─────────────────────────────────────────────────────── */
 export default function Features() {
-  const { t } = useTranslation();
   const wrapperRef = useRef(null);
   const trackRef   = useRef(null);
   const rafRef     = useRef(null);
@@ -83,15 +81,6 @@ export default function Features() {
   const [maxScroll,   setMaxScroll]   = useState(0);
   const [hoveredCard, setHoveredCard] = useState(null);
   const [cardTilts,   setCardTilts]   = useState({});
-
-  const FEATURES = [
-    { title: t("landing.features.riskDetectionTitle"), desc: t("landing.features.riskDetectionDesc"), Icon: ShieldAlert, num: '01', accent: 'rgba(239,68,68,0.8)', accentBg: 'rgba(239,68,68,0.08)', accentBorder: 'rgba(239,68,68,0.2)' },
-    { title: t("landing.features.legaleseDecoderTitle"), desc: t("landing.features.legaleseDecoderDesc"), Icon: Scale, num: '02', accent: 'rgba(99,102,241,0.9)', accentBg: 'rgba(99,102,241,0.08)', accentBorder: 'rgba(99,102,241,0.2)' },
-    { title: t("landing.features.smartSummarizationTitle"), desc: t("landing.features.smartSummarizationDesc"), Icon: FileSearch, num: '03', accent: 'rgba(168,85,247,0.9)', accentBg: 'rgba(168,85,247,0.08)', accentBorder: 'rgba(168,85,247,0.2)' },
-    { title: t("landing.features.interactiveAnalysisTitle"), desc: t("landing.features.interactiveAnalysisDesc"), Icon: MessageSquare, num: '04', accent: 'rgba(34,211,238,0.9)', accentBg: 'rgba(34,211,238,0.08)', accentBorder: 'rgba(34,211,238,0.2)' },
-    { title: t("landing.features.forensicPrecisionTitle"), desc: t("landing.features.forensicPrecisionDesc"), Icon: Zap, num: '05', accent: 'rgba(251,191,36,0.9)', accentBg: 'rgba(251,191,36,0.07)', accentBorder: 'rgba(251,191,36,0.2)' },
-    { title: t("landing.features.enterpriseSecurityTitle"), desc: t("landing.features.enterpriseSecurityDesc"), Icon: Lock, num: '06', accent: 'rgba(52,211,153,0.9)', accentBg: 'rgba(52,211,153,0.08)', accentBorder: 'rgba(52,211,153,0.2)' },
-  ];
 
   /* ── Measure track width ── */
   useEffect(() => {
@@ -299,7 +288,7 @@ export default function Features() {
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-6 border border-indigo-500/25 bg-indigo-500/[0.07]">
             <Sparkles size={11} className="text-indigo-400" />
             <span className="text-indigo-300/90 text-[10px] font-bold tracking-[0.22em] uppercase">
-              {t("landing.features.badge")}
+              Forensic Workflows
             </span>
           </div>
 
@@ -308,7 +297,7 @@ export default function Features() {
             className="font-black text-white leading-[1.05] tracking-tighter"
             style={{ fontSize: 'clamp(36px, 5.5vw, 72px)', maxWidth: 780 }}
           >
-            {t("landing.features.headline").split(" ").map((w, i) => (
+            {['Designed', 'for', 'Legal'].map((w, i) => (
               <span key={i} className="inline-block mr-[0.22em]">{w}</span>
             ))}
             <span
@@ -320,7 +309,7 @@ export default function Features() {
                 backgroundClip: 'text',
               }}
             >
-              {t("landing.features.headlineAccent")}
+              Clarity.
             </span>
           </h2>
 
@@ -333,7 +322,8 @@ export default function Features() {
               maxWidth: 440,
             }}
           >
-            {t("landing.features.subcopy")}
+            Precision auditing meets forensic intelligence. Identify risks,
+            decode complexity, and summarize with atomic accuracy.
           </p>
         </div>
 

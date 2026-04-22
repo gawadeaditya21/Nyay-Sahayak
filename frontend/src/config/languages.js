@@ -4,7 +4,6 @@ export const SUPPORTED_LANGUAGES = [
   { code: "en", label: "English" },
   { code: "hi", label: "Hindi" },
   { code: "mr", label: "Marathi" },
-  { code: "hinglish", label: "Hinglish" },
 ];
 
 export function resolveLanguage(input) {
@@ -25,9 +24,6 @@ export function resolveLanguage(input) {
     return byLabel.code;
   }
 
-  if (raw.startsWith("hing")) {
-    return "hinglish";
-  }
   if (raw.startsWith("hi")) {
     return "hi";
   }

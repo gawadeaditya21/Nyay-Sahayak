@@ -71,13 +71,13 @@ export default function FirPage() {
 
   const handleGenerate = async () => {
     if (!userInput.trim()) {
-      setError(t("fir.enterProblemDescription"));
+      setError("Please enter your problem description.");
       return;
     }
 
     const guest = isGuestUser();
     if (guest && !canUseGuestFeature("fir")) {
-      setError(t("common.pleaseLoginToContinue"));
+      setError("Please login to continue");
       return;
     }
 
@@ -113,7 +113,7 @@ export default function FirPage() {
         setSearchParams({ session: targetSessionId }, { replace: true });
       }
     } catch (err) {
-      setError(err.message || t("fir.unableToGenerate"));
+      setError(err.message || "Unable to generate FIR.");
     } finally {
       setLoading(false);
     }
@@ -126,7 +126,7 @@ export default function FirPage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch (err) {
-      setError(t("fir.copyFailed"));
+      setError("Copy failed. Please try again.");
     }
   };
 
@@ -155,7 +155,7 @@ export default function FirPage() {
             <div>
               <h1 className="text-2xl font-semibold text-white">{t("fir.title")}</h1>
               <p className="text-sm text-slate-400">
-                {t("fir.subtitle")}
+                {t("fir.subtitle") || "Generate an official, structured legal draft."}
               </p>
             </div>
           </div>
@@ -168,8 +168,8 @@ export default function FirPage() {
           <textarea
             value={userInput}
             onChange={(event) => setUserInput(event.target.value)}
-            placeholder={t("fir.placeholder")}
-            className="mt-6 min-h-35 w-full resize-none rounded-2xl border border-white/10 bg-[#0a0a0b] px-4 py-4 text-[15px] text-slate-200 outline-none focus:border-indigo-500 placeholder:text-slate-600"
+            placeholder={t("fir.placeholder") || "Describe the incident..."}
+            className="mt-6 min-h-[140px] w-full resize-none rounded-2xl border border-white/10 bg-[#0a0a0b] px-4 py-4 text-[15px] text-slate-200 outline-none focus:border-indigo-500 placeholder:text-slate-600"
           />
 
           {error && (
@@ -184,13 +184,13 @@ export default function FirPage() {
             className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 py-3 text-[15px] font-semibold text-white shadow-xl shadow-indigo-900/20 transition hover:bg-indigo-500 disabled:opacity-50 sm:w-auto"
           >
             {loading ? <Loader2 size={18} className="animate-spin" /> : <FileText size={18} />}
-            {t("fir.generate")}
+            {t("fir.generate") || "Generate Draft"}
           </button>
 
           {loading && (
             <div className="mt-4 flex items-center gap-2 text-sm text-indigo-400">
               <Loader2 size={16} className="animate-spin" />
-              {t("fir.generating")}
+              {t("fir.generating") || "Drafting professional FIR based on your context..."}
             </div>
           )}
         </div>
@@ -199,7 +199,7 @@ export default function FirPage() {
           <div className="mt-8 rounded-2xl border border-white/10 bg-white p-6 sm:p-8 shadow-2xl">
             <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <h2 className="text-xl font-bold text-slate-800">
-                {t("fir.generatedTitle")}
+                {t("fir.generatedTitle") || "Generated FIR Document"}
               </h2>
               <div className="flex items-center gap-2">
                 <button
@@ -207,19 +207,19 @@ export default function FirPage() {
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-indigo-600"
                 >
                   <Copy size={16} />
-                  {copied ? t("fir.copied") : t("fir.copy")}
+                  {copied ? t("fir.copied") || "Copied!" : t("fir.copy") || "Copy Draft"}
                 </button>
                 <button
                   onClick={handleDownload}
                   className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
                   <Download size={16} />
-                  {t("fir.download")}
+                  {t("fir.download") || "Download PDF"}
                 </button>
               </div>
             </div>
 
-            <div className="max-h-150 overflow-y-auto rounded-xl border border-slate-100 bg-[#f8fafc] p-6 text-[15px] leading-relaxed text-slate-800 shadow-inner">
+            <div className="max-h-[600px] overflow-y-auto rounded-xl border border-slate-100 bg-[#f8fafc] p-6 text-[15px] leading-relaxed text-slate-800 shadow-inner">
               <pre className="whitespace-pre-wrap font-serif text-[15px] leading-relaxed">{firText}</pre>
             </div>
           </div>

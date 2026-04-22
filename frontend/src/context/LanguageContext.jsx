@@ -13,35 +13,29 @@ const LanguageContext = createContext({
 
 export function LanguageProvider({ children }) {
   const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-  const getStoredUser = () => {
-    try {
-      const rawUser = localStorage.getItem("user");
-      return rawUser ? JSON.parse(rawUser) : null;
-    } catch {
-      return null;
-    }
-  };
+  const user = useMemo(() => {
+    const rawUser = localStorage.getItem("user");
+    return rawUser ? JSON.parse(rawUser) : null;
+  }, []);
 
   const initialLanguage = resolveLanguage(
-    stored || getStoredUser()?.preferredLanguage || DEFAULT_LANGUAGE
+    stored || user?.preferredLanguage || DEFAULT_LANGUAGE
   );
 
   const [language, setLanguageState] = useState(initialLanguage);
 
   const setLanguage = (nextLanguage) => {
-    const resolved = resolveLanguage(nextLanguage);
-    setLanguageState(resolved);
-    void i18n.changeLanguage(resolved);
+    setLanguageState(resolveLanguage(nextLanguage));
   };
 
   useEffect(() => {
+    i18n.changeLanguage(language);
     localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
 
-    const user = getStoredUser();
     if (user?.id) {
       updateLanguagePreference(user.id, language).catch(() => {});
     }
-  }, [language]);
+  }, [language, user?.id]);
 
   const value = useMemo(
     () => ({ language, setLanguage, languages: SUPPORTED_LANGUAGES }),

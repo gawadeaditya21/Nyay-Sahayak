@@ -2,12 +2,10 @@ import React, { useRef, useLayoutEffect } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { FileText, Ticket, Briefcase, Bot, ShieldCheck, Zap, ArrowRight } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 
 gsap.registerPlugin(ScrollTrigger);
 
 const AiAdvocateSection = () => {
-  const { t } = useTranslation();
   const wrapperRef = useRef(null);
 
   // Document refs
@@ -255,21 +253,21 @@ const AiAdvocateSection = () => {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-bold uppercase tracking-widest mb-6"
           >
             <Zap size={14} className="animate-pulse" />
-            <span>{t("landing.aiAdvocate.badge")}</span>
+            <span>Interactive Visualization</span>
           </div>
 
           <h2
             ref={headerTitleRef}
             className="text-3xl md:text-5xl lg:text-6xl font-serif font-bold text-white mb-5 leading-tight"
           >
-            {t("landing.aiAdvocate.headlinePrefix")} {' '}
+            Bring the{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-slate-400 to-slate-200">
-              {t("landing.aiAdvocate.headlineChaos")}
+              Chaos.
             </span>
             <br />
-            {t("landing.aiAdvocate.headlineGetThe")} {' '}
+            Get the{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-emerald-400">
-              {t("landing.aiAdvocate.headlineClarity")}
+              Clarity.
             </span>
           </h2>
 
@@ -277,7 +275,8 @@ const AiAdvocateSection = () => {
             ref={headerSubRef}
             className="text-slate-400 text-base md:text-lg max-w-2xl mx-auto opacity-80 leading-relaxed"
           >
-            {t("landing.aiAdvocate.subcopy")}
+            Upload any legal document, receipt, or agreement. Our AI advocate
+            forensically scans for hidden risks instantly.
           </p>
         </div>
 
@@ -302,7 +301,7 @@ const AiAdvocateSection = () => {
               <div className="w-4/6 h-1 bg-slate-800 rounded-full" />
             </div>
             <span className="text-[9px] font-bold text-slate-500 uppercase mt-1.5 tracking-wide">
-              {t("landing.aiAdvocate.rentalAgreement")}
+              Rental Agr.
             </span>
           </div>
 
@@ -338,7 +337,7 @@ const AiAdvocateSection = () => {
               <div className="w-3/4 h-1 bg-slate-800 rounded-full" />
             </div>
             <span className="text-[9px] font-bold text-slate-500 uppercase mt-1.5 tracking-wide">
-              {t("landing.aiAdvocate.offerLetter")}
+              Offer Letter
             </span>
           </div>
 
@@ -375,8 +374,8 @@ const AiAdvocateSection = () => {
             style={{ top: '72%', left: '50%', transform: 'translateX(-50%) scale(0.5)', opacity: 0 }}
           >
             <ShieldCheck size={18} className="text-emerald-400 shrink-0" />
-              <span className="text-xs md:text-sm font-bold tracking-widest text-emerald-300 uppercase whitespace-nowrap">
-              {t("landing.aiAdvocate.analysisCompleteSafe")}
+            <span className="text-xs md:text-sm font-bold tracking-widest text-emerald-300 uppercase whitespace-nowrap">
+              Analysis Complete: Safe
             </span>
           </div>
         </div>
@@ -387,7 +386,7 @@ const AiAdvocateSection = () => {
             onClick={() => window.location.href = '/chat'}
             className="group inline-flex items-center gap-4 px-8 py-4 bg-white text-[#050505] rounded-full font-bold text-base md:text-lg hover:bg-indigo-50 transition-colors shadow-[0_0_40px_rgba(255,255,255,0.15)]"
           >
-            {t("landing.aiAdvocate.cta")}
+            Start Scanning Now
             <span className="w-7 h-7 rounded-full bg-[#050505] text-white flex items-center justify-center group-hover:translate-x-1 transition-transform">
               <ArrowRight size={14} />
             </span>
