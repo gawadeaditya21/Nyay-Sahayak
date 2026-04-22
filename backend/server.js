@@ -10,6 +10,8 @@ import documentRoutes from "./routes/documentRoutes.js";
 import authRoutes from "./routes/authRoutes.js";    
 import chatRoutes from "./routes/chatRoutes.js";
 import firRoutes from "./routes/firRoutes.js";
+import paymentRoutes from "./routes/paymentRoutes.js";
+import { stripeWebhook } from "./controllers/paymentController.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 
 // Validate environment variables on startup
@@ -22,11 +24,16 @@ connectDB();
 const app = express();
 
 app.use(cors());
+
+// STRIPE WEBHOOK MUST BE BEFORE express.json()
+app.post("/api/payment/webhook", express.raw({ type: "application/json" }), stripeWebhook);
+
 app.use(express.json());
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // API ROUTES
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+app.use("/api/payment", paymentRoutes);
 
 // Primary Document Analysis Route (Recommended)
 app.use("/api/document", rateLimit, documentRoutes);

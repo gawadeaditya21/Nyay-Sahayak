@@ -184,6 +184,16 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
         </AnimatePresence>
       </div>
 
+      <div className="mt-4 pt-4 border-t border-white/5">
+        <Link 
+          to="/pricing"
+          onClick={close}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg hover:from-indigo-400 hover:to-purple-500 transition-all"
+        >
+          <span className="text-yellow-300">✨</span> Upgrade Plan
+        </Link>
+      </div>
+
       <div className="mt-4 space-y-3 rounded-2xl border border-indigo-500/10 bg-indigo-600/5 p-4">
         <Link
           to="/settings"
