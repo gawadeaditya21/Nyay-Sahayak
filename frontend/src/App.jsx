@@ -7,6 +7,7 @@ import LandingPage from './pages/LandingPage';
 import AnalyzePage from './pages/AnalyzePage';
 import FirPage from './pages/FirPage';
 import LegalStepsPage from './pages/LegalStepsPage';
+import DashboardPage from './pages/DashboardPage';
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
 
         {/* Routes wrapped in MainLayout will have the Sidebar and Header */}
         <Route element={<MainLayout />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/analyze" element={<AnalyzePage />} />
           <Route path="/fir" element={<FirPage />} />

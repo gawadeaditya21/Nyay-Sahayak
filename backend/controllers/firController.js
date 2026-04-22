@@ -2,7 +2,7 @@ import { ensureSupportedLanguage } from "../config/languages.js";
 import { generateFirDraft } from "../services/aiService.js";
 import FIR from "../models/FIR.js";
 import { decryptData, encryptData } from "../utils/cryptoUtils.js";
-import { maskSensitiveData } from "../utils/dataMasking.js";
+import { maskSensitiveData, unmaskData } from "../utils/dataMasking.js";
 import { checkAndIncrementGuestUsage } from "../utils/guestLimits.js";
 import { resolveMode, resolveRequestIdentity } from "../utils/requestIdentity.js";
 
@@ -22,8 +22,14 @@ const FIR_ANSWER_LABELS = {
   evidenceAvailable: "Evidence available",
   evidenceDetails: "Evidence details",
   victimDetails: "Complainant details",
+  fatherOrHusbandName: "Father's or husband's name",
+  complainantAge: "Complainant age",
+  complainantEmail: "Complainant email address",
+  signatureName: "Name for signature section",
   additionalInfo: "Additional information",
 };
+
+const FIR_FIELD_ORDER = Object.keys(FIR_ANSWER_LABELS);
 
 function sanitizeAnswer(value) {
   if (value === null || value === undefined) {
@@ -41,24 +47,26 @@ function sanitizeAnswer(value) {
   return String(value).trim();
 }
 
-function buildFirInputFromAnswers(answers, labels = {}) {
+function sentenceValue(value) {
+  const cleaned = sanitizeAnswer(value);
+  if (!cleaned) return "";
+  return /[.!?]$/.test(cleaned) ? cleaned : `${cleaned}.`;
+}
+
+function buildFirInputFromAnswers(answers) {
   if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
     return "";
   }
 
-  const safeLabels =
-    labels && typeof labels === "object" && !Array.isArray(labels) ? labels : {};
-  const mergedLabels = { ...FIR_ANSWER_LABELS, ...safeLabels };
-  const knownFields = Object.keys(FIR_ANSWER_LABELS);
   const extraFields = Object.keys(answers).filter(
-    (field) => !knownFields.includes(field)
+    (field) => !FIR_FIELD_ORDER.includes(field)
   );
 
-  const lines = [...knownFields, ...extraFields]
+  const lines = [...FIR_FIELD_ORDER, ...extraFields]
     .map((field) => {
-      const value = sanitizeAnswer(answers[field]);
+      const value = sentenceValue(answers[field]);
       if (!value) return null;
-      return `${mergedLabels[field] || field}: ${value}`;
+      return `${FIR_ANSWER_LABELS[field] || field}: ${value}`;
     })
     .filter(Boolean);
 
@@ -67,7 +75,11 @@ function buildFirInputFromAnswers(answers, labels = {}) {
   }
 
   return [
-    "Generate an FIR/complaint draft using the following structured answers.",
+    "Draft a formal, ready-to-submit FIR/complaint application from these structured facts.",
+    "Do not repeat the questions or labels in the final draft. Convert the facts into a professional complaint letter with clear paragraphs.",
+    "Use only facts provided by the user. If a required official detail is missing, use a blank placeholder.",
+    "",
+    "Structured facts:",
     ...lines,
   ].join("\n");
 }
@@ -77,7 +89,6 @@ export async function generateFir(req, res) {
     const {
       user_input,
       fir_answers,
-      answer_labels,
       language: rawLanguage,
       userId: rawUserId,
       mode: rawMode,
@@ -109,7 +120,7 @@ export async function generateFir(req, res) {
       }
     }
 
-    const structuredInput = buildFirInputFromAnswers(fir_answers, answer_labels);
+    const structuredInput = buildFirInputFromAnswers(fir_answers);
     const plainInput = typeof user_input === "string" ? user_input.trim() : "";
     const inputForDraft = structuredInput || plainInput;
 
@@ -121,8 +132,11 @@ export async function generateFir(req, res) {
       });
     }
 
-    const maskedInput = maskSensitiveData(inputForDraft).maskedText;
-    const firText = await generateFirDraft(maskedInput, { language });
+    const maskingResult = maskSensitiveData(inputForDraft);
+    const generatedFirText = await generateFirDraft(maskingResult.maskedText, { language });
+    const firText = maskingResult.hasSensitiveData
+      ? unmaskData(generatedFirText, maskingResult.replacements)
+      : generatedFirText;
 
     const shouldStore = identity.isAuthenticated && mode === "save";
     if (shouldStore) {

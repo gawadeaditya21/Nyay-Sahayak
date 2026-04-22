@@ -31,6 +31,7 @@ const ENDPOINTS = {
   LANGUAGE_PREF: `${API_BASE_URL}/auth/language`,
   CHAT_SESSIONS: `${API_BASE_URL}/chat/sessions`,
   CHAT_HISTORY: (sessionId) => `${API_BASE_URL}/chat/${sessionId}`,
+  DASHBOARD_SUMMARY: `${API_BASE_URL}/dashboard/summary`,
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -467,6 +468,30 @@ export async function fetchFirHistory() {
   }
 }
 
+export async function fetchDashboardSummary() {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error("Please login to continue.");
+    }
+
+    const response = await fetch(ENDPOINTS.DASHBOARD_SUMMARY, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("fetchDashboardSummary error:", error);
+    const formattedError = new Error(formatErrorMessage(error));
+    formattedError.originalError = error;
+    formattedError.code = error.code;
+    throw formattedError;
+  }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // EXPORT DEFAULT API OBJECT (Alternative usage pattern)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -482,6 +507,7 @@ const api = {
   fetchAnalysisSessions,
   fetchAnalysisHistory,
   fetchFirHistory,
+  fetchDashboardSummary,
 };
 
 export async function updateLanguagePreference(userId, preferredLanguage) {

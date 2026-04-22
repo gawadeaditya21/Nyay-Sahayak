@@ -4202,20 +4202,19 @@ function buildFirPrompt(userInput, language) {
 
 This is a generation task. Do NOT ask questions. Do NOT request missing data.
 
-Language preference: ${languageLabel}. You MUST respond only in this language for the FIR body. Keep law names in English. Keep the Request sentence in English exactly.
+Language preference: ${languageLabel}. You MUST respond only in this language for the FIR body. Keep law names in English.
 
 Critical legal corrections (mandatory):
 - NEVER use the words "refund", "recover", "recovery", "facilitate refund", or "return my money" anywhere.
 - Subject line must be: "Complaint regarding [issue]" and must not mention refund or recovery.
-- The Request section must use this exact sentence only:
-"I kindly request you to register my complaint and investigate the matter. If any misuse or criminal activity is found, kindly take appropriate legal action."
+- The Request section must request FIR registration, investigation, legal action, and an acknowledged copy for the complainant's records.
 
 Core rule:
 You MUST dynamically adapt the FIR based on case type. Do NOT include irrelevant sections.
 Each FIR must be unique and context-aware. Do NOT reuse generic sentences.
 
 Case rules (apply only what is relevant):
-1) Theft: Title "Complaint Regarding Theft of [item]", include item details, location, time, registration number if vehicle; law IPC 379; no bank/UPI steps.
+1) Theft: Subject "Complaint regarding theft of [item]", include item details, location, time, suspect description, witnesses/evidence, and law IPC 379; no bank/UPI steps.
 2) Money transfer mistake: Title "Complaint Regarding Mistaken Fund Transfer", include transaction details, law IPC 403 + IT Act; include bank/UPI step; no theft language.
 3) Assault/harassment: Title "Complaint Regarding Assault and Threat", include incident and accused details; laws IPC 323, IPC 352, IPC 506; no transaction/bank steps.
 4) Accident/rash driving: Title "Complaint Regarding Rash Driving and Assault", include vehicle details, damage, number plate; laws IPC 279, IPC 323, IPC 506.
@@ -4228,72 +4227,67 @@ Name: __________
 Address: __________
 
 Output rules:
-Use clean plain text only. Do NOT use markdown, separators, or artificial headings. Keep the tone human and practical.
+Use clean plain text only. Do NOT use markdown, separators, or artificial headings. Keep the tone formal, respectful, and ready to submit at a police station.
+Do NOT echo the user's questionnaire, labels, or raw structured facts.
+Do NOT write "Explain clearly", "what happened", "when", "where", or similar instruction text.
+Convert the facts into complete paragraphs in first person as the complainant.
+Preserve privacy placeholders such as [PHONE_1], [BANK_ACCOUNT_1], [NAME_1] exactly if present.
+Every section after its heading must contain polished sentence/paragraph text, not bullet points, except Legal Grounds may contain short numbered or line-separated legal provisions.
+Always include the final signature block exactly as shown in the format, even if the user's signature name is missing.
 
 Smart case detection (adapt FIR accordingly):
 Theft/Lost Property (IPC 379/IPC 403), Fraud/Cheating (IPC 420), Breach of Trust (IPC 406), Cyber Fraud (IT Act + IPC), Job Scam, Property/Builder Issue (RERA + Contract Act), Harassment/Threat, Salary/Employment Issue (Labour Laws).
 If uncertain, write: Possible sections may include...
 
-Follow this format strictly:
-
-Title:
-Complaint Regarding [Issue Type]
+Follow this exact format and section order strictly:
 
 To,
-The Station House Officer (SHO)
-[Police Station Name]
-[City]
+The Station House Officer (SHO),
+[Name of Police Station]
+[City/State]
 
 Date: __________
 Place: __________
 
-Subject:
-Complaint regarding [brief issue]
+Subject: Complaint regarding [brief issue].
 
 Respected Sir/Madam,
 
-I, __________, residing at __________, would like to report the following:
+Complainant Details:
+Write one paragraph: "I, [full name], S/o or D/o [father's/husband's name], aged [age], residing at [address], contact number [contact number], wish to lodge this formal complaint." Use __________ only for missing fields.
 
-Explain clearly:
-what happened
-when
-where
-what loss occurred
+Incident Details:
+Write one short paragraph mentioning the precise date, time, and place of incident. Do not use a table.
+
+Detailed Facts:
+Write one or two clear chronological paragraphs. Mention the journey/movement, what happened, how the incident occurred, when the complainant noticed it, and the loss caused. This must read like a formal complaint, not notes.
 
 Include naturally: Due to this situation, I am facing financial loss and mental stress.
 
-Add only relevant details based on case:
-If financial/cyber case, include Transaction Details:
-Transaction ID: __________
-Bank/UPI: __________
-Amount: __________
-Date/Time: __________
+Accused Description:
+Write one paragraph. If accused is known, provide name/address/contact/relationship. If unknown, provide physical description, clothes, behavior, mask/vehicle/other identifiers. If no details are available, write "The accused person is presently unknown to me."
 
-If mobile/device lost:
-Device Model: __________
-IMEI: __________
+Property Involved:
+Write one paragraph describing the stolen/lost/damaged property, estimated value, quantity, model/brand/colour/identification marks if available. If no property is involved, write "No property details are applicable."
 
-If property case:
-Property details and payment history.
+Witnesses/Evidence:
+Write one paragraph mentioning witness names/contact/details if available, and photos/videos/documents/receipts/CCTV possibility if available. If none, write "No witness or evidence is presently available with me."
 
 Legal Grounds:
-Possible sections may include:
-* IPC 403 (Dishonest Misappropriation of Property): If the receiver knowingly keeps the money without returning it.
-* IT Act: If the issue involves digital transaction misuse.
-
-Modify or add relevant laws based on the case (IPC 420, IPC 406, IPC 379, RERA Act, Labour Laws) if applicable.
+Mention only relevant legal sections in short bullet points. For theft, include IPC 379. If uncertain, write "Relevant provisions of law may be applied after police investigation."
 
 Request:
-I kindly request you to register my complaint and investigate the matter. If any misuse or criminal activity is found, kindly take appropriate legal action.
+I kindly request you to register an FIR under the relevant sections of law, investigate the matter, and take appropriate legal action. I also request you to provide me with an acknowledged copy of the FIR/complaint for my records.
 
-Closing:
 Thanking you,
 
 Yours faithfully,
-[Name: __________]
-[Contact Number: __________]
 
-Signature: __________
+(Signature / Thumb Impression)
+Name: [signature/full name if provided, otherwise __________]
+Contact Number: [contact number if provided, otherwise __________]
+Email Address: [email if provided, otherwise __________]
+Date: __________
 
 
 User Input:
@@ -4334,243 +4328,76 @@ function detectFirCase(userInput) {
 function buildFirFallback(userInput) {
   const caseType = detectFirCase(userInput);
   const incidentText = userInput || "The incident details are not fully available in this draft.";
+  const subjectByCase = {
+    theft: "Complaint regarding theft of property",
+    lost_item: "Complaint regarding lost property",
+    money_transfer: "Complaint regarding mistaken fund transfer",
+    assault: "Complaint regarding assault and threat",
+    accident: "Complaint regarding rash driving and assault",
+    property: "Complaint regarding property dispute",
+    job: "Complaint regarding job-related issue",
+    fraud: "Complaint regarding fraud and cheating",
+    general: "Complaint regarding incident",
+  };
+  const legalGroundsByCase = {
+    theft: "IPC 379 (Theft): Taking movable property without consent.",
+    lost_item: "Relevant provisions may be applied after police verification.",
+    money_transfer: "IPC 403 and relevant IT Act provisions may apply based on investigation.",
+    assault: "IPC 323, IPC 352 and IPC 506 may apply based on facts and investigation.",
+    accident: "IPC 279 and other relevant sections may apply based on investigation.",
+    property: "Relevant provisions under property law, RERA Act and Indian Contract Act may apply.",
+    job: "Relevant Labour Laws and IPC provisions may apply based on investigation.",
+    fraud: "IPC 420 and other relevant provisions may apply based on investigation.",
+    general: "Relevant provisions of law may be applied after police investigation.",
+  };
 
-  const baseHeader = (subjectLine) => `To,
-The Station House Officer (SHO)
-[Police Station Name]
-[City]
+  return `To,
+The Station House Officer (SHO),
+[Name of Police Station]
+[City/State]
 
 Date: __________
 Place: __________
 
-Subject:
-${subjectLine}
+Subject: ${subjectByCase[caseType] || subjectByCase.general}.
 
 Respected Sir/Madam,
 
-I, __________, residing at __________, would like to report the following:
+Complainant Details:
+I, __________, S/o or D/o __________, aged __________, residing at __________, contact number __________, wish to lodge this formal complaint.
 
+Incident Details:
+The incident occurred on __________ at approximately __________ at __________.
+
+Detailed Facts:
 ${incidentText}
 
 Due to this situation, I am facing financial loss and mental stress.
-`;
 
-  const requestBlock = `Request:
-I kindly request you to register my complaint and investigate the matter. If any misuse or criminal activity is found, kindly take appropriate legal action.
-`;
+Accused Description:
+The accused person is presently unknown to me. Any available description may be added here: __________
 
-  const closingBlock = `Closing:
+Property Involved:
+The property/item/money involved in the incident is described as follows: __________
+
+Witnesses/Evidence:
+Details of witnesses, CCTV, photos, videos, receipts or other evidence, if available, are as follows: __________
+
+Legal Grounds:
+${legalGroundsByCase[caseType] || legalGroundsByCase.general}
+
+Request:
+I kindly request you to register an FIR under the relevant sections of law, investigate the matter, and take appropriate legal action. I also request you to provide me with an acknowledged copy of the FIR/complaint for my records.
+
 Thanking you,
 
 Yours faithfully,
-[Name: __________]
-[Contact Number: __________]
 
-Signature: __________
-
-Important Notes:
-FIR registration depends on police verification.
-Some cases may be civil in nature.
-You may approach higher authorities if FIR is not registered`;
-
-  if (caseType === "theft") {
-    return `Title:
-Complaint Regarding Theft of [item]
-
-  ${baseHeader("Complaint regarding theft of property")}
-Item details: __________
-Location: __________
-Date/Time: __________
-If vehicle: Registration Number: __________
-
-Legal Grounds:
-IPC 379 (Theft): Taking property without permission
-
-${requestBlock}
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (documents/screenshots)
-* Keep ID proof ready
-
-${closingBlock}`;
-  }
-
-  if (caseType === "lost_item") {
-    return `Title:
-Complaint Regarding Lost [item]
-
-  ${baseHeader("Complaint regarding lost property")}
-Item details: __________
-Last seen at: __________
-Date/Time: __________
-If mobile/device: Device Model: __________, IMEI: __________
-
-Legal Grounds:
-IPC 403 (Misappropriation): Keeping property dishonestly
-
-${requestBlock}
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (documents/screenshots)
-* Keep ID proof ready
-
-${closingBlock}`;
-  }
-
-  if (caseType === "money_transfer") {
-    return `Title:
-Complaint Regarding Mistaken Fund Transfer
-
-  ${baseHeader("Complaint regarding mistaken fund transfer")}
-Transaction Details:
-* Transaction ID: __________
-* Bank/UPI: __________
-* Amount: __________
-* Date/Time: __________
-
-Legal Grounds:
-Possible sections may include:
-* IPC 403 (Dishonest Misappropriation of Property): If the receiver knowingly keeps the money without returning it.
-* IT Act: If the issue involves digital transaction misuse.
-
-${requestBlock}
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (documents/screenshots)
-* Keep ID proof ready
-* Immediately report the issue to your bank or UPI app
-
-${closingBlock}`;
-  }
-
-  if (caseType === "assault") {
-    return `Title:
-Complaint Regarding Assault and Threat
-
-  ${baseHeader("Complaint regarding assault and threat")}
-Accused details (if known): __________
-Location: __________
-Date/Time: __________
-
-Legal Grounds:
-IPC 323 (Voluntarily causing hurt)
-IPC 352 (Assault or criminal force)
-IPC 506 (Criminal intimidation)
-
-${requestBlock}
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (medical report, messages)
-* Keep ID proof ready
-
-${closingBlock}`;
-  }
-
-  if (caseType === "accident") {
-    return `Title:
-Complaint Regarding Rash Driving and Assault
-
-  ${baseHeader("Complaint regarding rash driving and assault")}
-Vehicle details: __________
-Number plate: __________
-Damage details: __________
-Location: __________
-Date/Time: __________
-
-Legal Grounds:
-IPC 279 (Rash driving)
-IPC 323 (Voluntarily causing hurt)
-IPC 506 (Criminal intimidation)
-
-${requestBlock}
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (photos, medical report)
-* Keep ID proof ready
-
-${closingBlock}`;
-  }
-
-  if (caseType === "property") {
-    return `Title:
-Complaint Regarding Property Dispute
-
-  ${baseHeader("Complaint regarding property dispute")}
-Property details: __________
-Payment details: __________
-
-Legal Grounds:
-RERA Act: For builder/property issues
-Indian Contract Act: For agreement-related obligations
-
-${requestBlock}
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (documents, receipts)
-* Keep ID proof ready
-
-${closingBlock}`;
-  }
-
-  if (caseType === "job") {
-    return `Title:
-Complaint Regarding Job Scam
-
-  ${baseHeader("Complaint regarding job scam")}
-Company/HR details: __________
-Offer details: __________
-Payment details (if any): __________
-
-Legal Grounds:
-IPC 420 (Cheating): When someone deceives and causes financial loss
-Labour Laws: For job/salary issues
-
-${requestBlock}
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (emails, messages, receipts)
-* Keep ID proof ready
-
-${closingBlock}`;
-  }
-
-  if (caseType === "fraud") {
-    return `Title:
-Complaint Regarding Fraud and Cheating
-
-  ${baseHeader("Complaint regarding fraud and cheating")}
-Payment details (if any): __________
-Mode of payment: __________
-Date/Time: __________
-
-Legal Grounds:
-IPC 420 (Cheating): When someone deceives and causes financial loss
-IT Act: For cyber fraud or digital misuse
-
-${requestBlock}
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (documents/screenshots)
-* Keep ID proof ready
-* Immediately report the issue to your bank or UPI app
-
-${closingBlock}`;
-  }
-
-  return `Title:
-Complaint Regarding Incident
-
-${baseHeader("Complaint regarding the incident")}
-Legal Grounds:
-Possible sections may include relevant IPC sections based on the facts.
-
-${requestBlock}
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (documents/screenshots)
-* Keep ID proof ready
-
-${closingBlock}`;
+(Signature / Thumb Impression)
+Name: __________
+Contact Number: __________
+Email Address: __________
+Date: __________`;
 }
 
 function sanitizeFirOutput(rawText) {

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import i18n from "../i18n";
 import { DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, resolveLanguage } from "../config/languages";
@@ -30,6 +31,7 @@ export function LanguageProvider({ children }) {
 
   useEffect(() => {
     i18n.changeLanguage(language);
+    document.documentElement.lang = language;
     localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
 
     if (user?.id) {

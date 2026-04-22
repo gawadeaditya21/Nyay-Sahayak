@@ -4,6 +4,8 @@ import FIR from "../models/FIR.js";
 import { connectTestDb, clearTestDb, closeTestDb } from "./helpers/testDb.js";
 import { createUserAndToken } from "./helpers/auth.js";
 
+let lastFirDraftInput = "";
+
 jest.unstable_mockModule("../services/aiService.js", () => ({
   analyzeDocument: async () => ({
     documentType: "Agreement",
@@ -39,7 +41,10 @@ jest.unstable_mockModule("../services/aiService.js", () => ({
   }),
   detectDocumentType: () => "legal",
   extractTextFromDocx: async () => ({ text: "docx", method: "mammoth-docx" }),
-  generateFirDraft: async () => "FIR DRAFT TEXT",
+  generateFirDraft: async (input) => {
+    lastFirDraftInput = input;
+    return "FIR DRAFT TEXT";
+  },
   extractNumericTokens: () => [],
   hasMissingNumericTokens: () => false,
   hasPlaceholders: () => false,
@@ -104,6 +109,8 @@ test("POST /api/generate-fir accepts guided FIR answers", async () => {
         incidentDate: "2026-04-20",
         incidentLocation: "MG Road Police Station area",
         incidentDescription: "My phone was stolen from my bag.",
+        propertyInvolved: "Yes",
+        propertyDetails: "one analog watch around 5000 rupees",
         victimDetails: "Test User, Pune, 9999999999",
       },
       answer_labels: {
@@ -116,6 +123,10 @@ test("POST /api/generate-fir accepts guided FIR answers", async () => {
 
   expect(response.body.success).toBe(true);
   expect(response.body.fir_text).toContain("FIR DRAFT TEXT");
+  expect(lastFirDraftInput).toContain("Incident type: Theft.");
+  expect(lastFirDraftInput).toContain("Property details: one analog watch around 5000 rupees.");
+  expect(lastFirDraftInput).not.toContain("What type of incident are you reporting?");
+  expect(lastFirDraftInput).not.toContain("Incident type: [NAME");
 });
 
 test("Guest limit allows 1 FIR generation", async () => {

@@ -123,6 +123,34 @@
       "question": "Provide your full name, address, and contact number.",
       "field": "victimDetails",
       "type": "textarea",
+      "next": "fatherOrHusbandName"
+    },
+
+    "fatherOrHusbandName": {
+      "question": "Provide your father's or husband's name. If you do not want to provide it, type N/A.",
+      "field": "fatherOrHusbandName",
+      "type": "text",
+      "next": "complainantAge"
+    },
+
+    "complainantAge": {
+      "question": "Provide your age. If you do not want to provide it, type N/A.",
+      "field": "complainantAge",
+      "type": "text",
+      "next": "complainantEmail"
+    },
+
+    "complainantEmail": {
+      "question": "Provide your email address for the closing section. If you do not have one, type N/A.",
+      "field": "complainantEmail",
+      "type": "text",
+      "next": "signatureName"
+    },
+
+    "signatureName": {
+      "question": "What name should appear below the signature section?",
+      "field": "signatureName",
+      "type": "text",
       "next": "additionalInfo"
     },
 

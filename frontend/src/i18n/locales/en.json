@@ -9,7 +9,67 @@
   "settings": {
     "title": "Settings",
     "preferences": "Preferences",
-    "language": "Language"
+    "language": "Language",
+    "subtitle": "Manage your account preferences and application settings.",
+    "languageHelp": "Select your preferred language for the legal assistant interface.",
+    "accountDetails": "Account Details",
+    "billingHelp": "Manage billing and features."
+  },
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "newChat": "New Legal Chat",
+    "generateFir": "Generate FIR",
+    "analyzeDoc": "Analyze Doc",
+    "today": "Today",
+    "previousSevenDays": "Previous 7 Days",
+    "noHistoryToday": "No {{type}} history yet today.",
+    "noRecentHistory": "No recent history.",
+    "tagline": "Unified legal assistant for your rights in India.",
+    "tabs": {
+      "chats": "Chats",
+      "firs": "FIRs",
+      "docs": "Docs"
+    },
+    "historyTypes": {
+      "chat": "chat",
+      "fir": "FIR",
+      "analysis": "document"
+    }
+  },
+  "dashboard": {
+    "eyebrow": "Account activity",
+    "title": "Dashboard",
+    "lastSaved": "Last saved activity",
+    "loggedInHistory": "Logged-in history",
+    "loading": "Loading dashboard activity...",
+    "pastSevenDays": "Past 7 days",
+    "savedActivities": "{{count}} saved activities",
+    "recentActivity": "Recent activity",
+    "recentSubtitle": "Latest saved work across the app",
+    "labels": {
+      "chats": "Legal chats",
+      "analyses": "Document analyses",
+      "firs": "FIR drafts",
+      "overall": "Overall saved activity"
+    },
+    "details": {
+      "messages": "{{count}} chat messages saved",
+      "chatSessions": "Saved chat sessions",
+      "analysisRecords": "{{count}} analysis records",
+      "firDrafts": "Saved generated drafts"
+    },
+    "empty": {
+      "noSaved": "No saved activity yet"
+    },
+    "errors": {
+      "load": "Unable to load dashboard activity."
+    },
+    "time": {
+      "minutesAgo": "{{count}} min ago",
+      "hoursAgo": "{{count}} hr ago",
+      "daysAgo": "{{count}} day ago",
+      "daysAgo_plural": "{{count}} days ago"
+    }
   },
   "chat": {
     "title": "Nyay Sahayak Legal Assistant",
