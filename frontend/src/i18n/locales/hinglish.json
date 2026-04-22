@@ -6,6 +6,18 @@
   "header": {
     "plan": "Basic Plan"
   },
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "cases": "Cases",
+    "documents": "Documents",
+    "chat": "Nayi Legal Chat",
+    "settings": "Settings",
+    "today": "Aaj",
+    "previous7Days": "Pichhle 7 Din",
+    "noHistoryToday": "Aaj tak koi history nahi hai.",
+    "noRecentHistory": "Koi recent history nahi hai.",
+    "footerSubtitle": "India mein aapke adhikaron ke liye ek unified legal assistant."
+  },
   "settings": {
     "title": "Settings",
     "preferences": "Preferences",

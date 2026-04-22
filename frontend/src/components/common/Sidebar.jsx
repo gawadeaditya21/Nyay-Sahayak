@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { MessageSquarePlus, FileText, Search, LayoutList } from "lucide-react";
+import { MessageSquarePlus, FileText, Search, LayoutList, Settings } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "react-i18next";
+import { useLanguage } from "../../context/LanguageContext.jsx";
 
 function groupSessionsByWindow(sessions = []) {
   const now = new Date();
@@ -23,6 +25,8 @@ function groupSessionsByWindow(sessions = []) {
 
 export default function Sidebar({ isOpen, close, recentChats = [], firSessions = [], analysisSessions = [], onNewChat }) {
   const [activeTab, setActiveTab] = useState("chat");
+  const { t } = useTranslation();
+  const { language } = useLanguage();
   const location = useLocation();
 
   const getActiveSessions = () => {
@@ -47,12 +51,13 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
 
   return (
     <motion.aside
+      data-language={language}
       className={`fixed inset-y-0 left-0 z-40 flex h-full w-80 flex-col bg-[#050505] px-5 py-6 transition-transform lg:static lg:translate-x-0 ${
         isOpen ? "translate-x-0" : "-translate-x-full"
       }`}
     >
       <div className="mb-6 flex items-center justify-between lg:hidden">
-        <span className="font-serif text-lg font-bold text-white tracking-tight">Nyay Sahayak</span>
+        <span className="font-serif text-lg font-bold tracking-tight text-white">{t("appName")}</span>
       </div>
 
       <div className="space-y-3">
@@ -62,7 +67,7 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
           className="group flex items-center justify-center gap-3 rounded-2xl border border-indigo-500/20 bg-indigo-600/10 px-4 py-3 text-sm font-bold text-indigo-300 transition-all hover:bg-indigo-600 hover:text-white"
         >
           <MessageSquarePlus size={18} className="transition-transform group-hover:scale-110" />
-          New Legal Chat
+          {t("sidebar.chat")}
         </Link>
         <div className="grid grid-cols-2 gap-2">
           <Link
@@ -71,7 +76,7 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
             className="group flex items-center justify-center gap-2 rounded-xl border border-slate-700/50 bg-slate-800/30 px-3 py-2.5 text-xs font-semibold text-slate-300 transition-all hover:bg-slate-800 hover:text-slate-100"
           >
             <FileText size={14} className="transition-transform group-hover:scale-110" />
-            Generate FIR
+            {t("sidebar.cases")}
           </Link>
           <Link
             to="/analyze"
@@ -79,16 +84,16 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
             className="group flex items-center justify-center gap-2 rounded-xl border border-slate-700/50 bg-slate-800/30 px-3 py-2.5 text-xs font-semibold text-slate-300 transition-all hover:bg-slate-800 hover:text-slate-100"
           >
             <Search size={14} className="transition-transform group-hover:scale-110" />
-            Analyze Doc
+            {t("sidebar.documents")}
           </Link>
         </div>
       </div>
 
       <div className="mt-8 flex rounded-xl bg-white/5 p-1">
         {[
-          { id: "chat", label: "Chats" },
-          { id: "fir", label: "FIRs" },
-          { id: "analysis", label: "Docs" }
+          { id: "chat", label: t("sidebar.dashboard") },
+          { id: "fir", label: t("sidebar.cases") },
+          { id: "analysis", label: t("sidebar.documents") }
         ].map(tab => (
           <button
             key={tab.id}
@@ -113,11 +118,11 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
             className="space-y-8"
           >
             <div>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Today</p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{t("sidebar.today")}</p>
               <div className="mt-3 space-y-2">
                 {today.length === 0 ? (
                   <div className="rounded-xl border border-white/5 bg-white/5 px-3 py-2 text-xs text-slate-500">
-                    No {activeTab} history yet today.
+                    {t("sidebar.noHistoryToday")}
                   </div>
                 ) : (
                   today.map((session) => (
@@ -145,11 +150,11 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
             </div>
 
             <div>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Previous 7 Days</p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{t("sidebar.previous7Days")}</p>
               <div className="mt-3 space-y-2">
                 {previous.length === 0 ? (
                   <div className="rounded-xl border border-white/5 bg-white/5 px-3 py-2 text-xs text-slate-500">
-                    No recent history.
+                    {t("sidebar.noRecentHistory")}
                   </div>
                 ) : (
                   previous.map((session) => (
@@ -179,9 +184,17 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
         </AnimatePresence>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-indigo-500/10 bg-indigo-600/5 p-4">
-        <p className="text-[11px] font-semibold text-indigo-300">Nyay Sahayak</p>
-        <p className="mt-2 text-[11px] text-slate-500">Unified legal assistant for your rights in India.</p>
+      <div className="mt-4 space-y-3 rounded-2xl border border-indigo-500/10 bg-indigo-600/5 p-4">
+        <Link
+          to="/settings"
+          onClick={close}
+          className="flex items-center gap-2 text-[11px] font-semibold text-indigo-300 transition-colors hover:text-indigo-200"
+        >
+          <Settings size={14} />
+          {t("sidebar.settings")}
+        </Link>
+        <p className="text-[11px] font-semibold text-indigo-300">{t("appName")}</p>
+        <p className="mt-2 text-[11px] text-slate-500">{t("sidebar.footerSubtitle")}</p>
       </div>
     </motion.aside>
   );

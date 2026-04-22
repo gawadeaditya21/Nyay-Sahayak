@@ -4,6 +4,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ScanSearch, Bot, AlertTriangle, CheckCircle } from "lucide-react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { useTranslation } from "react-i18next";
 
 const FloatingPapers = () => {
   const groupRef = useRef();
@@ -60,6 +61,7 @@ const FloatingPapers = () => {
 };
 
 const DocumentScanner = () => {
+  const { t } = useTranslation();
   const wrapperRef = useRef(null);
   const sectionRef = useRef(null);
   const tiltRef = useRef(null);
@@ -153,10 +155,10 @@ const DocumentScanner = () => {
         <div className="max-w-6xl mx-auto px-6 w-full text-center relative z-10 flex flex-col h-full justify-center">
           <div className="mb-10">
             <h2 className="text-indigo-500 font-bold tracking-[0.2em] uppercase text-sm mb-4 inline-flex items-center gap-2">
-              <ScanSearch size={16} /> Interactive 3D Forensic Scan
+              <ScanSearch size={16} /> {t("landing.documentScanner.badge")}
             </h2>
             <h3 className="text-4xl md:text-5xl font-serif font-bold text-white">
-              Transform chaos into clarity.
+              {t("landing.documentScanner.headline")}
             </h3>
           </div>
 
@@ -176,34 +178,29 @@ const DocumentScanner = () => {
                   <div className="ai-ui-item flex items-center gap-3 text-indigo-400 mb-6">
                     <Bot size={28} />
                     <span className="font-bold tracking-widest uppercase text-sm">
-                      AI Analysis Complete
+                      {t("landing.documentScanner.analysisComplete")}
                     </span>
                   </div>
                   <h4 className="ai-ui-item text-3xl md:text-5xl font-serif font-bold text-white mb-6 leading-tight">
-                    "You are absorbing <span className="text-rose-500">unbounded</span> liability."
+                    {t("landing.documentScanner.liabilityQuotePrefix")} <span className="text-rose-500">{t("landing.documentScanner.liabilityQuoteEmphasis")}</span> {t("landing.documentScanner.liabilityQuoteSuffix")}
                   </h4>
                   <p className="ai-ui-item text-slate-400 text-lg leading-relaxed max-w-lg">
-                    The document explicitly forces you to cover all future costs, even those out of your control.
-                    We strongly recommend renegotiating the indemnity clause.
+                    {t("landing.documentScanner.analysisCopy")}
                   </p>
                 </div>
                 <div className="flex-1 w-full space-y-4">
                   <div className="ai-ui-item p-6 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-4 backdrop-blur-sm shadow-xl">
                     <AlertTriangle className="text-rose-500 shrink-0 mt-1" />
                     <div>
-                      <div className="text-white font-bold text-lg mb-1">High Risk Detected</div>
-                      <div className="text-rose-400/80">
-                        Indemnity clause exposes you to severe financial risk.
-                      </div>
+                      <div className="text-white font-bold text-lg mb-1">{t("landing.documentScanner.highRiskDetected")}</div>
+                      <div className="text-rose-400/80">{t("landing.documentScanner.highRiskCopy")}</div>
                     </div>
                   </div>
                   <div className="ai-ui-item p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-start gap-4 backdrop-blur-sm shadow-xl">
                     <CheckCircle className="text-emerald-500 shrink-0 mt-1" />
                     <div>
-                      <div className="text-white font-bold text-lg mb-1">Standard Confidentiality</div>
-                      <div className="text-emerald-400/80">
-                        NDA terms are standard industry practice and safe to sign.
-                      </div>
+                      <div className="text-white font-bold text-lg mb-1">{t("landing.documentScanner.standardConfidentiality")}</div>
+                      <div className="text-emerald-400/80">{t("landing.documentScanner.safeCopy")}</div>
                     </div>
                   </div>
                 </div>
@@ -216,7 +213,7 @@ const DocumentScanner = () => {
               >
                 <img
                   src="https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=2000"
-                  alt="Complex Legal Document"
+                  alt={t("landing.documentScanner.complexLegalDocumentAlt")}
                   className="absolute inset-0 w-full h-full object-cover opacity-20 mix-blend-multiply pointer-events-none"
                 />
                 <div className="relative z-10 text-slate-800 font-mono text-sm md:text-xl leading-relaxed text-justify opacity-60 filter blur-[0.5px]">
@@ -228,7 +225,7 @@ const DocumentScanner = () => {
                   expenses whatsoever arising out of..."
                   <br />
                   <br />
-                  <span className="font-bold border-b border-slate-400">SIGNATURE: _______________________</span>
+                  <span className="font-bold border-b border-slate-400">{t("landing.documentScanner.signatureLabel")}</span>
                 </div>
               </div>
 
@@ -254,7 +251,7 @@ const DocumentScanner = () => {
             </div>
           </div>
           <p className="mt-8 text-slate-500 text-sm tracking-widest uppercase animate-pulse">
-            Hover to explore in 3D • Scroll down to scan
+            {t("landing.documentScanner.footerHint")}
           </p>
         </div>
       </section>

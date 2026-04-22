@@ -2,56 +2,9 @@ import React, { useRef, useLayoutEffect, useState } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { ShieldAlert, CheckCircle2, Zap, AlertTriangle, FileSearch } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 gsap.registerPlugin(ScrollTrigger);
-
-// ─── Legal clauses data ───
-const clauses = [
-  {
-    id: 1,
-    legal: `"1.1 INDEMNIFICATION: The Party of the Second Part agrees to indemnify, defend, and hold harmless the Party of the First Part from and against any and all claims, damages, liabilities, costs, and expenses (including but not limited to reasonable attorneys' fees)..."`,
-    activeColor: 'indigo',
-    title: 'Standard Indemnity',
-    risk: 'Normal Risk Level',
-    riskColor: 'indigo',
-    icon: Zap,
-    explanation: 'You are responsible for paying the legal fees if your actions cause the company to get sued. This is standard for most contracts.',
-    verdict: 'Safe to sign',
-    verdictIcon: CheckCircle2,
-    cardBg: 'bg-[#0f0f12]',
-    cardBorder: 'border-indigo-500/30',
-  },
-  {
-    id: 2,
-    legal: `"2.4 TERMINATION FOR CONVENIENCE: Notwithstanding any other provision in this Agreement, the Company reserves the unilateral right to terminate this contract at its sole discretion, at any time, with or without cause, upon providing a written notice period of no less than twenty-four (24) hours..."`,
-    activeColor: 'rose',
-    title: 'Sudden Termination',
-    risk: 'High Risk Detected',
-    riskColor: 'rose',
-    icon: ShieldAlert,
-    explanation: 'They can fire you or cancel this contract at any time, for no reason, with only',
-    highlightText: '24 hours',
-    explanationAfter: 'notice.',
-    verdict: 'Renegotiate for 30-day notice',
-    verdictIcon: AlertTriangle,
-    cardBg: 'bg-[#1a0f12]',
-    cardBorder: 'border-rose-500/30',
-  },
-  {
-    id: 3,
-    legal: `"5.2 DATA USAGE: User grants the Platform a perpetual, irrevocable, worldwide, royalty-free, and non-exclusive license to reproduce, adapt, modify, translate, publish, publicly perform, publicly display, and distribute any Content which User submits..."`,
-    activeColor: 'emerald',
-    title: 'Content Rights',
-    risk: 'Low Risk',
-    riskColor: 'emerald',
-    icon: CheckCircle2,
-    explanation: 'You still own your content, but you are giving the platform permission to display and share it across their network.',
-    verdict: 'Standard terms',
-    verdictIcon: CheckCircle2,
-    cardBg: 'bg-[#0f1a14]',
-    cardBorder: 'border-emerald-500/30',
-  },
-];
 
 // ─── Color maps for Tailwind dynamic classes ───
 const bgActiveMap = {
@@ -147,9 +100,56 @@ const TranslationCard = ({ clause, isActive, direction }) => {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════
 const LegaleseDecoder = () => {
+  const { t } = useTranslation();
   const wrapperRef = useRef(null);
   const headerRef = useRef(null);
   const [activeStep, setActiveStep] = useState(1);
+  const clauses = [
+    {
+      id: 1,
+      legal: `"1.1 INDEMNIFICATION: The Party of the Second Part agrees to indemnify, defend, and hold harmless the Party of the First Part from and against any and all claims, damages, liabilities, costs, and expenses (including but not limited to reasonable attorneys' fees)..."`,
+      activeColor: 'indigo',
+      title: t('landing.legaleseDecoder.clauses.indemnityTitle'),
+      risk: t('landing.legaleseDecoder.clauses.indemnityRisk'),
+      riskColor: 'indigo',
+      icon: Zap,
+      explanation: t('landing.legaleseDecoder.clauses.indemnityExplanation'),
+      verdict: t('landing.legaleseDecoder.clauses.indemnityVerdict'),
+      verdictIcon: CheckCircle2,
+      cardBg: 'bg-[#0f0f12]',
+      cardBorder: 'border-indigo-500/30',
+    },
+    {
+      id: 2,
+      legal: `"2.4 TERMINATION FOR CONVENIENCE: Notwithstanding any other provision in this Agreement, the Company reserves the unilateral right to terminate this contract at its sole discretion, at any time, with or without cause, upon providing a written notice period of no less than twenty-four (24) hours..."`,
+      activeColor: 'rose',
+      title: t('landing.legaleseDecoder.clauses.terminationTitle'),
+      risk: t('landing.legaleseDecoder.clauses.terminationRisk'),
+      riskColor: 'rose',
+      icon: ShieldAlert,
+      explanation: t('landing.legaleseDecoder.clauses.terminationExplanationPrefix'),
+      highlightText: t('landing.legaleseDecoder.clauses.terminationHighlight'),
+      explanationAfter: t('landing.legaleseDecoder.clauses.terminationExplanationSuffix'),
+      verdict: t('landing.legaleseDecoder.clauses.terminationVerdict'),
+      verdictIcon: AlertTriangle,
+      cardBg: 'bg-[#1a0f12]',
+      cardBorder: 'border-rose-500/30',
+    },
+    {
+      id: 3,
+      legal: `"5.2 DATA USAGE: User grants the Platform a perpetual, irrevocable, worldwide, royalty-free, and non-exclusive license to reproduce, adapt, modify, translate, publish, publicly perform, publicly display, and distribute any Content which User submits..."`,
+      activeColor: 'emerald',
+      title: t('landing.legaleseDecoder.clauses.contentTitle'),
+      risk: t('landing.legaleseDecoder.clauses.contentRisk'),
+      riskColor: 'emerald',
+      icon: CheckCircle2,
+      explanation: t('landing.legaleseDecoder.clauses.contentExplanation'),
+      verdict: t('landing.legaleseDecoder.clauses.contentVerdict'),
+      verdictIcon: CheckCircle2,
+      cardBg: 'bg-[#0f1a14]',
+      cardBorder: 'border-emerald-500/30',
+    },
+  ];
 
   useLayoutEffect(() => {
     const ctx = gsap.context(() => {
@@ -202,12 +202,12 @@ const LegaleseDecoder = () => {
           <div ref={headerRef} className="mb-8 md:mb-10 text-center md:text-left shrink-0">
             <div className="inline-flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-widest mb-4">
               <FileSearch size={16} />
-              <span>Real-time Decoding</span>
+              <span>{t('landing.legaleseDecoder.badge')}</span>
             </div>
             <h2 className="text-3xl md:text-5xl font-serif font-bold text-white">
-              We read the fine print.
+              {t('landing.legaleseDecoder.headlineLine1')}
               <br />
-              You get the bottom line.
+              {t('landing.legaleseDecoder.headlineLine2')}
             </h2>
           </div>
 

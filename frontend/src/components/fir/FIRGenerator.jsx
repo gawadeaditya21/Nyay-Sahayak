@@ -30,12 +30,12 @@ export default function FIRGenerator() {
 
   const handleGenerate = async () => {
     if (!userInput.trim()) {
-      setError("Please enter your problem description.");
+      setError(t("fir.enterProblemDescription"));
       return;
     }
 
     if (isGuestUser() && !canUseGuestFeature("fir")) {
-      setError("Please login to continue");
+      setError(t("common.pleaseLoginToContinue"));
       return;
     }
 
@@ -56,7 +56,7 @@ export default function FIRGenerator() {
         incrementGuestUsage("fir");
       }
     } catch (err) {
-      setError(err.message || "Unable to generate FIR.");
+      setError(err.message || t("fir.unableToGenerate"));
     } finally {
       setLoading(false);
     }
@@ -72,7 +72,7 @@ export default function FIRGenerator() {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch (err) {
-      setError("Copy failed. Please try again.");
+      setError(t("fir.copyFailed"));
     }
   };
 
@@ -115,7 +115,7 @@ export default function FIRGenerator() {
           value={userInput}
           onChange={(event) => setUserInput(event.target.value)}
           placeholder={t("fir.placeholder")}
-          className="mt-6 min-h-[160px] w-full resize-none rounded-2xl border border-white/10 bg-[#0a0a0b] px-4 py-3 text-sm text-slate-200 outline-none focus:border-indigo-500"
+          className="mt-6 min-h-40 w-full resize-none rounded-2xl border border-white/10 bg-[#0a0a0b] px-4 py-3 text-sm text-slate-200 outline-none focus:border-indigo-500"
         />
 
         {error && (
@@ -151,7 +151,7 @@ export default function FIRGenerator() {
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
               >
                 <Copy size={14} />
-                {copied ? t("fir.copied") : t("fir.copy")}
+                  {copied ? t("fir.copied") : t("fir.copy")}
               </button>
               <button
                 onClick={handleDownload}
@@ -163,7 +163,7 @@ export default function FIRGenerator() {
             </div>
           </div>
 
-          <div className="mt-4 max-h-[520px] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-800">
+          <div className="mt-4 max-h-130 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-800">
             <pre className="whitespace-pre-wrap font-sans">{firText}</pre>
           </div>
         </div>

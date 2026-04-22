@@ -2,9 +2,11 @@ import React, { useRef, useLayoutEffect } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { Upload, Cpu, ShieldCheck, ArrowRight } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 const HowItWorks = () => {
   const containerRef = useRef(null);
+  const { t } = useTranslation();
 
   useLayoutEffect(() => {
     const ctx = gsap.context(() => {
@@ -43,9 +45,9 @@ const HowItWorks = () => {
   }, []);
 
   const steps = [
-    { title: "Upload Document", description: "Securely upload your PDF or image files. Our system immediately masks sensitive data to protect your privacy.", icon: <Upload size={32} /> },
-    { title: "Forensic Analysis", description: "Gemini AI scans every clause, identifying hidden risks and translating complex legal jargon into plain English.", icon: <Cpu size={32} /> },
-    { title: "Get Instant Clarity", description: "Review a high-level risk report or chat directly with the document to ask specific legal questions.", icon: <ShieldCheck size={32} /> },
+    { title: t("landing.howItWorks.uploadTitle"), description: t("landing.howItWorks.uploadDescription"), icon: <Upload size={32} /> },
+    { title: t("landing.howItWorks.analysisTitle"), description: t("landing.howItWorks.analysisDescription"), icon: <Cpu size={32} /> },
+    { title: t("landing.howItWorks.clarityTitle"), description: t("landing.howItWorks.clarityDescription"), icon: <ShieldCheck size={32} /> },
   ];
 
   return (
@@ -54,10 +56,10 @@ const HowItWorks = () => {
         
         <div className="text-center mb-24 step-row">
           <h2 className="text-indigo-500 font-bold tracking-[0.2em] uppercase text-sm mb-4">
-            The Process
+            {t("landing.howItWorks.badge")}
           </h2>
           <h3 className="text-4xl md:text-6xl font-serif font-bold text-white">
-            Three Steps to Safety
+            {t("landing.howItWorks.headline")}
           </h3>
         </div>
 
@@ -91,7 +93,7 @@ const HowItWorks = () => {
 
         <div className="mt-40 text-center step-row">
           <button className="inline-flex items-center gap-4 px-10 py-5 bg-white text-[#050505] rounded-full font-bold text-xl hover:bg-indigo-50 transition-colors shadow-[0_0_40px_rgba(255,255,255,0.2)] group">
-            Start Your First Analysis
+            {t("landing.howItWorks.cta")}
             <span className="w-8 h-8 rounded-full bg-[#050505] text-white flex items-center justify-center group-hover:translate-x-2 transition-transform">
               <ArrowRight size={16} />
             </span>

@@ -8,31 +8,32 @@ import {
   Shield,
   Sparkles,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 const clamp = (value) => Math.max(0, Math.min(1, value));
 const normalize = (value, start, end) => clamp((value - start) / (end - start));
 
-const features = [
-  {
-    title: 'Risk Mitigation',
-    desc: 'Hidden liabilities exposed instantly.',
-    icon: Shield,
-  },
-  {
-    title: 'AI Review Core',
-    desc: 'A focused analysis layer for clause-by-clause scrutiny.',
-    icon: Sparkles,
-  },
-  {
-    title: 'Legal Precision',
-    desc: 'Structured output that reads like a real legal workflow.',
-    icon: Scale,
-  },
-];
-
 export default function CinematicRevealSection() {
+  const { t } = useTranslation();
   const wrapperRef = useRef(null);
   const [progress, setProgress] = useState(0);
+  const features = [
+    {
+      title: t("landing.cinematic.features.riskMitigationTitle"),
+      desc: t("landing.cinematic.features.riskMitigationDesc"),
+      icon: Shield,
+    },
+    {
+      title: t("landing.cinematic.features.aiReviewTitle"),
+      desc: t("landing.cinematic.features.aiReviewDesc"),
+      icon: Sparkles,
+    },
+    {
+      title: t("landing.cinematic.features.legalPrecisionTitle"),
+      desc: t("landing.cinematic.features.legalPrecisionDesc"),
+      icon: Scale,
+    },
+  ];
 
   useEffect(() => {
     let rafId = 0;
@@ -107,13 +108,13 @@ export default function CinematicRevealSection() {
           <div className="max-w-5xl w-full text-center">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] sm:text-xs font-bold uppercase tracking-[0.28em] mb-6 sm:mb-8 backdrop-blur-sm">
               <CheckCircle2 size={14} />
-              <span>Scan Complete</span>
+              <span>{t("landing.cinematic.scanComplete")}</span>
             </div>
             <h2 className="text-4xl sm:text-5xl md:text-7xl font-serif font-bold text-white leading-tight">
-              Welcome to Clarity.
+              {t("landing.cinematic.headline")}
             </h2>
             <p className="mt-5 sm:mt-6 text-slate-400 text-sm sm:text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
-              The paper opens, the noise drops away, and the AI core becomes the only thing left in frame.
+              {t("landing.cinematic.subcopy")}
             </p>
 
             <div className="grid md:grid-cols-3 gap-4 sm:gap-6 mt-10 sm:mt-14 text-left">
@@ -158,14 +159,14 @@ export default function CinematicRevealSection() {
                 </div>
 
                 <h3 className="text-3xl sm:text-4xl md:text-5xl font-serif font-bold text-white mb-4">
-                  Nyay Sahayak
+                  {t("appName")}
                 </h3>
 
                 <div className="space-y-3 sm:space-y-4 text-slate-400 text-sm sm:text-base leading-relaxed max-w-md mx-auto">
-                  <p>Initializing forensic AI analysis protocol.</p>
-                  <p className="text-indigo-300 font-medium">STATUS: Scanning clauses for unbounded liability.</p>
+                  <p>{t("landing.cinematic.initializing")}</p>
+                  <p className="text-indigo-300 font-medium">{t("landing.cinematic.status")}</p>
                   <div className="w-full h-px bg-linear-to-r from-transparent via-indigo-500/50 to-transparent my-4" />
-                  <p>Prepare for the deep-dive extraction.</p>
+                  <p>{t("landing.cinematic.prepare")}</p>
                 </div>
               </div>
             </div>
@@ -180,7 +181,7 @@ export default function CinematicRevealSection() {
             >
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-cyan-200 flex items-center gap-2 bg-[#050505] px-3 py-1 rounded-full border border-cyan-500/50">
                 <ScanSearch size={14} className="animate-spin" />
-                <span className="text-[10px] font-bold tracking-[0.28em] uppercase">Scanning</span>
+                <span className="text-[10px] font-bold tracking-[0.28em] uppercase">{t("landing.cinematic.scanning")}</span>
               </div>
             </div>
           </div>
@@ -216,7 +217,7 @@ export default function CinematicRevealSection() {
 
         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-3 text-slate-500 text-[11px] sm:text-xs tracking-[0.28em] uppercase">
           <div className="w-10 sm:w-12 h-px bg-slate-700" />
-          Deep scan sequence
+          {t("landing.cinematic.footerLeft")}
           <div className="w-10 sm:w-12 h-px bg-slate-700" />
           <ArrowRight size={14} className="text-slate-600" />
         </div>
