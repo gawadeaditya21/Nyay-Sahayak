@@ -25,7 +25,7 @@ export default function Header({ toggleSidebar }) {
         <div className="hidden sm:block p-1.5 bg-indigo-600 rounded-lg">
           <Scale size={20} className="text-white" />
         </div>
-        <Link title="Home" to="/chat" className="hidden sm:block font-serif font-bold text-lg text-white tracking-tight hover:opacity-80 transition">
+        <Link title={t("common.home")} to="/chat" className="hidden sm:block font-serif font-bold text-lg text-white tracking-tight hover:opacity-80 transition">
           {t('appName')}
         </Link>
       </div>

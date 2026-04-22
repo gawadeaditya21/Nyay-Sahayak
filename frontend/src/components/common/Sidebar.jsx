@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MessageSquarePlus, FileText, Search, LayoutList, Gauge } from "lucide-react";
+import { MessageSquarePlus, FileText, Search, LayoutList, Gauge, Settings } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { AnimatePresence, motion as Motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
@@ -55,7 +55,7 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
       }`}
     >
       <div className="mb-6 flex items-center justify-between lg:hidden">
-        <span className="font-serif text-lg font-bold text-white tracking-tight">Nyay Sahayak</span>
+        <span className="font-serif text-lg font-bold tracking-tight text-white">{t("appName")}</span>
       </div>
 
       <div className="space-y-3">
@@ -196,9 +196,17 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
         </AnimatePresence>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-indigo-500/10 bg-indigo-600/5 p-4">
-        <p className="text-[11px] font-semibold text-indigo-300">Nyay Sahayak</p>
-        <p className="mt-2 text-[11px] text-slate-500">{t("sidebar.tagline")}</p>
+      <div className="mt-4 space-y-3 rounded-2xl border border-indigo-500/10 bg-indigo-600/5 p-4">
+        <Link
+          to="/settings"
+          onClick={close}
+          className="flex items-center gap-2 text-[11px] font-semibold text-indigo-300 transition-colors hover:text-indigo-200"
+        >
+          <Settings size={14} />
+          {t("sidebar.settings")}
+        </Link>
+        <p className="text-[11px] font-semibold text-indigo-300">{t("appName")}</p>
+        <p className="mt-2 text-[11px] text-slate-500">{t("sidebar.footerSubtitle")}</p>
       </div>
     </Motion.aside>
   );

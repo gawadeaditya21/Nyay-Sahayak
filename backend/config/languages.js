@@ -1,5 +1,5 @@
 export const DEFAULT_LANGUAGE = "en";
-export const SUPPORTED_LANGUAGE_CODES = ["en", "hi", "mr"];
+export const SUPPORTED_LANGUAGE_CODES = ["en", "hi", "mr", "hinglish"];
 
 export const SUPPORTED_LANGUAGES = {
   en: {
@@ -18,6 +18,12 @@ export const SUPPORTED_LANGUAGES = {
     label: "Marathi",
     aiInstruction:
       "You MUST respond only in Marathi using clear everyday words. Keep law names in English.",
+  },
+  hinglish: {
+    code: "hinglish",
+    label: "Hinglish",
+    aiInstruction:
+      "You MUST respond only in Hinglish using Romanized Hindi and simple everyday words. Keep law names in English.",
   },
 };
 
@@ -38,6 +44,9 @@ export function resolveLanguage(input) {
     return byLabel.code;
   }
 
+  if (raw.startsWith("hing")) {
+    return "hinglish";
+  }
   if (raw.startsWith("hi")) {
     return "hi";
   }

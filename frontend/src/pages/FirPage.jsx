@@ -3,7 +3,6 @@ import {
   CheckCircle2,
   Copy,
   Download,
-  FileText,
   Loader2,
   RotateCcw,
   Send,
@@ -162,7 +161,7 @@ export default function FirPage() {
 
     const guest = isGuestUser();
     if (guest && !canUseGuestFeature("fir")) {
-      setError("Please login to continue");
+      setError(t("common.pleaseLoginToContinue"));
       return;
     }
 
@@ -198,7 +197,7 @@ export default function FirPage() {
         setSearchParams({ session: targetSessionId }, { replace: true });
       }
     } catch (err) {
-      setError(err.message || "Unable to generate FIR.");
+      setError(err.message || t("fir.unableToGenerate"));
     } finally {
       setLoading(false);
     }
@@ -211,7 +210,7 @@ export default function FirPage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      setError("Copy failed. Please try again.");
+      setError(t("fir.copyFailed"));
     }
   };
 
@@ -261,7 +260,7 @@ export default function FirPage() {
           onChange={(event) => setCurrentAnswer(event.target.value)}
           placeholder="Type your answer..."
           disabled={loading}
-          className="mt-5 min-h-[132px] w-full resize-none rounded-xl border border-white/10 bg-[#0a0a0b] px-4 py-4 text-[15px] text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-indigo-500 disabled:opacity-50"
+          className="mt-5 min-h-33 w-full resize-none rounded-xl border border-white/10 bg-[#0a0a0b] px-4 py-4 text-[15px] text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-indigo-500 disabled:opacity-50"
         />
       );
     }
@@ -321,7 +320,7 @@ export default function FirPage() {
           <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
             <div className="rounded-2xl border border-white/10 bg-[#17171b] p-5">
               {step === "end" ? (
-                <div className="flex min-h-[220px] flex-col items-center justify-center text-center">
+                <div className="flex min-h-55 flex-col items-center justify-center text-center">
                   {loading ? (
                     <Loader2 size={34} className="animate-spin text-indigo-400" />
                   ) : (
@@ -366,7 +365,7 @@ export default function FirPage() {
               {answeredItems.length === 0 ? (
                 <p className="mt-3 text-sm text-slate-500">Answers will appear here as you progress.</p>
               ) : (
-                <div className="mt-4 max-h-[360px] space-y-3 overflow-y-auto pr-1">
+                <div className="mt-4 max-h-90 space-y-3 overflow-y-auto pr-1">
                   {answeredItems.map((item) => (
                     <div key={item.field} className="rounded-xl border border-white/10 bg-[#0a0a0b] p-3">
                       <p className="text-xs font-semibold text-slate-500">{item.label}</p>
@@ -403,7 +402,7 @@ export default function FirPage() {
               </div>
             </div>
 
-            <div className="max-h-[600px] overflow-y-auto rounded-xl border border-slate-100 bg-[#f8fafc] p-6 text-[15px] leading-relaxed text-slate-800 shadow-inner">
+            <div className="max-h-150 overflow-y-auto rounded-xl border border-slate-100 bg-[#f8fafc] p-6 text-[15px] leading-relaxed text-slate-800 shadow-inner">
               <pre className="whitespace-pre-wrap font-serif text-[15px] leading-relaxed">{firText}</pre>
             </div>
           </div>

@@ -4,8 +4,12 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { useTranslation } from 'react-i18next';
 
 import Hero from '../components/landing/Hero';
+import CinematicRevealSection from '../components/landing/CinematicRevealSection';
+import LegaleseDecoder from '../components/landing/LegaleseDecoder';
+import AiAdvocateSection from '../components/landing/AiAdvocateSection';
 import Features from '../components/landing/Features';
 import DocumentScanner from '../components/landing/DocumentScanner';
 import HowItWorks from '../components/landing/HowItWorks';
@@ -84,6 +88,7 @@ const CustomCursor = () => {
 };
 
 export default function LandingPage() {
+  const { t } = useTranslation();
   
   useLayoutEffect(() => {
     const lenis = new Lenis({
@@ -120,13 +125,16 @@ export default function LandingPage() {
       {/* Changed overflow-hidden to overflow-x-clip for better GSAP performance */}
       <main className="relative z-10 w-full overflow-x-clip">
         <Hero />
+        <CinematicRevealSection />
+        <LegaleseDecoder />
+        <AiAdvocateSection />
         <Features />
         <DocumentScanner />
         <HowItWorks />
       </main>
       
       <footer className="relative z-10 py-10 border-t border-white/5 text-center text-slate-500 text-sm bg-[#050505]">
-        <p>© 2026 Nyay Sahayak. All rights reserved.</p>
+        <p>{t("landing.footerCopyright")}</p>
       </footer>
     </div>
   );

@@ -52,6 +52,10 @@ function hasImpactPhrase(text, language) {
     return /(नुकसान|पैसे|खर्च|दंड|विलंब|हानी|गमाव)/.test(normalized);
   }
 
+  if (resolvedLanguage === "hinglish") {
+    return /(nuksan|paise|kharch|jurmana|deri|hani|gaw|loss|money|delay|risk|harm|cost|property|time)/i.test(normalized);
+  }
+
   return /(lose|loss|pay|penalty|delay|risk|harm|cost|money|property|time)/i.test(normalized);
 }
 

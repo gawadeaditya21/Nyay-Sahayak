@@ -6,10 +6,90 @@
   "header": {
     "plan": "Basic Plan"
   },
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "cases": "Cases",
+    "documents": "Documents",
+    "chat": "Nayi Legal Chat",
+    "settings": "Settings",
+    "today": "Aaj",
+    "previousSevenDays": "Pichhle 7 Din",
+    "previous7Days": "Pichhle 7 Din",
+    "noHistoryToday": "Aaj tak koi history nahi hai.",
+    "noRecentHistory": "Koi recent history nahi hai.",
+    "footerSubtitle": "India mein aapke adhikaron ke liye ek unified legal assistant.",
+    "tagline": "India mein aapke adhikaron ke liye ek unified legal assistant.",
+    "newChat": "Nayi Legal Chat",
+    "generateFir": "Generate FIR",
+    "analyzeDoc": "Analyze Doc",
+    "tabs": {
+      "chats": "Chats",
+      "firs": "FIRs",
+      "docs": "Docs"
+    },
+    "historyTypes": {
+      "chat": "chat",
+      "fir": "FIR",
+      "analysis": "document"
+    }
+  },
   "settings": {
     "title": "Settings",
     "preferences": "Preferences",
-    "language": "Language"
+    "language": "Language",
+    "subtitle": "Manage your account preferences and application settings.",
+    "description": "Manage your account preferences and application settings.",
+    "languageHelp": "Select your preferred language for the legal assistant interface.",
+    "languageDescription": "Select your preferred language for the legal assistant interface.",
+    "accountDetails": "Account Details",
+    "billingHelp": "Manage billing and features.",
+    "billingAndFeatures": "Manage billing and features.",
+    "basicPlan": "Basic Plan"
+  },
+  "common": {
+    "home": "Home",
+    "save": "Save",
+    "private": "Private",
+    "cancel": "Cancel",
+    "processing": "Processing...",
+    "backToHome": "Back to Home",
+    "genericError": "Something went wrong. Try again.",
+    "pleaseLoginToContinue": "Please login to continue"
+  },
+  "dashboard": {
+    "eyebrow": "Account activity",
+    "title": "Dashboard",
+    "lastSaved": "Last saved activity",
+    "loggedInHistory": "Logged-in history",
+    "loading": "Loading dashboard activity...",
+    "pastSevenDays": "Past 7 days",
+    "savedActivities": "{{count}} saved activities",
+    "recentActivity": "Recent activity",
+    "recentSubtitle": "Latest saved work across the app",
+    "labels": {
+      "chats": "Legal chats",
+      "analyses": "Document analyses",
+      "firs": "FIR drafts",
+      "overall": "Overall saved activity"
+    },
+    "details": {
+      "messages": "{{count}} chat messages saved",
+      "chatSessions": "Saved chat sessions",
+      "analysisRecords": "{{count}} analysis records",
+      "firDrafts": "Saved generated drafts"
+    },
+    "empty": {
+      "noSaved": "No saved activity yet"
+    },
+    "errors": {
+      "load": "Unable to load dashboard activity."
+    },
+    "time": {
+      "minutesAgo": "{{count}} min ago",
+      "hoursAgo": "{{count}} hr ago",
+      "daysAgo": "{{count}} day ago",
+      "daysAgo_plural": "{{count}} days ago"
+    }
   },
   "chat": {
     "title": "RAG Legal Chatbot",
@@ -35,5 +115,111 @@
     "copy": "Copy",
     "copied": "Copied",
     "download": "Download PDF"
+  },
+  "landing": {
+    "heroBadge": "Next-Gen Legal Intelligence",
+    "heroHeadline": "Don't just read contracts. Forensically analyze them.",
+    "heroSubtitle": "Nyay Sahayak uses advanced AI to strip away legal complexity, identifying hidden risks and predatory clauses in seconds.",
+    "getStartedFree": "Get Started Free",
+    "exploreFeatures": "Explore Features",
+    "aes256Protected": "AES-256 Protected",
+    "version": "Nyay Sahayak v1.0",
+    "howItWorks": {
+      "badge": "The Process",
+      "headline": "Three Steps to Safety",
+      "uploadTitle": "Upload Document",
+      "uploadDescription": "Securely upload your PDF or image files. Our system immediately masks sensitive data to protect your privacy.",
+      "analysisTitle": "Forensic Analysis",
+      "analysisDescription": "Gemini AI scans every clause, identifying hidden risks and translating complex legal jargon into plain English.",
+      "clarityTitle": "Get Instant Clarity",
+      "clarityDescription": "Review a high-level risk report or chat directly with the document to ask specific legal questions.",
+      "cta": "Start Your First Analysis"
+    },
+    "features": {
+      "badge": "Forensic Workflows",
+      "headline": "Designed for Legal",
+      "headlineAccent": "Clarity.",
+      "subcopy": "Precision auditing meets forensic intelligence. Identify risks, decode complexity, and summarize with atomic accuracy.",
+      "riskDetectionTitle": "Risk Detection",
+      "riskDetectionDesc": "Instantly identify hidden liabilities and dangerous clauses before you sign.",
+      "legaleseDecoderTitle": "Legalese Decoder",
+      "legaleseDecoderDesc": "Translate complex legal jargon into plain, actionable English.",
+      "smartSummarizationTitle": "Smart Summarization",
+      "smartSummarizationDesc": "Get an executive summary of 50+ page documents in just 10 seconds.",
+      "interactiveAnalysisTitle": "Interactive Analysis",
+      "interactiveAnalysisDesc": "Chat directly with your documents about obligations, deadlines, or key dates.",
+      "forensicPrecisionTitle": "Forensic Precision",
+      "forensicPrecisionDesc": "Powered by Gemini AI, specifically tuned for structural legal document analysis.",
+      "enterpriseSecurityTitle": "Enterprise Security",
+      "enterpriseSecurityDesc": "AES-256 protected and fully masked before analysis — total, verifiable privacy."
+    },
+    "documentScanner": {
+      "badge": "Interactive 3D Forensic Scan",
+      "headline": "Transform chaos into clarity.",
+      "analysisComplete": "AI Analysis Complete",
+      "liabilityQuotePrefix": "\"You are absorbing",
+      "liabilityQuoteEmphasis": "unbounded",
+      "liabilityQuoteSuffix": "liability.\"",
+      "analysisCopy": "The document explicitly forces you to cover all future costs, even those out of your control. We strongly recommend renegotiating the indemnity clause.",
+      "highRiskDetected": "High Risk Detected",
+      "highRiskCopy": "Indemnity clause exposes you to severe financial risk.",
+      "standardConfidentiality": "Standard Confidentiality",
+      "safeCopy": "NDA terms are standard industry practice and safe to sign.",
+      "complexLegalDocumentAlt": "Complex Legal Document",
+      "signatureLabel": "SIGNATURE: _______________________",
+      "footerHint": "Hover to explore in 3D • Scroll down to scan"
+    },
+    "cinematic": {
+      "scanComplete": "Scan Complete",
+      "headline": "Welcome to Clarity.",
+      "subcopy": "The paper opens, the noise drops away, and the AI core becomes the only thing left in frame.",
+      "initializing": "Initializing forensic AI analysis protocol.",
+      "status": "STATUS: Scanning clauses for unbounded liability.",
+      "prepare": "Prepare for the deep-dive extraction.",
+      "scanning": "Scanning",
+      "footerLeft": "Deep scan sequence",
+      "features": {
+        "riskMitigationTitle": "Risk Mitigation",
+        "riskMitigationDesc": "Hidden liabilities exposed instantly.",
+        "aiReviewTitle": "AI Review Core",
+        "aiReviewDesc": "A focused analysis layer for clause-by-clause scrutiny.",
+        "legalPrecisionTitle": "Legal Precision",
+        "legalPrecisionDesc": "Structured output that reads like a real legal workflow."
+      }
+    },
+    "legaleseDecoder": {
+      "badge": "Real-time Decoding",
+      "headlineLine1": "We read the fine print.",
+      "headlineLine2": "You get the bottom line.",
+      "clauses": {
+        "indemnityTitle": "Standard Indemnity",
+        "indemnityRisk": "Normal Risk Level",
+        "indemnityExplanation": "You are responsible for paying the legal fees if your actions cause the company to get sued. This is standard for most contracts.",
+        "indemnityVerdict": "Safe to sign",
+        "terminationTitle": "Sudden Termination",
+        "terminationRisk": "High Risk Detected",
+        "terminationExplanationPrefix": "They can fire you or cancel this contract at any time, for no reason, with only",
+        "terminationHighlight": "24 hours",
+        "terminationExplanationSuffix": "notice.",
+        "terminationVerdict": "Renegotiate for 30-day notice",
+        "contentTitle": "Content Rights",
+        "contentRisk": "Low Risk",
+        "contentExplanation": "You still own your content, but you are giving the platform permission to display and share it across their network.",
+        "contentVerdict": "Standard terms"
+      }
+    },
+    "aiAdvocate": {
+      "badge": "Interactive Visualization",
+      "headlinePrefix": "Bring the",
+      "headlineChaos": "Chaos.",
+      "headlineGetThe": "Get the",
+      "headlineClarity": "Clarity.",
+      "subcopy": "Upload any legal document, receipt, or agreement. Our AI advocate forensically scans for hidden risks instantly.",
+      "analysisCompleteSafe": "Analysis Complete: Safe",
+      "cta": "Start Scanning Now",
+      "rentalAgreement": "Rental Agr.",
+      "offerLetter": "Offer Letter"
+    },
+    "footerCopyright": "© 2026 Nyay Sahayak. All rights reserved."
   }
 }
