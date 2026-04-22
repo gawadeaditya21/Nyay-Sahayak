@@ -22,10 +22,6 @@ const FIR_ANSWER_LABELS = {
   evidenceAvailable: "Evidence available",
   evidenceDetails: "Evidence details",
   victimDetails: "Complainant details",
-  fatherOrHusbandName: "Father's or husband's name",
-  complainantAge: "Complainant age",
-  complainantEmail: "Complainant email address",
-  signatureName: "Name for signature section",
   additionalInfo: "Additional information",
 };
 
@@ -47,41 +43,47 @@ function sanitizeAnswer(value) {
   return String(value).trim();
 }
 
-function sentenceValue(value) {
-  const cleaned = sanitizeAnswer(value);
-  if (!cleaned) return "";
-  return /[.!?]$/.test(cleaned) ? cleaned : `${cleaned}.`;
-}
-
 function buildFirInputFromAnswers(answers) {
   if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
     return "";
   }
 
-  const extraFields = Object.keys(answers).filter(
-    (field) => !FIR_FIELD_ORDER.includes(field)
-  );
+  const data = answers;
 
-  const lines = [...FIR_FIELD_ORDER, ...extraFields]
-    .map((field) => {
-      const value = sentenceValue(answers[field]);
-      if (!value) return null;
-      return `${FIR_ANSWER_LABELS[field] || field}: ${value}`;
-    })
-    .filter(Boolean);
+   return `
+The complainant reports an incident of ${answers.incidentType || "unspecified offence"}.
 
-  if (lines.length === 0) {
-    return "";
-  }
+The incident occurred on ${answers.incidentDate || "unknown date"} at ${answers.incidentTime || "unknown time"} 
+at ${answers.incidentLocation || "unknown location"}.
 
-  return [
-    "Draft a formal, ready-to-submit FIR/complaint application from these structured facts.",
-    "Do not repeat the questions or labels in the final draft. Convert the facts into a professional complaint letter with clear paragraphs.",
-    "Use only facts provided by the user. If a required official detail is missing, use a blank placeholder.",
-    "",
-    "Structured facts:",
-    ...lines,
-  ].join("\n");
+Details of the incident:
+${answers.incidentDescription || "Not Provided"}
+
+Property involved:
+${answers.propertyDetails || "Not Provided"}
+
+Accused:
+${
+  answers.accusedKnown === "Yes"
+    ? answers.accusedDetails
+    : "Unknown"
+}
+
+Suspect description:
+${answers.suspectDescription || "Not Available"}
+
+Witnesses:
+${answers.witnessDetails || "No known witnesses"}
+
+Evidence:
+${answers.evidenceDetails || "Not Provided"}
+
+Additional information:
+${answers.additionalInfo || "Not Provided"}
+
+Complainant details:
+${answers.victimDetails || "Not Provided"}
+`.trim();
 }
 
 export async function generateFir(req, res) {

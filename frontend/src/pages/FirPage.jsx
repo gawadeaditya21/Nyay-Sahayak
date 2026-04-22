@@ -61,6 +61,7 @@ export default function FirPage() {
   const { refreshSessions, sessionNonce } = useOutletContext() || {};
 
   const currentQuestion = flow[step];
+  const safeCurrentQuestion = currentQuestion || null;
   const answeredItems = useMemo(
     () =>
       Object.entries(answers).map(([field, value]) => ({
@@ -128,16 +129,16 @@ export default function FirPage() {
 
   const handleAnswerSubmit = async (value = currentAnswer) => {
     const trimmedValue = String(value || "").trim();
-    if (!currentQuestion || !trimmedValue) {
+    if (!safeCurrentQuestion || !trimmedValue) {
       setError("Please answer the current question.");
       return;
     }
 
     const updatedAnswers = {
       ...answers,
-      [currentQuestion.field]: trimmedValue,
+      [safeCurrentQuestion.field]: trimmedValue,
     };
-    const nextStep = getNextStep(currentQuestion, trimmedValue);
+    const nextStep = getNextStep(safeCurrentQuestion, trimmedValue);
 
     setAnswers(updatedAnswers);
     setCurrentAnswer("");
@@ -229,12 +230,12 @@ export default function FirPage() {
   };
 
   const renderAnswerControl = () => {
-    if (!currentQuestion) return null;
+    if (!safeCurrentQuestion) return null;
 
-    if (currentQuestion.type === "select") {
+    if (safeCurrentQuestion.type === "select") {
       return (
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          {currentQuestion.options.map((option) => (
+          {safeCurrentQuestion.options.map((option) => (
             <button
               key={option}
               type="button"
@@ -249,11 +250,11 @@ export default function FirPage() {
       );
     }
 
-    const inputType = currentQuestion.type === "date" || currentQuestion.type === "time"
-      ? currentQuestion.type
+    const inputType = safeCurrentQuestion.type === "date" || safeCurrentQuestion.type === "time"
+      ? safeCurrentQuestion.type
       : "text";
 
-    if (currentQuestion.type === "textarea") {
+    if (safeCurrentQuestion.type === "textarea") {
       return (
         <textarea
           value={currentAnswer}
@@ -341,11 +342,11 @@ export default function FirPage() {
                     Question {answeredItems.length + 1}
                   </p>
                   <h2 className="mt-3 text-xl font-semibold leading-snug text-white">
-                    {currentQuestion.question}
+                    {safeCurrentQuestion?.question || "Continue with the FIR details"}
                   </h2>
                   {renderAnswerControl()}
 
-                  {currentQuestion.type !== "select" && (
+                  {safeCurrentQuestion?.type !== "select" && (
                     <button
                       type="button"
                       onClick={() => handleAnswerSubmit()}

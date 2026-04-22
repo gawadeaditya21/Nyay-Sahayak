@@ -113,9 +113,6 @@ test("POST /api/generate-fir accepts guided FIR answers", async () => {
         propertyDetails: "one analog watch around 5000 rupees",
         victimDetails: "Test User, Pune, 9999999999",
       },
-      answer_labels: {
-        incidentType: "What type of incident are you reporting?",
-      },
       language: "en",
       mode: "save",
     })
@@ -123,10 +120,10 @@ test("POST /api/generate-fir accepts guided FIR answers", async () => {
 
   expect(response.body.success).toBe(true);
   expect(response.body.fir_text).toContain("FIR DRAFT TEXT");
-  expect(lastFirDraftInput).toContain("Incident type: Theft.");
-  expect(lastFirDraftInput).toContain("Property details: one analog watch around 5000 rupees.");
+  expect(lastFirDraftInput).toContain("Incident Type: Theft");
+  expect(lastFirDraftInput).toContain('"propertyDetails": "one analog watch around 5000 rupees"');
   expect(lastFirDraftInput).not.toContain("What type of incident are you reporting?");
-  expect(lastFirDraftInput).not.toContain("Incident type: [NAME");
+  expect(lastFirDraftInput).not.toContain('"incidentType": "[NAME');
 });
 
 test("Guest limit allows 1 FIR generation", async () => {

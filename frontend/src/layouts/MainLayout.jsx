@@ -1,9 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { Outlet } from "react-router-dom";
+import { AnimatePresence, motion as Motion } from "framer-motion";
 import Sidebar from "../components/common/Sidebar";
 import Header from "../components/common/Header";
 import { fetchChatSessions, fetchFirHistory, fetchAnalysisSessions } from "../services/api";
+
+function dedupeSessionsById(items = []) {
+  const sessionMap = new Map();
+
+  items.forEach((item) => {
+    if (!item?.id) return;
+    const existing = sessionMap.get(item.id);
+    if (!existing || new Date(item.updatedAt) > new Date(existing.updatedAt)) {
+      sessionMap.set(item.id, item);
+    }
+  });
+
+  return Array.from(sessionMap.values()).sort(
+    (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)
+  );
+}
 
 export default function MainLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -12,31 +28,38 @@ export default function MainLayout() {
   const [analysisSessions, setAnalysisSessions] = useState([]);
   
   const [sessionNonce, setSessionNonce] = useState(0);
-  const location = useLocation();
-
-  useEffect(() => {
-    // Close sidebar on mobile route changes
-    if (window.innerWidth < 1024) {
-      setIsSidebarOpen(false);
-    }
-  }, [location.pathname, location.search]);
-
   useEffect(() => {
     const loadAllSessions = async () => {
       try {
         const chats = await fetchChatSessions().catch(() => []);
         if (chats && Array.isArray(chats)) {
-          setRecentChats(chats.map(s => ({ id: s.sessionId, title: s.title, updatedAt: s.createdAt })));
+          setRecentChats(
+            dedupeSessionsById(
+              chats.map((s) => ({ id: s.sessionId, title: s.title, updatedAt: s.createdAt }))
+            )
+          );
         }
 
         const firs = await fetchFirHistory().catch(() => ({ data: [] }));
         if (firs?.success && Array.isArray(firs.data)) {
-          setFirSessions(firs.data.map(s => ({ id: s.sessionId, title: `FIR Draft ${new Date(s.createdAt).toLocaleDateString()}`, updatedAt: s.createdAt })));
+          setFirSessions(
+            dedupeSessionsById(
+              firs.data.map((s) => ({
+                id: s.sessionId,
+                title: `FIR Draft ${new Date(s.createdAt).toLocaleDateString()}`,
+                updatedAt: s.createdAt,
+              }))
+            )
+          );
         }
 
         const analysis = await fetchAnalysisSessions().catch(() => []);
         if (analysis && Array.isArray(analysis)) {
-          setAnalysisSessions(analysis.map(s => ({ id: s.sessionId, title: s.title, updatedAt: s.createdAt })));
+          setAnalysisSessions(
+            dedupeSessionsById(
+              analysis.map((s) => ({ id: s.sessionId, title: s.title, updatedAt: s.createdAt }))
+            )
+          );
         }
       } catch (err) {
         console.error("Failed to load layout sessions", err);
@@ -82,7 +105,7 @@ export default function MainLayout() {
       {/* Mobile Backdrop */}
       <AnimatePresence>
         {isSidebarOpen && (
-          <motion.div
+          <Motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

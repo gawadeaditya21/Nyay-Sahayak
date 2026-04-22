@@ -4197,101 +4197,168 @@ async function analyzeLegalQuery(queryText, options = {}) {
 
 function buildFirPrompt(userInput, language) {
   const resolvedLanguage = ensureSupportedLanguage(language);
-  const languageLabel = getLanguageLabel(resolvedLanguage).toUpperCase();
-  return `You are an experienced Indian legal assistant trained in drafting FIRs and complaints used in real police stations and by advocates in India.
+  const languageInstruction =
+    resolvedLanguage === "en"
+      ? "Use formal legal English."
+      : `Respond in ${getLanguageLabel(resolvedLanguage)} while preserving legal section names like IPC, IT Act, CrPC, FIR, IMEI, and police headings as needed.`;
 
-This is a generation task. Do NOT ask questions. Do NOT request missing data.
+return `
+You are an expert Indian legal assistant trained in drafting FIRs under Section 154 CrPC.
 
-Language preference: ${languageLabel}. You MUST respond only in this language for the FIR body. Keep law names in English.
+Your task is to convert the user complaint into a properly structured FIR EXACTLY in the format below.
 
-Critical legal corrections (mandatory):
-- NEVER use the words "refund", "recover", "recovery", "facilitate refund", or "return my money" anywhere.
-- Subject line must be: "Complaint regarding [issue]" and must not mention refund or recovery.
-- The Request section must request FIR registration, investigation, legal action, and an acknowledged copy for the complainant's records.
+------------------------------------------------------------
 
-Core rule:
-You MUST dynamically adapt the FIR based on case type. Do NOT include irrelevant sections.
-Each FIR must be unique and context-aware. Do NOT reuse generic sentences.
+STRICT FORMAT RULES (MANDATORY):
 
-Case rules (apply only what is relevant):
-1) Theft: Subject "Complaint regarding theft of [item]", include item details, location, time, suspect description, witnesses/evidence, and law IPC 379; no bank/UPI steps.
-2) Money transfer mistake: Title "Complaint Regarding Mistaken Fund Transfer", include transaction details, law IPC 403 + IT Act; include bank/UPI step; no theft language.
-3) Assault/harassment: Title "Complaint Regarding Assault and Threat", include incident and accused details; laws IPC 323, IPC 352, IPC 506; no transaction/bank steps.
-4) Accident/rash driving: Title "Complaint Regarding Rash Driving and Assault", include vehicle details, damage, number plate; laws IPC 279, IPC 323, IPC 506.
-5) Lost item: Title "Complaint Regarding Lost [item]", include where it was kept and when it was noticed missing; law IPC 403.
-6) Property issue: Include property/payment details; laws RERA Act + Indian Contract Act as applicable.
-7) Employment issue: Include employer details and timeline; laws Labour Laws.
+- Follow EXACT numbering (1 to 17)
+- Use "---" separators between sections
+- Maintain clean spacing exactly like sample
+- Do NOT skip any section
+- Do NOT add extra explanation outside FIR
 
-If any information is missing, use fillable fields like:
-Name: __________
-Address: __________
+------------------------------------------------------------
 
-Output rules:
-Use clean plain text only. Do NOT use markdown, separators, or artificial headings. Keep the tone formal, respectful, and ready to submit at a police station.
-Do NOT echo the user's questionnaire, labels, or raw structured facts.
-Do NOT write "Explain clearly", "what happened", "when", "where", or similar instruction text.
-Convert the facts into complete paragraphs in first person as the complainant.
-Preserve privacy placeholders such as [PHONE_1], [BANK_ACCOUNT_1], [NAME_1] exactly if present.
-Every section after its heading must contain polished sentence/paragraph text, not bullet points, except Legal Grounds may contain short numbered or line-separated legal provisions.
-Always include the final signature block exactly as shown in the format, even if the user's signature name is missing.
+DATA PRESERVATION RULE (CRITICAL):
 
-Smart case detection (adapt FIR accordingly):
-Theft/Lost Property (IPC 379/IPC 403), Fraud/Cheating (IPC 420), Breach of Trust (IPC 406), Cyber Fraud (IT Act + IPC), Job Scam, Property/Builder Issue (RERA + Contract Act), Harassment/Threat, Salary/Employment Issue (Labour Laws).
-If uncertain, write: Possible sections may include...
+- Use EXACT names, places, and details from input
+- DO NOT replace names with generic ones like "Rahul Sharma"
+- If data missing → write "(Not Provided)"
+- Unknown accused → "Unknown"
 
-Follow this exact format and section order strictly:
+------------------------------------------------------------
 
-To,
-The Station House Officer (SHO),
-[Name of Police Station]
-[City/State]
+WRITING RULES:
 
-Date: __________
-Place: __________
+- Use formal legal English
+- No raw key-value copying from input
+- Convert everything into proper legal sentences
+- Every section must be written in proper, grammatically correct, complete sentences.
+- Avoid broken or short phrases.
+- Ensure professional legal tone throughout the FIR.
 
-Subject: Complaint regarding [brief issue].
+------------------------------------------------------------
 
-Respected Sir/Madam,
+FIELD DISPLAY RULE:
 
-Complainant Details:
-Write one paragraph: "I, [full name], S/o or D/o [father's/husband's name], aged [age], residing at [address], contact number [contact number], wish to lodge this formal complaint." Use __________ only for missing fields.
+- If any field data is missing or not available, DO NOT display that field in the FIR.
+- Do NOT write "(Not Provided)" anywhere in the FIR.
+- Only include fields that have meaningful data.
+------------------------------------------------------------
 
-Incident Details:
-Write one short paragraph mentioning the precise date, time, and place of incident. Do not use a table.
+OUTPUT FORMAT (FOLLOW EXACTLY):
 
-Detailed Facts:
-Write one or two clear chronological paragraphs. Mention the journey/movement, what happened, how the incident occurred, when the complainant noticed it, and the loss caused. This must read like a formal complaint, not notes.
+FIRST INFORMATION REPORT (FIR)
+(Under Section 154 of the Code of Criminal Procedure, 1973)
 
-Include naturally: Due to this situation, I am facing financial loss and mental stress.
+---
 
-Accused Description:
-Write one paragraph. If accused is known, provide name/address/contact/relationship. If unknown, provide physical description, clothes, behavior, mask/vehicle/other identifiers. If no details are available, write "The accused person is presently unknown to me."
+1. Police Station: ...
+2. FIR Number: (To be assigned by Police Station)
+3. Date of Registration: ...
+4. Mode of Information: Written / Oral (Converted to Written)
 
-Property Involved:
-Write one paragraph describing the stolen/lost/damaged property, estimated value, quantity, model/brand/colour/identification marks if available. If no property is involved, write "No property details are applicable."
+---
 
-Witnesses/Evidence:
-Write one paragraph mentioning witness names/contact/details if available, and photos/videos/documents/receipts/CCTV possibility if available. If none, write "No witness or evidence is presently available with me."
+5. Complainant / Informant Details:
+Name: ...
+Age: ...
+Address: ...
+Contact Number: ...
+Identity Proof: ...
 
-Legal Grounds:
-Mention only relevant legal sections in short bullet points. For theft, include IPC 379. If uncertain, write "Relevant provisions of law may be applied after police investigation."
+---
 
-Request:
-I kindly request you to register an FIR under the relevant sections of law, investigate the matter, and take appropriate legal action. I also request you to provide me with an acknowledged copy of the FIR/complaint for my records.
+6. Occurrence of Offence:
+Date: ...
+Time: ...
+Place of Occurrence: ...
+Jurisdiction: ...
 
-Thanking you,
+---
 
-Yours faithfully,
+7. Offence Details:
+Nature of Offence: ...
+Applicable Law: ...
 
-(Signature / Thumb Impression)
-Name: [signature/full name if provided, otherwise __________]
-Contact Number: [contact number if provided, otherwise __________]
-Email Address: [email if provided, otherwise __________]
-Date: __________
+---
 
+8. Particulars of Stolen Property:
+(Type, model, value, IMEI if available)
 
-User Input:
-${userInput}`;
+---
+
+9. Brief Facts of the Case:
+
+CRITICAL WRITING RULE:
+
+- You MUST write a detailed, well-structured narrative of the incident.
+- The paragraph MUST be at least 6–10 lines long.
+- You MUST logically expand the facts using:
+  • sequence of events  
+  • how the incident happened  
+  • how the complainant realized it  
+  • actions taken after incident  
+- You MUST convert short input into a complete legal story.
+- Use formal legal language and proper sentence formation.
+- DO NOT copy raw input sentences.
+- DO NOT keep it short or generic.
+
+---
+
+10. Accused Details:
+Name: ...
+Description: ...
+
+---
+
+11. Witness Details (if any):
+...
+
+---
+
+12. Action Taken by Informant:
+...
+
+---
+
+13. Delay in Reporting (if any):
+...
+
+---
+
+14. Documents / Evidence Submitted:
+...
+
+---
+
+15. Reason for Delay (if applicable):
+...
+
+---
+
+16. Declaration by Informant:
+"I hereby declare that the information furnished above is true and correct to the best of my knowledge and belief."
+
+---
+
+Signature / Thumb Impression of Informant:
+(...)
+
+---
+
+17. Officer’s Endorsement:
+...
+
+------------------------------------------------------------
+
+NOW GENERATE THE FIR FOR:
+
+USER INPUT:
+"""
+${userInput}
+"""
+`;
 }
 
 function detectFirCase(userInput) {
@@ -4318,9 +4385,12 @@ function detectFirCase(userInput) {
   if (/job|offer|employment|salary|company|hr|recruit/i.test(normalized)) {
     return "job";
   }
-  if (/fraud|scam|cheat|cheated|fake/i.test(normalized)) {
-    return "fraud";
-  }
+  if (/otp|upi|bank|link|online|transaction|phishing|netbanking/i.test(normalized)) {
+  return "fraud";
+}
+if (/fraud|scam|cheat|cheated|fake/i.test(normalized)) {
+  return "fraud";
+}
 
   return "general";
 }
@@ -4351,53 +4421,74 @@ function buildFirFallback(userInput) {
     general: "Relevant provisions of law may be applied after police investigation.",
   };
 
-  return `To,
-The Station House Officer (SHO),
-[Name of Police Station]
-[City/State]
+  return `FIRST INFORMATION REPORT (FIR)
+(Under Section 154 of the Code of Criminal Procedure, 1973)
 
-Date: __________
-Place: __________
+1. Police Station: [Police Station Name / Jurisdiction to be determined]
+2. FIR Number: (To be assigned by Police Station)
+3. Date of Registration: ${new Date().toLocaleDateString("en-GB")}
+4. Mode of Information: Written / Oral (Converted to Written)
 
-Subject: ${subjectByCase[caseType] || subjectByCase.general}.
+5. Complainant / Informant Details:
+Name: Not Provided
+Age: Not Provided
+Address: Not Provided
+Contact Number: Not Provided
+Identity Proof: (To be verified)
 
-Respected Sir/Madam,
+6. Occurrence of Offence:
+Date: Not Provided
+Time: Not Provided
+Place of Occurrence: Not Provided
+Jurisdiction: To be determined by concerned Police Station
 
-Complainant Details:
-I, __________, S/o or D/o __________, aged __________, residing at __________, contact number __________, wish to lodge this formal complaint.
+7. Offence Details:
+Nature of Offence: ${subjectByCase[caseType] || subjectByCase.general}
+Applicable Law: ${legalGroundsByCase[caseType] || legalGroundsByCase.general}
 
-Incident Details:
-The incident occurred on __________ at approximately __________ at __________.
+8. Particulars of Stolen Property:
+Details: Not Provided
 
-Detailed Facts:
+9. Brief Facts of the Case:
 ${incidentText}
 
-Due to this situation, I am facing financial loss and mental stress.
+10. Accused Details:
+Name: Unknown
+Description: Not Available
 
-Accused Description:
-The accused person is presently unknown to me. Any available description may be added here: __________
+11. Witness Details (if any):
+No known witnesses.
 
-Property Involved:
-The property/item/money involved in the incident is described as follows: __________
+12. Action Taken by Informant:
+- Complaint presented for registration of FIR.
 
-Witnesses/Evidence:
-Details of witnesses, CCTV, photos, videos, receipts or other evidence, if available, are as follows: __________
+13. Delay in Reporting (if any):
+Not Provided
 
-Legal Grounds:
-${legalGroundsByCase[caseType] || legalGroundsByCase.general}
+14. Documents / Evidence Submitted:
+Not Provided
 
-Request:
-I kindly request you to register an FIR under the relevant sections of law, investigate the matter, and take appropriate legal action. I also request you to provide me with an acknowledged copy of the FIR/complaint for my records.
+15. Reason for Delay (if applicable):
+Not Applicable
 
-Thanking you,
+16. Declaration by Informant:
+I hereby declare that the information furnished above is true and correct to the best of my knowledge and belief.
 
-Yours faithfully,
+Signature / Thumb Impression of Informant:
+(Not Provided)
 
-(Signature / Thumb Impression)
-Name: __________
-Contact Number: __________
-Email Address: __________
-Date: __________`;
+17. Officer's Endorsement:
+Received the above complaint for registration and necessary action as per law.
+
+Name of Duty Officer: ____________________
+Rank: ____________________
+Badge No.: ____________________
+Police Station: ____________________
+
+Signature of Duty Officer: ________________
+
+Date: ${new Date().toLocaleDateString("en-GB")}
+Time of Registration: _______`;
 }
 
 function sanitizeFirOutput(rawText) {
@@ -4406,17 +4497,8 @@ function sanitizeFirOutput(rawText) {
   }
 
   let cleaned = String(rawText);
-  cleaned = cleaned.replace(/return\s+my\s+money/gi, "address this matter");
-  cleaned = cleaned.replace(/facilitate\s+refund/gi, "appropriate legal action");
-  cleaned = cleaned.replace(/refund|recover|recovery/gi, "appropriate legal action");
-
-  cleaned = cleaned.replace(/Complaint regarding the issue/gi, "Complaint regarding the matter");
-
-  cleaned = cleaned.replace(
-    /Request:[\s\S]*?(?=\n\nClosing:|\nClosing:|\n\nSuggested Actions:|\nSuggested Actions:|\n\nImportant Notes:|\nImportant Notes:|$)/i,
-    "Request:\nI kindly request you to register my complaint and investigate the matter. If any misuse or criminal activity is found, kindly take appropriate legal action.\n"
-  );
-
+  cleaned = cleaned.replace(/\r\n/g, "\n");
+  cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
   return cleaned;
 }
 
@@ -4449,7 +4531,13 @@ async function generateFirDraft(userInput, options = {}) {
     return sanitizeFirOutput(responseText);
   } catch (error) {
     console.error("[aiService] FIR generation failed:", error.message);
-    return sanitizeFirOutput(buildFirFallback(cleanedInput));
+    console.error("[aiService] Using fallback FIR due to AI failure.");
+
+const fallback = buildFirFallback(cleanedInput);
+
+return sanitizeFirOutput(
+  fallback + "\n\n(Note: Generated using fallback due to AI error)"
+);
   }
 }
 
