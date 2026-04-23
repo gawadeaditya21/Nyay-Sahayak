@@ -7,13 +7,14 @@ import {
 } from "../controllers/documentController.js";
 import { optionalProtect, protect } from "../middleware/authMiddleware.js";
 import { upload, handleUploadError } from "../middleware/uploadMiddleware.js";
+import { usageLimiter } from "../middleware/usageLimiter.js";
 
 const router = express.Router();
 
 
 
-router.post("/analyze", optionalProtect, upload.single("document"), uploadAndAnalyzeDocument);
-router.post("/analyze-text", optionalProtect, analyzeTextOnly);
+router.post("/analyze", optionalProtect, usageLimiter("analysis"), upload.single("document"), uploadAndAnalyzeDocument);
+router.post("/analyze-text", optionalProtect, usageLimiter("analysis"), analyzeTextOnly);
 router.get("/sessions", protect, getAnalysisSessions);
 
 router.get("/health", (req, res) => {

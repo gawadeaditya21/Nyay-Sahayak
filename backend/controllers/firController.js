@@ -140,7 +140,9 @@ export async function generateFir(req, res) {
       ? unmaskData(generatedFirText, maskingResult.replacements)
       : generatedFirText;
 
-    const shouldStore = identity.isAuthenticated && mode === "save";
+    // Only persist if user's plan allows data persistence
+    const canPersist = req.planInfo?.limits?.dataPersistence ?? false;
+    const shouldStore = identity.isAuthenticated && mode === "save" && canPersist;
     if (shouldStore) {
       const encrypted = encryptData(JSON.stringify(firText));
       await FIR.create({

@@ -19,7 +19,6 @@ if (!apiKey) {
 }
 
 console.log("✅ API Key loaded from .env");
-console.log("   First 10 chars:", apiKey.substring(0, 10) + "...");
 console.log("   Length:", apiKey.length, "characters");
 console.log("");
 console.log("🔄 Testing connection to Gemini API...");

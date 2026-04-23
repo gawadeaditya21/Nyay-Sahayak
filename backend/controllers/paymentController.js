@@ -1,20 +1,20 @@
 import Stripe from "stripe";
 import User from "../models/User.js";
+import { PLAN_LIMITS } from "../config/planLimits.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// Define dummy prices or use actual price IDs if they exist in env
-// In production, these should come from your Stripe Dashboard
+// Pricing uses centralized config from planLimits.js
 const PRICING = {
     plus: {
         priceId: process.env.STRIPE_PLUS_PRICE_ID || "price_dummy_plus",
         name: "Plus Plan",
-        amount: 19900 // ₹199.00
+        amount: PLAN_LIMITS.plus.price     // ₹99.00 (9900 paise)
     },
     pro: {
         priceId: process.env.STRIPE_PRO_PRICE_ID || "price_dummy_pro",
         name: "Pro Plan",
-        amount: 9900 // ₹99.00
+        amount: PLAN_LIMITS.pro.price      // ₹199.00 (19900 paise)
     }
 };
 
@@ -166,9 +166,36 @@ export const stripeWebhook = async (req, res) => {
                 const subscription = event.data.object;
                 await User.findOneAndUpdate(
                     { stripeSubscriptionId: subscription.id },
-                    { plan: 'free', subscriptionStatus: 'canceled' }
+                    { plan: 'free', subscriptionStatus: 'canceled', stripeSubscriptionId: null }
                 );
                 console.log(`Subscription ${subscription.id} canceled, user downgraded to free.`);
+                break;
+            }
+            case 'customer.subscription.updated': {
+                // Catches mid-cycle changes: trial ending, plan changes, payment method updates
+                const subscription = event.data.object;
+                const statusMap = {
+                    active: 'active',
+                    past_due: 'past_due',
+                    unpaid: 'unpaid',
+                    canceled: 'canceled',
+                    incomplete: 'incomplete',
+                    incomplete_expired: 'canceled',
+                    trialing: 'active',
+                };
+                const mappedStatus = statusMap[subscription.status] || 'none';
+                const updateData = { subscriptionStatus: mappedStatus };
+
+                // If subscription is no longer active, downgrade to free
+                if (['canceled', 'unpaid', 'incomplete'].includes(mappedStatus)) {
+                    updateData.plan = 'free';
+                }
+
+                await User.findOneAndUpdate(
+                    { stripeSubscriptionId: subscription.id },
+                    updateData
+                );
+                console.log(`Subscription ${subscription.id} updated → status: ${mappedStatus}`);
                 break;
             }
             default:

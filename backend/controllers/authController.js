@@ -50,6 +50,8 @@ export const login = async (req, res) => {
                 name: user.name,
                 email: user.email,
                 preferredLanguage: user.preferredLanguage || "en",
+                plan: user.plan || "free",
+                subscriptionStatus: user.subscriptionStatus || "none",
             }
         });
     } catch (err) {

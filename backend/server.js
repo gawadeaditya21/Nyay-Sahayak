@@ -11,6 +11,7 @@ import authRoutes from "./routes/authRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import firRoutes from "./routes/firRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
+import usageRoutes from "./routes/usageRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import { stripeWebhook } from "./controllers/paymentController.js";
 import { rateLimit } from "./middleware/rateLimit.js";
@@ -50,6 +51,7 @@ app.use("/api", firRoutes);
 app.use('/api/auth', authRoutes);
 app.use("/api/chat", rateLimit, chatRoutes);
 app.use("/api/dashboard", rateLimit, dashboardRoutes);
+app.use("/api/usage", usageRoutes);
 
 const PORT = process.env.PORT || 5000;
 
@@ -57,6 +59,6 @@ app.listen(PORT, () => {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log("✅ Server running on port", PORT);
   console.log("✅ Environment:", process.env.NODE_ENV || "development");
-  console.log("✅ Gemini API Key:", process.env.GEMINI_API_KEY ? "Loaded (first 10 chars: " + process.env.GEMINI_API_KEY.substring(0, 10) + "...)" : "❌ NOT SET");
+  console.log("✅ Gemini API Key:", process.env.GEMINI_API_KEY ? "Loaded" : "❌ NOT SET");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 });

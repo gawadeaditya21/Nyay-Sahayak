@@ -311,6 +311,19 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
     const fileSize = req.file.size;
     const mimeType = req.file.mimetype;
 
+    // Enforce per-plan file size limit (Multer allows up to 15MB globally,
+    // but individual plans may have lower limits, e.g. Plus = 5MB)
+    const maxFileSizeMB = req.planInfo?.limits?.maxFileSizeMB ?? 15;
+    const maxFileSizeBytes = maxFileSizeMB * 1024 * 1024;
+    if (fileSize > maxFileSizeBytes) {
+      cleanupUploadedFile(filePath);
+      return res.status(400).json({
+        success: false,
+        message: `File size (${(fileSize / 1024 / 1024).toFixed(1)}MB) exceeds your plan's limit of ${maxFileSizeMB}MB. Upgrade your plan for larger files.`,
+        error: "FILE_TOO_LARGE_FOR_PLAN",
+      });
+    }
+
     let extractionResult;
 
     if (mimeType === "application/pdf") {
@@ -330,6 +343,18 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
 
     if (!extractedText || extractedText.trim().length < 20) {
       throw new Error("Insufficient text extracted. Document may be empty or unreadable.");
+    }
+
+    // Enforce per-plan page limit
+    const docPages = extractionResult.pages || 1;
+    const maxDocPages = req.planInfo?.limits?.maxDocPages ?? 20;
+    if (docPages > maxDocPages) {
+      cleanupUploadedFile(filePath);
+      return res.status(400).json({
+        success: false,
+        message: `This document has ${docPages} pages, which exceeds your plan's limit of ${maxDocPages} pages. Upgrade your plan for larger documents.`,
+        error: "DOC_PAGES_EXCEEDED",
+      });
     }
 
     const maskingResult = maskSensitiveData(extractedText);
@@ -360,7 +385,9 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
       aiAnalysis,
     });
 
-    const shouldStore = identity.isAuthenticated && mode === "save";
+    // Only persist if user's plan allows data persistence
+    const canPersist = req.planInfo?.limits?.dataPersistence ?? false;
+    const shouldStore = identity.isAuthenticated && mode === "save" && canPersist;
     if (shouldStore) {
       const parts = [];
       parts.push(`Uploaded: ${fileName}`);
@@ -539,7 +566,9 @@ export const analyzeTextOnly = async (req, res) => {
       },
     };
 
-    const shouldStore = identity.isAuthenticated && mode === "save";
+    // Only persist if user's plan allows data persistence
+    const canPersist = req.planInfo?.limits?.dataPersistence ?? false;
+    const shouldStore = identity.isAuthenticated && mode === "save" && canPersist;
     if (shouldStore) {
       try {
         const userEncrypted = encryptData(JSON.stringify(trimmedText));

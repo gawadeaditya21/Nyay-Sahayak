@@ -87,7 +87,10 @@ export async function chatWithLegalAssistant(req, res) {
     }
 
     const trimmedMessage = message ? message.trim() : "";
-    const shouldStore = identity.isAuthenticated && mode === "save";
+    // Only persist if user is authenticated, mode is 'save', AND their plan allows data persistence
+    const planLimits = req.planInfo?.limits;
+    const canPersist = planLimits ? planLimits.dataPersistence : false;
+    const shouldStore = identity.isAuthenticated && mode === "save" && canPersist;
     const resolvedSessionId = sessionId || "default";
     
     let finalQueryText = trimmedMessage;
