@@ -35,7 +35,9 @@ export default function Header({ toggleSidebar }) {
           <div className="flex items-center gap-3 pl-4">
             <div className="flex flex-col items-end hidden sm:flex">
               <span className="text-xs font-bold text-white">{user.name}</span>
-              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-medium">{t('header.plan')}</span>
+              <span className={`mt-0.5 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-full ${user.plan === 'pro' ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-sm' : user.plan === 'plus' ? 'bg-indigo-500 text-white shadow-sm' : 'bg-slate-700 text-slate-300'}`}>
+                {user.plan ? `${user.plan} Plan` : 'Free Plan'}
+              </span>
             </div>
             <Link to="/settings" className="p-2 hover:bg-white/5 hover:text-white rounded-lg text-slate-400 transition-colors">
               <Settings size={18} />

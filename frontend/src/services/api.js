@@ -32,6 +32,7 @@ const ENDPOINTS = {
   CHAT_SESSIONS: `${API_BASE_URL}/chat/sessions`,
   CHAT_HISTORY: (sessionId) => `${API_BASE_URL}/chat/${sessionId}`,
   DASHBOARD_SUMMARY: `${API_BASE_URL}/dashboard/summary`,
+  PAYMENT_CHECKOUT: `${API_BASE_URL}/payment/create-checkout-session`,
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -508,6 +509,7 @@ const api = {
   fetchAnalysisHistory,
   fetchFirHistory,
   fetchDashboardSummary,
+  createCheckoutSession,
 };
 
 export async function updateLanguagePreference(userId, preferredLanguage) {
@@ -527,6 +529,27 @@ export async function updateLanguagePreference(userId, preferredLanguage) {
     return await handleResponse(response);
   } catch (error) {
     console.error("[API] Language preference error:", error);
+    throw error;
+  }
+}
+
+export async function createCheckoutSession(planType) {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error("Authentication required for subscription upgrade");
+
+    const response = await fetch(ENDPOINTS.PAYMENT_CHECKOUT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({ planType }),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("[API] Checkout session error:", error);
     throw error;
   }
 }

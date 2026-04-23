@@ -8,6 +8,9 @@ import AnalyzePage from './pages/AnalyzePage';
 import FirPage from './pages/FirPage';
 import LegalStepsPage from './pages/LegalStepsPage';
 import DashboardPage from './pages/DashboardPage';
+import PricingPage from './pages/PricingPage';
+import PaymentSuccess from './pages/PaymentSuccess';
+import PaymentCancel from './pages/PaymentCancel';
 
 export default function App() {
   return (
@@ -28,6 +31,9 @@ export default function App() {
 
         {/* Routes outside MainLayout */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/payment-success" element={<PaymentSuccess />} />
+        <Route path="/payment-cancel" element={<PaymentCancel />} />
       </Routes>
     </BrowserRouter>
   );
