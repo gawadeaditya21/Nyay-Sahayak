@@ -35,7 +35,8 @@
     "tagline": "Unified legal assistant for your rights in India.",
     "newChat": "New Legal Chat",
     "generateFir": "Generate FIR",
-    "analyzeDoc": "Analyze Doc",
+      "analyzeDoc": "Analyze Doc",
+      "upgradePlan": "Upgrade Plan",
     "tabs": {
       "chats": "Chats",
       "firs": "FIRs",
