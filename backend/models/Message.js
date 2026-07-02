@@ -5,7 +5,8 @@ const MessageSchema = new mongoose.Schema(
         userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
         sessionId: { type: String, required: true },
         role: { type: String, enum: ["user", "assistant"], required: true },
-        encryptedContent: { type: String, required: true }
+        encryptedContent: { type: String, required: true },
+        fileName: { type: String, required: false }
     },
     { timestamps: true }
 );

@@ -18,7 +18,7 @@ export default function LegalStepsPage() {
             Back to Chat
           </Link>
           <Link to="/fir" className="rounded-full border border-white/10 px-5 py-2 text-sm font-semibold text-slate-200">
-            Generate FIR
+            Write Complaint
           </Link>
         </div>
       </div>

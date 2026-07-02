@@ -1,0 +1,136 @@
+{
+  "flow": {
+    "start": {
+      "question": "What type of incident are you reporting?",
+      "field": "incidentType",
+      "type": "select",
+      "options": ["Theft", "Assault", "Cyber Crime", "Fraud", "Harassment", "Other"],
+      "next": "incidentDate"
+    },
+
+    "incidentDate": {
+      "question": "On which date did the incident occur?",
+      "field": "incidentDate",
+      "type": "date",
+      "next": "incidentTime"
+    },
+
+    "incidentTime": {
+      "question": "At what time did the incident occur?",
+      "field": "incidentTime",
+      "type": "time",
+      "next": "incidentLocation"
+    },
+
+    "incidentLocation": {
+      "question": "Where did the incident take place? (Provide full address or description)",
+      "field": "incidentLocation",
+      "type": "text",
+      "next": "incidentDescription"
+    },
+
+    "incidentDescription": {
+      "question": "Please describe the incident in detail (what happened, how it happened).",
+      "field": "incidentDescription",
+      "type": "textarea",
+      "next": "propertyInvolved"
+    },
+
+    "propertyInvolved": {
+      "question": "Was any property, item, or money involved in the incident?",
+      "field": "propertyInvolved",
+      "type": "select",
+      "options": ["Yes", "No"],
+      "next": {
+        "condition": "propertyInvolved === 'Yes'",
+        "true": "propertyDetails",
+        "false": "accusedKnown"
+      }
+    },
+
+    "propertyDetails": {
+      "question": "Please provide details of the property/item (name, value, quantity, description).",
+      "field": "propertyDetails",
+      "type": "textarea",
+      "next": "accusedKnown"
+    },
+
+    "accusedKnown": {
+      "question": "Do you know the accused person?",
+      "field": "accusedKnown",
+      "type": "select",
+      "options": ["Yes", "No"],
+      "next": {
+        "condition": "accusedKnown === 'Yes'",
+        "true": "accusedDetails",
+        "false": "suspectDescription"
+      }
+    },
+
+    "accusedDetails": {
+      "question": "Provide details of the accused (name, address, contact, relationship if any).",
+      "field": "accusedDetails",
+      "type": "textarea",
+      "next": "witnessAvailable"
+    },
+
+    "suspectDescription": {
+      "question": "Provide any description of the suspect (appearance, clothing, behavior).",
+      "field": "suspectDescription",
+      "type": "textarea",
+      "next": "witnessAvailable"
+    },
+
+    "witnessAvailable": {
+      "question": "Were there any witnesses to the incident?",
+      "field": "witnessAvailable",
+      "type": "select",
+      "options": ["Yes", "No"],
+      "next": {
+        "condition": "witnessAvailable === 'Yes'",
+        "true": "witnessDetails",
+        "false": "evidenceAvailable"
+      }
+    },
+
+    "witnessDetails": {
+      "question": "Provide details of witnesses (name, contact, what they saw).",
+      "field": "witnessDetails",
+      "type": "textarea",
+      "next": "evidenceAvailable"
+    },
+
+    "evidenceAvailable": {
+      "question": "Do you have any evidence (photos, videos, documents)?",
+      "field": "evidenceAvailable",
+      "type": "select",
+      "options": ["Yes", "No"],
+      "next": {
+        "condition": "evidenceAvailable === 'Yes'",
+        "true": "evidenceDetails",
+        "false": "victimDetails"
+      }
+    },
+
+    "evidenceDetails": {
+      "question": "Describe the evidence you have.",
+      "field": "evidenceDetails",
+      "type": "textarea",
+      "next": "victimDetails"
+    },
+
+    "victimDetails": {
+      "question": "Provide your full name, address, and contact number.",
+      "field": "victimDetails",
+      "type": "textarea",
+      "next": "additionalInfo"
+    },
+
+    "additionalInfo": {
+      "question": "Is there any additional information you would like to provide?",
+      "field": "additionalInfo",
+      "type": "textarea",
+      "next": "end"
+    }
+  }
+}

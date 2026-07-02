@@ -14,6 +14,9 @@ const LIMITS = {
 };
 
 function safeParseJson(value, fallback) {
+  if (value === null || value === undefined || value === "null") {
+    return fallback;
+  }
   try {
     return JSON.parse(value);
   } catch {

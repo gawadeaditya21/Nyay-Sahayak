@@ -4,6 +4,8 @@ import FIR from "../models/FIR.js";
 import { connectTestDb, clearTestDb, closeTestDb } from "./helpers/testDb.js";
 import { createUserAndToken } from "./helpers/auth.js";
 
+let lastComplaintInput = "";
+
 jest.unstable_mockModule("../services/aiService.js", () => ({
   analyzeDocument: async () => ({
     documentType: "Agreement",
@@ -39,7 +41,22 @@ jest.unstable_mockModule("../services/aiService.js", () => ({
   }),
   detectDocumentType: () => "legal",
   extractTextFromDocx: async () => ({ text: "docx", method: "mammoth-docx" }),
-  generateFirDraft: async () => "FIR DRAFT TEXT",
+  generateComplaintLetter: async (input, options = {}) => {
+    lastComplaintInput = input;
+    if (options.language === "mr") {
+      return "Structured:\nमी ही तक्रार दाखल करत आहे.\n{\"payload\":true}\nNormalized:";
+    }
+
+    if (options.language === "hi") {
+      return "Structured:\nमैं यह शिकायत दर्ज कर रहा/रही हूँ।\n{\"payload\":true}\nNormalized:";
+    }
+
+    return "Structured:\nI am submitting this complaint.\n{\"payload\":true}\nNormalized:";
+  },
+  generateFirDraft: async (input) => {
+    lastComplaintInput = input;
+    return "Structured:\nI am submitting this complaint.\n{\"payload\":true}\nNormalized:";
+  },
   extractNumericTokens: () => [],
   hasMissingNumericTokens: () => false,
   hasPlaceholders: () => false,
@@ -48,6 +65,7 @@ jest.unstable_mockModule("../services/aiService.js", () => ({
   parseJSONResponse: (value) => JSON.parse(value),
   removeMarkdownFormatting: (value) => value,
   translateStructuredOutput: async (value) => value,
+  truncateText: (value) => value,
 }));
 
 jest.unstable_mockModule("pdf-parse", () => (
@@ -76,42 +94,93 @@ function makeGuestId() {
   return `guest_${crypto.randomUUID()}`;
 }
 
-test("POST /api/generate-fir succeeds for guest", async () => {
+test("POST /api/generate-complaint succeeds for guest", async () => {
   const response = await request(app)
-    .post("/api/generate-fir")
+    .post("/api/generate-complaint")
     .send({
       userId: makeGuestId(),
       sessionId: crypto.randomUUID(),
-      user_input: "Test FIR input",
+      user_input: "Test complaint input",
       language: "en",
       mode: "save",
     })
     .expect(200);
 
   expect(response.body.success).toBe(true);
-  expect(response.body.fir_text).toContain("FIR DRAFT TEXT");
+  expect(response.body.complaint_text).toContain("I am submitting this complaint.");
+  expect(response.body.complaint_text).not.toMatch(/Structured|Normalized|payload|\{|\}/i);
 });
 
-test("Guest limit allows 1 FIR generation", async () => {
+test("POST /api/generate-complaint accepts guided complaint answers", async () => {
+  const response = await request(app)
+    .post("/api/generate-complaint")
+    .send({
+      userId: makeGuestId(),
+      sessionId: crypto.randomUUID(),
+      fir_answers: {
+        incidentType: "Theft",
+        incidentDate: "2026-04-20",
+        incidentLocation: "MG Road Police Station area",
+        incidentDescription: "My phone was stolen from my bag.",
+        propertyInvolved: "Yes",
+        propertyDetails: "one analog watch around 5000 rupees",
+        victimDetails: "Test User, Pune, 9999999999",
+      },
+      language: "en",
+      mode: "save",
+    })
+    .expect(200);
+
+  expect(response.body.success).toBe(true);
+  expect(response.body.complaint_text).toContain("I am submitting this complaint.");
+  expect(response.body.complaint_text).not.toMatch(/Structured|Normalized|payload|\{|\}/i);
+  expect(lastComplaintInput).toContain('"incidentType":"Theft"');
+  expect(lastComplaintInput).toContain('"propertyDetails":"one analog watch around 5000 rupees"');
+  expect(lastComplaintInput).not.toContain("Structured complaint intake");
+});
+
+test("POST /api/generate-complaint accepts suspect and property fields cleanly", async () => {
+  const response = await request(app)
+    .post("/api/generate-complaint")
+    .send({
+      userId: makeGuestId(),
+      sessionId: crypto.randomUUID(),
+      fir_answers: {
+        incidentType: "Fraud",
+        incidentDescription: "I was cheated in an online payment.",
+        suspectDescription: "Unknown person on WhatsApp",
+        propertyDetails: "Rs 12,000",
+      },
+      language: "en",
+      mode: "save",
+    })
+    .expect(200);
+
+  expect(response.body.complaint_text).toContain("I am submitting this complaint.");
+  expect(lastComplaintInput).toContain('"suspectDescription":"Unknown person on WhatsApp"');
+  expect(lastComplaintInput).toContain('"propertyDetails":"Rs 12,000"');
+});
+
+test("Guest limit allows 1 complaint generation", async () => {
   const guestId = makeGuestId();
 
   await request(app)
-    .post("/api/generate-fir")
+    .post("/api/generate-complaint")
     .send({
       userId: guestId,
       sessionId: crypto.randomUUID(),
-      user_input: "Test FIR input",
+      user_input: "Test complaint input",
       language: "en",
       mode: "save",
     })
     .expect(200);
 
   const response = await request(app)
-    .post("/api/generate-fir")
+    .post("/api/generate-complaint")
     .send({
       userId: guestId,
       sessionId: crypto.randomUUID(),
-      user_input: "Test FIR input again",
+      user_input: "Test complaint input again",
       language: "en",
       mode: "save",
     })
@@ -120,16 +189,30 @@ test("Guest limit allows 1 FIR generation", async () => {
   expect(response.body.error).toBe("LIMIT_EXCEEDED");
 });
 
-test("FIR history returns user-specific data", async () => {
+test("Complaint generation requires input fields", async () => {
+  const response = await request(app)
+    .post("/api/generate-complaint")
+    .send({
+      userId: makeGuestId(),
+      sessionId: crypto.randomUUID(),
+      language: "en",
+      mode: "save",
+    })
+    .expect(400);
+
+  expect(response.body.error).toBe("USER_INPUT_MISSING");
+});
+
+test("Complaint history returns user-specific data", async () => {
   const { token } = await createUserAndToken();
   const sessionId = crypto.randomUUID();
 
   await request(app)
-    .post("/api/generate-fir")
+    .post("/api/generate-complaint")
     .set("Authorization", `Bearer ${token}`)
     .send({
       sessionId,
-      user_input: "Test FIR input",
+      user_input: "Test complaint input",
       language: "en",
       mode: "save",
     })
@@ -144,16 +227,16 @@ test("FIR history returns user-specific data", async () => {
   expect(history.body.data[0].sessionId).toBe(sessionId);
 });
 
-test("FIR stored content is encrypted", async () => {
+test("Complaint stored content is encrypted", async () => {
   const { token } = await createUserAndToken();
   const sessionId = crypto.randomUUID();
 
   await request(app)
-    .post("/api/generate-fir")
+    .post("/api/generate-complaint")
     .set("Authorization", `Bearer ${token}`)
     .send({
       sessionId,
-      user_input: "Confidential FIR text",
+      user_input: "Confidential complaint text",
       language: "en",
       mode: "save",
     })
@@ -161,5 +244,34 @@ test("FIR stored content is encrypted", async () => {
 
   const record = await FIR.findOne({ sessionId }).lean();
   expect(record.encryptedContent.startsWith("v2:")).toBe(true);
-  expect(record.encryptedContent).not.toContain("Confidential FIR text");
+  expect(record.encryptedContent).not.toContain("Confidential complaint text");
+});
+
+test("Complaint generation supports Hindi and Marathi language inputs", async () => {
+  const hindiResponse = await request(app)
+    .post("/api/generate-complaint")
+    .send({
+      userId: makeGuestId(),
+      sessionId: crypto.randomUUID(),
+      user_input: "मोबाइल चोरी हो गया",
+      language: "hi",
+      mode: "save",
+    })
+    .expect(200);
+
+  const marathiResponse = await request(app)
+    .post("/api/generate-complaint")
+    .send({
+      userId: makeGuestId(),
+      sessionId: crypto.randomUUID(),
+      user_input: "फोन चोरी झाला",
+      language: "mr",
+      mode: "save",
+    })
+    .expect(200);
+
+  expect(hindiResponse.body.complaint_text).toContain("शिकायत दर्ज कर");
+  expect(marathiResponse.body.complaint_text).toContain("तक्रार दाखल करत आहे");
+  expect(hindiResponse.body.complaint_text).not.toMatch(/[A-Za-z]{4,}/);
+  expect(marathiResponse.body.complaint_text).not.toMatch(/[A-Za-z]{4,}/);
 });

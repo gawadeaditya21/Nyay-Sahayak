@@ -4195,444 +4195,529 @@ async function analyzeLegalQuery(queryText, options = {}) {
   }
 }
 
-function buildFirPrompt(userInput, language) {
-  const resolvedLanguage = ensureSupportedLanguage(language);
-  const languageLabel = getLanguageLabel(resolvedLanguage).toUpperCase();
-  return `You are an experienced Indian legal assistant trained in drafting FIRs and complaints used in real police stations and by advocates in India.
+const COMPLAINT_FIELDS = [
+  "incidentType",
+  "incidentDate",
+  "incidentTime",
+  "incidentLocation",
+  "incidentDescription",
+  "propertyDetails",
+  "suspectDescription",
+  "evidenceDetails",
+  "victimDetails",
+];
 
-This is a generation task. Do NOT ask questions. Do NOT request missing data.
+const COMPLAINT_TEMPLATES = {
+  en: {
+    to: "To,",
+    sho: "The Station House Officer (SHO)",
+    subject: (incidentType) => `Subject: Complaint regarding ${incidentType || "the incident"}`,
+    respected: "Respected Sir/Madam,",
+    intro:
+      "I, [Name], residing at [Address], would like to report an incident that occurred on [Date] at around [Time] at [Location].",
+    detailsIntro: "The details of the incident are as follows:",
+    propertyIntro: "In this incident, the following property/items were involved:",
+    suspectIntro: "Details of the suspect:",
+    evidenceIntro: "I have the following evidence related to this incident:",
+    request:
+      "I request you to kindly register my complaint and take appropriate legal action at the earliest.",
+    thanks: "Thanking you.",
+    closing: "Yours sincerely,",
+    signature: "[Signature]",
+  },
+  hi: {
+    to: "प्रति,",
+    sho: "थाना प्रभारी अधिकारी,",
+    subject: (incidentType) => `विषय: ${incidentType || "घटना"} के संबंध में शिकायत`,
+    respected: "माननीय महोदय/महोदया,",
+    intro:
+      "मैं, [नाम], [पता] में निवास करता/करती हूँ, और [तारीख] को लगभग [समय] बजे [स्थान] पर हुई एक घटना की शिकायत दर्ज कराना चाहता/चाहती हूँ.",
+    detailsIntro: "घटना का विवरण निम्नलिखित है:",
+    propertyIntro: "इस घटना में निम्नलिखित संपत्ति/वस्तुएँ शामिल थीं:",
+    suspectIntro: "संदिग्ध का विवरण:",
+    evidenceIntro: "इस घटना से संबंधित मेरे पास निम्नलिखित साक्ष्य हैं:",
+    request: "मैं आपसे निवेदन करता/करती हूँ कि कृपया मेरी शिकायत दर्ज करें और यथाशीघ्र उचित कानूनी कार्रवाई करें.",
+    thanks: "धन्यवाद.",
+    closing: "भवदीय,",
+    signature: "[हस्ताक्षर]",
+  },
+  mr: {
+    to: "प्रति,",
+    sho: "पोलीस ठाणे अधिकारी,",
+    subject: (incidentType) => `विषय: ${incidentType || "घटना"} संदर्भात तक्रार`,
+    respected: "माननीय महोदय/महोदया,",
+    intro:
+      "मी, [नाव], [पत्ता] येथे वास्तव्यास आहे/आहे, आणि [तारीख] रोजी सुमारे [वेळ] वाजता [ठिकाण] येथे घडलेल्या घटनेबाबत तक्रार नोंदवू इच्छितो/इच्छिते.",
+    detailsIntro: "घटनेचा तपशील पुढीलप्रमाणे आहे:",
+    propertyIntro: "या घटनेत खालील मालमत्ता/वस्तू संबंधित होत्या:",
+    suspectIntro: "संशयिताचे तपशील:",
+    evidenceIntro: "या घटनेशी संबंधित माझ्याकडे खालील पुरावे आहेत:",
+    request: "कृपया माझी तक्रार नोंदवून योग्य ती कायदेशीर कारवाई तातडीने करावी, अशी विनंती आहे.",
+    thanks: "धन्यवाद.",
+    closing: "आपला/आपली नम्र,",
+    signature: "[स्वाक्षरी]",
+  },
+};
 
-Language preference: ${languageLabel}. You MUST respond only in this language for the FIR body. Keep law names in English. Keep the Request sentence in English exactly.
+function normalizeComplaintInput(input) {
+  if (!input) {
+    return {};
+  }
 
-Critical legal corrections (mandatory):
-- NEVER use the words "refund", "recover", "recovery", "facilitate refund", or "return my money" anywhere.
-- Subject line must be: "Complaint regarding [issue]" and must not mention refund or recovery.
-- The Request section must use this exact sentence only:
-"I kindly request you to register my complaint and investigate the matter. If any misuse or criminal activity is found, kindly take appropriate legal action."
+  if (typeof input === "string") {
+    const trimmed = String(input).trim();
+    if (!trimmed) {
+      return {};
+    }
 
-Core rule:
-You MUST dynamically adapt the FIR based on case type. Do NOT include irrelevant sections.
-Each FIR must be unique and context-aware. Do NOT reuse generic sentences.
+    if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          return normalizeComplaintInput(parsed);
+        }
+      } catch {
+        // Fall through to plain-text handling.
+      }
+    }
 
-Case rules (apply only what is relevant):
-1) Theft: Title "Complaint Regarding Theft of [item]", include item details, location, time, registration number if vehicle; law IPC 379; no bank/UPI steps.
-2) Money transfer mistake: Title "Complaint Regarding Mistaken Fund Transfer", include transaction details, law IPC 403 + IT Act; include bank/UPI step; no theft language.
-3) Assault/harassment: Title "Complaint Regarding Assault and Threat", include incident and accused details; laws IPC 323, IPC 352, IPC 506; no transaction/bank steps.
-4) Accident/rash driving: Title "Complaint Regarding Rash Driving and Assault", include vehicle details, damage, number plate; laws IPC 279, IPC 323, IPC 506.
-5) Lost item: Title "Complaint Regarding Lost [item]", include where it was kept and when it was noticed missing; law IPC 403.
-6) Property issue: Include property/payment details; laws RERA Act + Indian Contract Act as applicable.
-7) Employment issue: Include employer details and timeline; laws Labour Laws.
+    return {
+      incidentDescription: trimmed,
+    };
+  }
 
-If any information is missing, use fillable fields like:
-Name: __________
-Address: __________
+  if (typeof input !== "object" || Array.isArray(input)) {
+    return {};
+  }
 
-Output rules:
-Use clean plain text only. Do NOT use markdown, separators, or artificial headings. Keep the tone human and practical.
-
-Smart case detection (adapt FIR accordingly):
-Theft/Lost Property (IPC 379/IPC 403), Fraud/Cheating (IPC 420), Breach of Trust (IPC 406), Cyber Fraud (IT Act + IPC), Job Scam, Property/Builder Issue (RERA + Contract Act), Harassment/Threat, Salary/Employment Issue (Labour Laws).
-If uncertain, write: Possible sections may include...
-
-Follow this format strictly:
-
-Title:
-Complaint Regarding [Issue Type]
-
-To,
-The Station House Officer (SHO)
-[Police Station Name]
-[City]
-
-Date: __________
-Place: __________
-
-Subject:
-Complaint regarding [brief issue]
-
-Respected Sir/Madam,
-
-I, __________, residing at __________, would like to report the following:
-
-Explain clearly:
-what happened
-when
-where
-what loss occurred
-
-Include naturally: Due to this situation, I am facing financial loss and mental stress.
-
-Add only relevant details based on case:
-If financial/cyber case, include Transaction Details:
-Transaction ID: __________
-Bank/UPI: __________
-Amount: __________
-Date/Time: __________
-
-If mobile/device lost:
-Device Model: __________
-IMEI: __________
-
-If property case:
-Property details and payment history.
-
-Legal Grounds:
-Possible sections may include:
-* IPC 403 (Dishonest Misappropriation of Property): If the receiver knowingly keeps the money without returning it.
-* IT Act: If the issue involves digital transaction misuse.
-
-Modify or add relevant laws based on the case (IPC 420, IPC 406, IPC 379, RERA Act, Labour Laws) if applicable.
-
-Request:
-I kindly request you to register my complaint and investigate the matter. If any misuse or criminal activity is found, kindly take appropriate legal action.
-
-Closing:
-Thanking you,
-
-Yours faithfully,
-[Name: __________]
-[Contact Number: __________]
-
-Signature: __________
-
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (documents/screenshots)
-* Keep ID proof ready
-* Immediately report the issue to your bank or UPI app
-
-Important Notes:
-FIR registration depends on police verification.
-Some cases may be civil in nature.
-You may approach higher authorities if FIR is not registered.
-
-User Input:
-${userInput}`;
+  return COMPLAINT_FIELDS.reduce((accumulator, field) => {
+    const value = String(input[field] ?? "").trim();
+    if (value) {
+      accumulator[field] = value;
+    }
+    return accumulator;
+  }, {});
 }
 
-function detectFirCase(userInput) {
-  const normalized = normalizeForMatching(userInput || "");
-
-  if (/upi|transaction|fund\s+transfer|imps|neft|rtgs|bank\s+transfer|money\s+transfer|mistaken\s+transfer/i.test(normalized)) {
-    return "money_transfer";
-  }
-  if (/theft|stolen|robbed|steal|burglary/i.test(normalized)) {
-    return "theft";
-  }
-  if (/lost|missing|misplaced/i.test(normalized)) {
-    return "lost_item";
-  }
-  if (/assault|attack|harass|threat|abuse|intimidat|molest/i.test(normalized)) {
-    return "assault";
-  }
-  if (/accident|rash\s+driving|hit\s+and\s+run|collision/i.test(normalized)) {
-    return "accident";
-  }
-  if (/builder|property|flat|plot|developer|rera|possession|handover/i.test(normalized)) {
-    return "property";
-  }
-  if (/job|offer|employment|salary|company|hr|recruit/i.test(normalized)) {
-    return "job";
-  }
-  if (/fraud|scam|cheat|cheated|fake/i.test(normalized)) {
-    return "fraud";
-  }
-
-  return "general";
+function buildComplaintSourceText(data) {
+  return JSON.stringify(normalizeComplaintInput(data), null, 2);
 }
 
-function buildFirFallback(userInput) {
-  const caseType = detectFirCase(userInput);
-  const incidentText = userInput || "The incident details are not fully available in this draft.";
-
-  const baseHeader = (subjectLine) => `To,
-The Station House Officer (SHO)
-[Police Station Name]
-[City]
-
-Date: __________
-Place: __________
-
-Subject:
-${subjectLine}
-
-Respected Sir/Madam,
-
-I, __________, residing at __________, would like to report the following:
-
-${incidentText}
-
-Due to this situation, I am facing financial loss and mental stress.
-`;
-
-  const requestBlock = `Request:
-I kindly request you to register my complaint and investigate the matter. If any misuse or criminal activity is found, kindly take appropriate legal action.
-`;
-
-  const closingBlock = `Closing:
-Thanking you,
-
-Yours faithfully,
-[Name: __________]
-[Contact Number: __________]
-
-Signature: __________
-
-Important Notes:
-FIR registration depends on police verification.
-Some cases may be civil in nature.
-You may approach higher authorities if FIR is not registered`;
-
-  if (caseType === "theft") {
-    return `Title:
-Complaint Regarding Theft of [item]
-
-  ${baseHeader("Complaint regarding theft of property")}
-Item details: __________
-Location: __________
-Date/Time: __________
-If vehicle: Registration Number: __________
-
-Legal Grounds:
-IPC 379 (Theft): Taking property without permission
-
-${requestBlock}
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (documents/screenshots)
-* Keep ID proof ready
-
-${closingBlock}`;
+function parseJsonComplaintCandidate(text) {
+  const cleaned = String(text || "").trim();
+  if (!cleaned.startsWith("{") && !cleaned.startsWith("[")) {
+    return null;
   }
 
-  if (caseType === "lost_item") {
-    return `Title:
-Complaint Regarding Lost [item]
-
-  ${baseHeader("Complaint regarding lost property")}
-Item details: __________
-Last seen at: __________
-Date/Time: __________
-If mobile/device: Device Model: __________, IMEI: __________
-
-Legal Grounds:
-IPC 403 (Misappropriation): Keeping property dishonestly
-
-${requestBlock}
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (documents/screenshots)
-* Keep ID proof ready
-
-${closingBlock}`;
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    return null;
   }
-
-  if (caseType === "money_transfer") {
-    return `Title:
-Complaint Regarding Mistaken Fund Transfer
-
-  ${baseHeader("Complaint regarding mistaken fund transfer")}
-Transaction Details:
-* Transaction ID: __________
-* Bank/UPI: __________
-* Amount: __________
-* Date/Time: __________
-
-Legal Grounds:
-Possible sections may include:
-* IPC 403 (Dishonest Misappropriation of Property): If the receiver knowingly keeps the money without returning it.
-* IT Act: If the issue involves digital transaction misuse.
-
-${requestBlock}
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (documents/screenshots)
-* Keep ID proof ready
-* Immediately report the issue to your bank or UPI app
-
-${closingBlock}`;
-  }
-
-  if (caseType === "assault") {
-    return `Title:
-Complaint Regarding Assault and Threat
-
-  ${baseHeader("Complaint regarding assault and threat")}
-Accused details (if known): __________
-Location: __________
-Date/Time: __________
-
-Legal Grounds:
-IPC 323 (Voluntarily causing hurt)
-IPC 352 (Assault or criminal force)
-IPC 506 (Criminal intimidation)
-
-${requestBlock}
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (medical report, messages)
-* Keep ID proof ready
-
-${closingBlock}`;
-  }
-
-  if (caseType === "accident") {
-    return `Title:
-Complaint Regarding Rash Driving and Assault
-
-  ${baseHeader("Complaint regarding rash driving and assault")}
-Vehicle details: __________
-Number plate: __________
-Damage details: __________
-Location: __________
-Date/Time: __________
-
-Legal Grounds:
-IPC 279 (Rash driving)
-IPC 323 (Voluntarily causing hurt)
-IPC 506 (Criminal intimidation)
-
-${requestBlock}
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (photos, medical report)
-* Keep ID proof ready
-
-${closingBlock}`;
-  }
-
-  if (caseType === "property") {
-    return `Title:
-Complaint Regarding Property Dispute
-
-  ${baseHeader("Complaint regarding property dispute")}
-Property details: __________
-Payment details: __________
-
-Legal Grounds:
-RERA Act: For builder/property issues
-Indian Contract Act: For agreement-related obligations
-
-${requestBlock}
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (documents, receipts)
-* Keep ID proof ready
-
-${closingBlock}`;
-  }
-
-  if (caseType === "job") {
-    return `Title:
-Complaint Regarding Job Scam
-
-  ${baseHeader("Complaint regarding job scam")}
-Company/HR details: __________
-Offer details: __________
-Payment details (if any): __________
-
-Legal Grounds:
-IPC 420 (Cheating): When someone deceives and causes financial loss
-Labour Laws: For job/salary issues
-
-${requestBlock}
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (emails, messages, receipts)
-* Keep ID proof ready
-
-${closingBlock}`;
-  }
-
-  if (caseType === "fraud") {
-    return `Title:
-Complaint Regarding Fraud and Cheating
-
-  ${baseHeader("Complaint regarding fraud and cheating")}
-Payment details (if any): __________
-Mode of payment: __________
-Date/Time: __________
-
-Legal Grounds:
-IPC 420 (Cheating): When someone deceives and causes financial loss
-IT Act: For cyber fraud or digital misuse
-
-${requestBlock}
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (documents/screenshots)
-* Keep ID proof ready
-* Immediately report the issue to your bank or UPI app
-
-${closingBlock}`;
-  }
-
-  return `Title:
-Complaint Regarding Incident
-
-${baseHeader("Complaint regarding the incident")}
-Legal Grounds:
-Possible sections may include relevant IPC sections based on the facts.
-
-${requestBlock}
-Suggested Actions:
-* Visit nearest police station
-* Carry relevant proof (documents/screenshots)
-* Keep ID proof ready
-
-${closingBlock}`;
 }
 
-function sanitizeFirOutput(rawText) {
+function collectTextFromObject(value) {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(collectTextFromObject).filter(Boolean).join("\n");
+  }
+
+  if (value && typeof value === "object") {
+    const preferredKeys = [
+      "complaintLetter",
+      "complaint_letter",
+      "letter",
+      "content",
+      "text",
+      "reply",
+      "message",
+      "output",
+    ];
+
+    for (const key of preferredKeys) {
+      const candidate = collectTextFromObject(value[key]);
+      if (candidate) {
+        return candidate;
+      }
+    }
+
+    return Object.values(value)
+      .map(collectTextFromObject)
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  return "";
+}
+
+function cleanComplaintOutput(rawText) {
   if (!rawText) {
-    return rawText;
+    return "";
   }
 
-  let cleaned = String(rawText);
-  cleaned = cleaned.replace(/return\s+my\s+money/gi, "address this matter");
-  cleaned = cleaned.replace(/facilitate\s+refund/gi, "appropriate legal action");
-  cleaned = cleaned.replace(/refund|recover|recovery/gi, "appropriate legal action");
+  let cleaned = removeMarkdownFormatting(String(rawText));
+  cleaned = cleaned.replace(/\r\n/g, "\n");
 
-  cleaned = cleaned.replace(/Complaint regarding the issue/gi, "Complaint regarding the matter");
+  const parsed = parseJsonComplaintCandidate(cleaned.trim());
+  if (parsed) {
+    cleaned = collectTextFromObject(parsed).trim();
+  }
 
-  cleaned = cleaned.replace(
-    /Request:[\s\S]*?(?=\n\nClosing:|\nClosing:|\n\nSuggested Actions:|\nSuggested Actions:|\n\nImportant Notes:|\nImportant Notes:|$)/i,
-    "Request:\nI kindly request you to register my complaint and investigate the matter. If any misuse or criminal activity is found, kindly take appropriate legal action.\n"
-  );
+  cleaned = cleaned.replace(/```[\s\S]*?```/g, "").trim();
+  cleaned = cleaned.replace(/{[\s\S]*?}/g, " ");
+  cleaned = cleaned.replace(/\b(Structured|Normalized|payload)\b/gi, " ");
+  cleaned = cleaned.replace(/[ \t]+$/gm, "");
+  cleaned = cleaned.replace(/[ \t]{2,}/g, " ");
+  cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
 
   return cleaned;
 }
 
-async function generateFirDraft(userInput, options = {}) {
-  const cleanedInput = String(userInput || "").trim();
-  if (!cleanedInput) {
-    throw new Error("User input is required");
+function shouldRetryComplaintOutput(text) {
+  const normalized = String(text || "").trim();
+  if (!normalized) {
+    return true;
+  }
+
+  if (/FIRST INFORMATION REPORT|\bFIR\b/i.test(normalized)) {
+    return true;
+  }
+
+  if (/\b(Structured|Normalized|payload)\b/i.test(normalized)) {
+    return true;
+  }
+
+  if (/^\s*[\[{]/m.test(normalized)) {
+    return true;
+  }
+
+  if (/```/i.test(normalized)) {
+    return true;
+  }
+
+  return false;
+}
+
+function buildComplaintPrompt(data, language) {
+  const resolvedLanguage = ensureSupportedLanguage(language);
+  const complaintSource = buildComplaintSourceText(data);
+
+  return `Generate a formal police complaint letter in ${getLanguageLabel(resolvedLanguage)}.
+Use simple and clear language.
+Do NOT include JSON, labels, or technical text.
+Do NOT mix languages.
+Return only the final complaint letter.
+
+${complaintSource || "{}"}`.trim();
+}
+
+async function translateComplaintLetter(text, language) {
+  const resolvedLanguage = ensureSupportedLanguage(language);
+  if (resolvedLanguage === "en") {
+    return sanitizeComplaintOutput(text);
+  }
+
+  const translatedPrompt = `Translate the following complaint letter into ${getLanguageLabel(resolvedLanguage)}.
+Use simple and clear language.
+Do NOT include JSON, labels, or technical text.
+Do NOT mix languages.
+Return only the translated complaint letter.
+
+Complaint letter:
+${text}`.trim();
+
+  const result = await generateContentWithFallback(translatedPrompt);
+  return cleanComplaintOutput(result.response.text().trim());
+}
+
+function buildComplaintFallback(data, language) {
+  const resolvedLanguage = ensureSupportedLanguage(language);
+  const template = COMPLAINT_TEMPLATES[resolvedLanguage] || COMPLAINT_TEMPLATES.en;
+  const incidentType = data.incidentType || "the incident";
+  const incidentDate = data.incidentDate || (resolvedLanguage === "hi" ? "[तारीख]" : resolvedLanguage === "mr" ? "[तारीख]" : "[Date]");
+  const incidentTime = data.incidentTime || (resolvedLanguage === "hi" ? "[समय]" : resolvedLanguage === "mr" ? "[वेळ]" : "[Time]");
+  const incidentLocation = data.incidentLocation || (resolvedLanguage === "hi" ? "[स्थान]" : resolvedLanguage === "mr" ? "[ठिकाण]" : "[Location]");
+  const name = extractBestPersonValue(data.victimDetails, resolvedLanguage === "hi" ? "[नाम]" : resolvedLanguage === "mr" ? "[नाव]" : "[Name]");
+  const address = extractBestAddressValue(data.victimDetails, resolvedLanguage === "hi" ? "[पता]" : resolvedLanguage === "mr" ? "[पत्ता]" : "[Address]");
+  const contactNumber = extractBestPhoneValue(data.victimDetails, resolvedLanguage === "hi" ? "[संपर्क नंबर]" : resolvedLanguage === "mr" ? "[संपर्क क्रमांक]" : "[Contact Number]");
+  const incidentSubject = getLocalizedIncidentTypeLabel(incidentType, resolvedLanguage);
+  const stationLabel =
+    resolvedLanguage === "en"
+      ? "[Police Station Name: ______]"
+      : resolvedLanguage === "hi"
+        ? "[थाना/पुलिस स्टेशन का नाम: ______]"
+        : "[पोलीस ठाण्याचे नाव: ______]";
+  const cityLabel =
+    resolvedLanguage === "en"
+      ? "[City: ______]"
+      : resolvedLanguage === "hi"
+        ? "[शहर: ______]"
+        : "[शहर: ______]";
+  const dateLabel = resolvedLanguage === "en" ? "Date: ______" : resolvedLanguage === "hi" ? "दिनांक: ______" : "दिनांक: ______";
+  const namePlaceholder = resolvedLanguage === "hi" ? "[नाम]" : resolvedLanguage === "mr" ? "[नाव]" : "[Name]";
+  const addressPlaceholder = resolvedLanguage === "hi" ? "[पता]" : resolvedLanguage === "mr" ? "[पत्ता]" : "[Address]";
+  const datePlaceholder = resolvedLanguage === "hi" ? "[तारीख]" : resolvedLanguage === "mr" ? "[तारीख]" : "[Date]";
+  const timePlaceholder = resolvedLanguage === "hi" ? "[समय]" : resolvedLanguage === "mr" ? "[वेळ]" : "[Time]";
+  const locationPlaceholder = resolvedLanguage === "hi" ? "[स्थान]" : resolvedLanguage === "mr" ? "[ठिकाण]" : "[Location]";
+
+  const incidentNarrative = buildIncidentNarrative(data, resolvedLanguage);
+  const lines = [
+    template.to,
+    template.sho,
+    stationLabel,
+    cityLabel,
+    "",
+    dateLabel,
+    "",
+    template.subject(incidentSubject),
+    "",
+    template.respected,
+    "",
+    template.intro
+      .replace(namePlaceholder, name)
+      .replace(addressPlaceholder, address)
+      .replace(datePlaceholder, incidentDate)
+      .replace(timePlaceholder, incidentTime)
+      .replace(locationPlaceholder, incidentLocation),
+    "",
+    template.detailsIntro,
+    incidentNarrative,
+  ];
+
+  if (data.propertyDetails) {
+    lines.push("", template.propertyIntro, data.propertyDetails);
+  }
+
+  if (data.suspectDescription) {
+    lines.push("", template.suspectIntro, data.suspectDescription);
+  }
+
+  if (data.evidenceDetails) {
+    lines.push("", template.evidenceIntro, data.evidenceDetails);
+  }
+
+  lines.push(
+    "",
+    template.request,
+    "",
+    template.thanks,
+    "",
+    template.closing,
+    name,
+    contactNumber,
+    template.signature
+  );
+
+  return sanitizeComplaintOutput(lines.join("\n"));
+}
+
+function extractBestPersonValue(sourceText, fallbackValue) {
+  const value = String(sourceText || "").trim();
+  if (!value) {
+    return fallbackValue;
+  }
+
+  const parts = value.split(/[\n,]+/).map((part) => part.trim()).filter(Boolean);
+  return parts[0] || fallbackValue;
+}
+
+function extractBestAddressValue(sourceText, fallbackValue) {
+  const value = String(sourceText || "").trim();
+  if (!value) {
+    return fallbackValue;
+  }
+
+  const parts = value.split(/[\n,]+/).map((part) => part.trim()).filter(Boolean);
+  return parts[1] || fallbackValue;
+}
+
+function extractBestPhoneValue(sourceText, fallbackValue) {
+  const value = String(sourceText || "").trim();
+  const phoneMatch = value.match(/(?:\+?91[\s-]?)?[6-9]\d{9}/);
+  if (phoneMatch) {
+    return phoneMatch[0];
+  }
+
+  const parts = value.split(/[\n,]+/).map((part) => part.trim()).filter(Boolean);
+  return parts[2] || fallbackValue;
+}
+
+function containsLatinLetters(value) {
+  return /[A-Za-z]/.test(String(value || ""));
+}
+
+function getLocalizedIncidentTypeLabel(incidentType, language) {
+  const normalized = String(incidentType || "").toLowerCase();
+
+  if (language === "en") {
+    return incidentType || "the incident";
+  }
+
+  const labelMap = {
+    hi: [
+      ["theft", "चोरी"],
+      ["fraud", "धोखाधड़ी"],
+      ["scam", "धोखाधड़ी"],
+      ["missing", "गुमशुदगी"],
+      ["lost", "गुमशुदगी"],
+      ["assault", "मारपीट"],
+      ["harass", "उत्पीड़न"],
+      ["accident", "दुर्घटना"],
+      ["property", "संपत्ति विवाद"],
+    ],
+    mr: [
+      ["theft", "चोरी"],
+      ["fraud", "फसवणूक"],
+      ["scam", "फसवणूक"],
+      ["missing", "हरवलेली वस्तू"],
+      ["lost", "हरवलेली वस्तू"],
+      ["assault", "मारहाण"],
+      ["harass", "छळ"],
+      ["accident", "अपघात"],
+      ["property", "मालमत्ता वाद"],
+    ],
+  };
+
+  for (const [keyword, label] of labelMap[language] || []) {
+    if (normalized.includes(keyword)) {
+      return label;
+    }
+  }
+
+  return language === "hi" ? "घटना" : "घटना";
+}
+
+function buildIncidentNarrative(data, language) {
+  const description = String(data.incidentDescription || "").trim();
+  const incidentType = String(data.incidentType || "incident").trim();
+  const incidentDate = String(data.incidentDate || "").trim();
+  const incidentTime = String(data.incidentTime || "").trim();
+  const incidentLocation = String(data.incidentLocation || "").trim();
+  const useLiteralText = language === "en" || !containsLatinLetters(description);
+
+  const sentences = [];
+  if (description && useLiteralText) {
+    sentences.push(description.replace(/\s+/g, " "));
+  } else if (language === "en") {
+    sentences.push(`I am writing to report an ${incidentType.toLowerCase()} incident.`);
+  } else if (language === "hi") {
+    sentences.push("मैं इस घटना की शिकायत दर्ज कर रहा/रही हूँ।");
+  } else if (language === "mr") {
+    sentences.push("मी या घटनेची तक्रार नोंदवत आहे.");
+  } else {
+    sentences.push("I am writing to report this incident.");
+  }
+
+  const contextParts = [];
+  if (incidentDate) contextParts.push(`on ${incidentDate}`);
+  if (incidentTime) contextParts.push(`around ${incidentTime}`);
+  if (incidentLocation) contextParts.push(`at ${incidentLocation}`);
+
+  if (contextParts.length > 0 && (!description || !useLiteralText)) {
+    if (language === "en") {
+      sentences.push(`The incident occurred ${contextParts.join(" ")}.`);
+    } else if (language === "hi") {
+      sentences.push(`यह घटना ${contextParts.join(" ")} घटी।`);
+    } else if (language === "mr") {
+      sentences.push(`ही घटना ${contextParts.join(" ")} घडली.`);
+    }
+  }
+
+  if (data.propertyDetails) {
+    const propertyDetails = String(data.propertyDetails).replace(/\s+/g, " ");
+    if (language === "en" || !containsLatinLetters(propertyDetails)) {
+      if (language === "en") {
+        sentences.push(`The property or items involved were ${propertyDetails}.`);
+      } else if (language === "hi") {
+        sentences.push(`इस घटना में शामिल संपत्ति/वस्तुएँ: ${propertyDetails}.`);
+      } else if (language === "mr") {
+        sentences.push(`या घटनेत संबंधित मालमत्ता/वस्तू: ${propertyDetails}.`);
+      }
+    }
+  }
+
+  if (data.suspectDescription) {
+    const suspectDescription = String(data.suspectDescription).replace(/\s+/g, " ");
+    if (language === "en" || !containsLatinLetters(suspectDescription)) {
+      if (language === "en") {
+        sentences.push(`The suspect details are ${suspectDescription}.`);
+      } else if (language === "hi") {
+        sentences.push(`संदिग्ध का विवरण: ${suspectDescription}.`);
+      } else if (language === "mr") {
+        sentences.push(`संशयिताचे तपशील: ${suspectDescription}.`);
+      }
+    }
+  }
+
+  if (data.evidenceDetails) {
+    const evidenceDetails = String(data.evidenceDetails).replace(/\s+/g, " ");
+    if (language === "en" || !containsLatinLetters(evidenceDetails)) {
+      if (language === "en") {
+        sentences.push(`The available evidence includes ${evidenceDetails}.`);
+      } else if (language === "hi") {
+        sentences.push(`उपलब्ध साक्ष्य: ${evidenceDetails}.`);
+      } else if (language === "mr") {
+        sentences.push(`उपलब्ध पुरावे: ${evidenceDetails}.`);
+      }
+    }
+  }
+
+  return sanitizeComplaintOutput(sentences.join(" "));
+}
+
+function sanitizeComplaintOutput(rawText) {
+  if (!rawText) {
+    return "";
+  }
+
+  let cleaned = String(rawText)
+    .replace(/\r\n/g, "\n")
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]+$/gm, "")
+    .trim();
+
+  cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
+  return cleaned;
+}
+
+async function generateComplaintLetter(userInput, options = {}) {
+  const complaintData = normalizeComplaintInput(userInput);
+  if (Object.keys(complaintData).length === 0) {
+    throw new Error("Complaint data is required");
   }
 
   const resolvedLanguage = ensureSupportedLanguage(options.language);
-  const languageInstruction = getLanguageInstruction(resolvedLanguage);
+  const languageInstruction = getLanguageLabel(resolvedLanguage);
   console.log(
-    `[aiService] generateFirDraft language raw="${options.language}" resolved="${resolvedLanguage}" instruction="${languageInstruction}"`
+    `[aiService] generateComplaintLetter language raw="${options.language}" resolved="${resolvedLanguage}" label="${languageInstruction}"`
   );
-  const prompt = buildFirPrompt(cleanedInput, resolvedLanguage);
+
+  const prompt = buildComplaintPrompt(complaintData, resolvedLanguage);
 
   try {
-    let result = await generateContentWithFallback(prompt);
-    let responseText = result.response.text().trim();
+    const result = await generateContentWithFallback(prompt);
+    let responseText = cleanComplaintOutput(result.response.text().trim());
 
-    if (isLanguageMismatch(responseText, resolvedLanguage) || isMixedLanguage(responseText, resolvedLanguage)) {
-      console.warn(
-        "[aiService] FIR language mismatch detected. Retrying with strict language enforcement."
-      );
-      const strictPrompt = `${prompt}\n\nIMPORTANT: Respond ONLY in ${resolvedLanguage.toUpperCase()} as specified. Do not use any other language.`;
-      result = await generateContentWithFallback(strictPrompt);
-      responseText = result.response.text().trim();
+    if (resolvedLanguage !== "en" && (isLanguageMismatch(responseText, resolvedLanguage) || isMixedLanguage(responseText, resolvedLanguage))) {
+      responseText = await translateComplaintLetter(responseText, resolvedLanguage);
     }
 
-    return sanitizeFirOutput(responseText);
+    if (resolvedLanguage !== "en" && (isLanguageMismatch(responseText, resolvedLanguage) || isMixedLanguage(responseText, resolvedLanguage))) {
+      throw new Error("Translated complaint output was still mixed language.");
+    }
+
+    if (shouldRetryComplaintOutput(responseText)) {
+      throw new Error("Complaint output was not usable.");
+    }
+
+    return sanitizeComplaintOutput(responseText);
   } catch (error) {
-    console.error("[aiService] FIR generation failed:", error.message);
-    return sanitizeFirOutput(buildFirFallback(cleanedInput));
+    console.error("[aiService] Complaint generation failed:", error.message);
+    return buildComplaintFallback(complaintData, resolvedLanguage);
   }
 }
 
@@ -4657,7 +4742,7 @@ export {
   chunkText,
   detectDocumentType,
   extractTextFromDocx,
-  generateFirDraft,
+  generateComplaintLetter,
   extractNumericTokens,
   hasMissingNumericTokens,
   hasPlaceholders,
@@ -4666,4 +4751,5 @@ export {
   parseJSONResponse,
   removeMarkdownFormatting,
   translateStructuredOutput,
+  truncateText,
 };

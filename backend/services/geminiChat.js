@@ -52,6 +52,10 @@ function hasImpactPhrase(text, language) {
     return /(नुकसान|पैसे|खर्च|दंड|विलंब|हानी|गमाव)/.test(normalized);
   }
 
+  if (resolvedLanguage === "hinglish") {
+    return /(nuksan|paise|kharch|jurmana|deri|hani|gaw|loss|money|delay|risk|harm|cost|property|time)/i.test(normalized);
+  }
+
   return /(lose|loss|pay|penalty|delay|risk|harm|cost|money|property|time)/i.test(normalized);
 }
 
@@ -915,7 +919,10 @@ async function generateGeminiReply({ query, context, language }) {
   );
 
   let outputLanguage = resolvedLanguage;
-  const requiredTokens = extractNumericTokens(query);
+  
+  // Do not require numeric tokens if this is a large document upload in chat
+  const isDocumentUpload = query.includes("User Uploaded Document Context:");
+  const requiredTokens = isDocumentUpload ? [] : extractNumericTokens(query);
 
   let prompt = buildChatPrompt({ query, context, language: resolvedLanguage });
   let result = await geminiModel.generateContent(prompt);

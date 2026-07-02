@@ -10,6 +10,10 @@ import documentRoutes from "./routes/documentRoutes.js";
 import authRoutes from "./routes/authRoutes.js";    
 import chatRoutes from "./routes/chatRoutes.js";
 import firRoutes from "./routes/firRoutes.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
+import usageRoutes from "./routes/usageRoutes.js";
+import paymentRoutes from "./routes/paymentRoutes.js";
+import { stripeWebhook } from "./controllers/paymentController.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 
 // Validate environment variables on startup
@@ -22,11 +26,16 @@ connectDB();
 const app = express();
 
 app.use(cors());
+
+// STRIPE WEBHOOK MUST BE BEFORE express.json()
+app.post("/api/payment/webhook", express.raw({ type: "application/json" }), stripeWebhook);
+
 app.use(express.json());
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // API ROUTES
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+app.use("/api/payment", paymentRoutes);
 
 // Primary Document Analysis Route (Recommended)
 app.use("/api/document", rateLimit, documentRoutes);
@@ -36,11 +45,14 @@ app.use("/api", analysisRoutes);
 app.use("/api", ocrRoutes);
 app.use("/api/pdf", pdfRoutes);
 app.use("/api/generate-fir", rateLimit);
+app.use("/api/generate-complaint", rateLimit);
 app.use("/api", firRoutes);
 
 // auth routes
 app.use('/api/auth', authRoutes);
 app.use("/api/chat", rateLimit, chatRoutes);
+app.use("/api/dashboard", rateLimit, dashboardRoutes);
+app.use("/api/usage", usageRoutes);
 
 const PORT = process.env.PORT || 5000;
 
@@ -48,6 +60,6 @@ app.listen(PORT, () => {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log("✅ Server running on port", PORT);
   console.log("✅ Environment:", process.env.NODE_ENV || "development");
-  console.log("✅ Gemini API Key:", process.env.GEMINI_API_KEY ? "Loaded (first 10 chars: " + process.env.GEMINI_API_KEY.substring(0, 10) + "...)" : "❌ NOT SET");
+  console.log("✅ Gemini API Key:", process.env.GEMINI_API_KEY ? "Loaded" : "❌ NOT SET");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 });

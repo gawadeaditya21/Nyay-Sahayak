@@ -38,7 +38,7 @@ STEP 4: Update .env File
 Location: backend/.env
 
 Replace the line:
-GEMINI_API_KEY=AIzaSyDBGS9wKRBmrRBt5QhuQ4Spelkd8P0c22o
+GEMINI_API_KEY=your_api_key_here
 
 With your NEW key from AI Studio
 

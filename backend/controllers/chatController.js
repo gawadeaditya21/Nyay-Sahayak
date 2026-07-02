@@ -1,4 +1,6 @@
 import { ensureSupportedLanguage } from "../config/languages.js";
+import { extractTextFromDocx, truncateText } from "../services/aiService.js";
+import { extractTextFromPDF, extractTextFromImage, cleanupUploadedFile } from "../utils/fileExtractor.js";
 import { generateLegalChatResponse } from "../services/geminiChat.js";
 import Message from "../models/Message.js";
 import ChatSession from "../models/ChatSession.js";
@@ -21,7 +23,7 @@ export async function chatWithLegalAssistant(req, res) {
     console.log(
       `[chatController] language raw="${rawLanguage}" resolved="${language}"`
     );
-
+    let filePath = null;
     const identity = resolveRequestIdentity(req, { userId: rawUserId });
     if (identity.error) {
       return res.status(identity.error.status).json({
@@ -42,22 +44,64 @@ export async function chatWithLegalAssistant(req, res) {
       }
     }
 
-    if (!message || typeof message !== "string" || !message.trim()) {
-      return res.status(503).json({
+    let extractedText = "";
+    let fileName = null;
+    let fileSize = null;
+
+    if (req.file) {
+      filePath = req.file.path;
+      fileName = req.file.originalname;
+      fileSize = req.file.size;
+      const mimeType = req.file.mimetype;
+
+      let extractionResult;
+      if (mimeType === "application/pdf") {
+        extractionResult = await extractTextFromPDF(filePath);
+      } else if (mimeType.startsWith("image/")) {
+        extractionResult = await extractTextFromImage(filePath);
+      } else if (
+        mimeType ===
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ) {
+        extractionResult = await extractTextFromDocx(filePath);
+      } else {
+        throw new Error(`Unsupported file type: ${mimeType}.`);
+      }
+      extractedText = extractionResult.text;
+
+      if (!extractedText || extractedText.trim().length < 20) {
+        throw new Error("Insufficient text extracted from file.");
+      }
+      
+      cleanupUploadedFile(filePath);
+      filePath = null;
+    }
+
+    if ((!message || typeof message !== "string" || !message.trim()) && !extractedText) {
+      return res.status(400).json({
         success: false,
-        reply:
-          "Sorry, the legal assistant is temporarily unavailable. Please try again in a short while.",
+        reply: "Please provide either a text message or a document.",
         suggestions: ["See Steps"],
         contextUsed: false,
       });
     }
-    const trimmedMessage = message.trim();
+
+    const trimmedMessage = message ? message.trim() : "";
+    // Only persist if user is authenticated, mode is 'save', AND their plan allows data persistence
     const shouldStore = identity.isAuthenticated && mode === "save";
     const resolvedSessionId = sessionId || "default";
-    const maskedMessage = maskSensitiveData(trimmedMessage).maskedText;
+    
+    let finalQueryText = trimmedMessage;
+    if (extractedText) {
+       const safeExtractedText = truncateText(extractedText, 18000);
+       finalQueryText = `${trimmedMessage ? trimmedMessage + "\n\n" : ""}User Uploaded Document Context:\n${safeExtractedText}`;
+    }
+
+    const maskedMessage = maskSensitiveData(finalQueryText).maskedText;
 
     if (shouldStore) {
-      const title = trimmedMessage.slice(0, 60) + (trimmedMessage.length > 60 ? "..." : "");
+      let titleMessage = trimmedMessage || (fileName ? `Analyzed: ${fileName}` : "New Chat");
+      const title = titleMessage.slice(0, 60) + (titleMessage.length > 60 ? "..." : "");
       await ChatSession.findOneAndUpdate(
         { userId: identity.userId, sessionId: resolvedSessionId },
         {
@@ -67,16 +111,22 @@ export async function chatWithLegalAssistant(req, res) {
         { upsert: true, returnDocument: "after" }
       );
 
-      const userEncrypted = encryptData(JSON.stringify(trimmedMessage));
+      let displayMessage = trimmedMessage;
+      if (fileName) {
+        displayMessage = trimmedMessage ? `${trimmedMessage}\n\n[Attached File: ${fileName}]` : `[Attached File: ${fileName}]`;
+      }
+
+      const userEncrypted = encryptData(JSON.stringify(displayMessage));
       await Message.create({
         userId: identity.userId,
         sessionId: resolvedSessionId,
         role: "user",
         encryptedContent: userEncrypted,
+        fileName: fileName || undefined
       });
     }
 
-    const result = await generateLegalChatResponse(trimmedMessage, {
+    const result = await generateLegalChatResponse(trimmedMessage || "Please analyze this document", {
       language,
       aiQuery: maskedMessage,
     });
@@ -93,6 +143,14 @@ export async function chatWithLegalAssistant(req, res) {
     return res.status(200).json(result);
   } catch (error) {
     console.error("[chatController] Chat request failed:", error.message);
+    if (error.message.includes("Unsupported file type") || error.message.includes("Insufficient text")) {
+      return res.status(400).json({
+        success: false,
+        reply: error.message,
+        suggestions: ["See Steps"],
+        contextUsed: false
+      });
+    }
 
     return res.status(500).json({
       reply:

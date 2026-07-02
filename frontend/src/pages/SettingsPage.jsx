@@ -1,32 +1,73 @@
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../context/LanguageContext.jsx';
+import { motion as Motion } from 'framer-motion';
+import { Globe, User } from 'lucide-react';
 
 export default function SettingsPage() {
   const { t } = useTranslation();
   const { language, setLanguage, languages } = useLanguage();
+  
   return (
-    <main className="flex-1 p-8 bg-brand-base text-brand-primary overflow-y-auto">
-      <div className="max-w-3xl mx-auto">
-        <h1 className="text-4xl font-serif font-bold mb-8">{t('settings.title')}</h1>
+    <main className="flex-1 p-6 sm:p-10 overflow-y-auto bg-[#0d0d0f] text-slate-300">
+      <Motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="max-w-3xl mx-auto space-y-8"
+      >
+        <div className="mb-10">
+          <h1 className="text-3xl font-bold text-white tracking-tight">{t('settings.title')}</h1>
+          <p className="mt-2 text-sm text-slate-400">{t('settings.subtitle')}</p>
+        </div>
         
-        <div className="bg-white rounded-2xl shadow-sm border border-brand-surface p-6 mb-6">
-          <h2 className="text-xl font-bold mb-4">{t('settings.preferences')}</h2>
-          <div className="flex items-center justify-between py-3 border-b border-brand-surface/50">
-            <span>{t('settings.language')}</span>
-            <select
-              value={language}
-              onChange={(event) => setLanguage(event.target.value)}
-              className="bg-brand-base border border-brand-surface rounded p-1 outline-none focus:ring-2 focus:ring-brand-accent"
-            >
-              {languages.map((item) => (
-                <option key={item.code} value={item.code}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
+        <div className="rounded-[28px] border border-white/5 bg-[#121215] shadow-2xl overflow-hidden backdrop-blur-md">
+          <div className="p-6 sm:p-8 space-y-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-indigo-500/10 rounded-xl">
+                <Globe size={20} className="text-indigo-400" />
+              </div>
+              <h2 className="text-xl font-semibold text-white">{t('settings.preferences')}</h2>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between py-4 border-b border-white/5 gap-4">
+              <div>
+                <h3 className="text-base font-medium text-slate-200">{t('settings.language')}</h3>
+                <p className="text-xs text-slate-500 mt-1">{t('settings.languageHelp')}</p>
+              </div>
+              <select
+                value={language}
+                onChange={(event) => setLanguage(event.target.value)}
+                className="bg-[#050505] border border-white/10 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm font-medium text-white transition-all cursor-pointer hover:border-white/20"
+              >
+                {languages.map((item) => (
+                  <option key={item.code} value={item.code}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
-      </div>
+
+        <div className="rounded-[28px] border border-white/5 bg-[#121215]/50 shadow-xl overflow-hidden backdrop-blur-md opacity-60">
+          <div className="p-6 sm:p-8 space-y-6 pointer-events-none">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-white/5 rounded-xl">
+                <User size={20} className="text-slate-400" />
+              </div>
+              <h2 className="text-xl font-semibold text-white">{t('settings.accountDetails')}</h2>
+            </div>
+            <div className="py-4 border-b border-white/5 flex justify-between items-center">
+              <div>
+                <h3 className="text-base font-medium text-slate-200">{t('header.plan')}</h3>
+                <p className="text-xs text-slate-500 mt-1">{t('settings.billingHelp')}</p>
+              </div>
+              {/* <span className="text-xs font-bold uppercase tracking-widest text-indigo-400 bg-indigo-500/10 px-3 py-1.5 rounded-lg">Professional</span> */}
+            </div>
+          </div>
+        </div>
+
+      </Motion.div>
     </main>
   );
 }

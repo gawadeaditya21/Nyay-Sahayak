@@ -4,6 +4,7 @@ import documentRoutes from "../../routes/documentRoutes.js";
 import authRoutes from "../../routes/authRoutes.js";
 import chatRoutes from "../../routes/chatRoutes.js";
 import firRoutes from "../../routes/firRoutes.js";
+import dashboardRoutes from "../../routes/dashboardRoutes.js";
 import { rateLimit } from "../../middleware/rateLimit.js";
 
 export function createTestApp() {
@@ -14,9 +15,11 @@ export function createTestApp() {
 
   app.use("/api/document", rateLimit, documentRoutes);
   app.use("/api/generate-fir", rateLimit);
+  app.use("/api/generate-complaint", rateLimit);
   app.use("/api", firRoutes);
   app.use("/api/auth", authRoutes);
   app.use("/api/chat", rateLimit, chatRoutes);
+  app.use("/api/dashboard", rateLimit, dashboardRoutes);
 
   return app;
 }

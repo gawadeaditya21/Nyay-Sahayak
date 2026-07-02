@@ -1,15 +1,71 @@
 import { ensureSupportedLanguage } from "../config/languages.js";
-import { generateFirDraft } from "../services/aiService.js";
+import { generateComplaintLetter } from "../services/aiService.js";
 import FIR from "../models/FIR.js";
 import { decryptData, encryptData } from "../utils/cryptoUtils.js";
-import { maskSensitiveData } from "../utils/dataMasking.js";
+import { maskSensitiveData, unmaskData } from "../utils/dataMasking.js";
+import { normalizeComplaintInput, sanitizeComplaintText } from "../utils/complaintText.js";
 import { checkAndIncrementGuestUsage } from "../utils/guestLimits.js";
 import { resolveMode, resolveRequestIdentity } from "../utils/requestIdentity.js";
 
-export async function generateFir(req, res) {
+const FIR_ANSWER_LABELS = {
+  incidentType: "Incident Type",
+  incidentDate: "Incident Date",
+  incidentTime: "Incident Time",
+  incidentLocation: "Incident Location",
+  incidentDescription: "Incident Description",
+  propertyInvolved: "Property, Item, or Money Involved",
+  propertyDetails: "Property Details",
+  accusedKnown: "Accused Known",
+  accusedDetails: "Accused Details",
+  suspectDescription: "Suspect Description",
+  witnessAvailable: "Witnesses Available",
+  witnessDetails: "Witness Details",
+  evidenceAvailable: "Evidence Available",
+  evidenceDetails: "Evidence Details",
+  victimDetails: "Complainant Details",
+  additionalInfo: "Additional Information",
+};
+
+const FIR_FIELD_ORDER = Object.keys(FIR_ANSWER_LABELS);
+
+function sanitizeAnswer(value) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(sanitizeAnswer).filter(Boolean).join(", ");
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return String(value).trim();
+}
+
+function buildComplaintPayloadFromAnswers(answers) {
+  if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
+    return {};
+  }
+
+  const normalizedAnswers = {};
+
+  for (const field of FIR_FIELD_ORDER) {
+    const value = sanitizeAnswer(answers[field]);
+    if (value) {
+      normalizedAnswers[field] = value;
+    }
+  }
+
+  return normalizedAnswers;
+}
+
+export async function generateComplaintLetterController(req, res) {
   try {
     const {
       user_input,
+      fir_answers,
       language: rawLanguage,
       userId: rawUserId,
       mode: rawMode,
@@ -41,21 +97,33 @@ export async function generateFir(req, res) {
       }
     }
 
-    if (!user_input || typeof user_input !== "string" || !user_input.trim()) {
+    const structuredInput = buildComplaintPayloadFromAnswers(fir_answers);
+    const plainInput = typeof user_input === "string" ? user_input.trim() : "";
+    const complaintInput = Object.keys(structuredInput).length > 0
+      ? structuredInput
+      : normalizeComplaintInput(plainInput ? { incidentDescription: plainInput } : {});
+
+    if (Object.keys(complaintInput).length === 0) {
       return res.status(400).json({
         success: false,
-        message: "User input is required",
+        message: "User input or complaint answers are required",
         error: "USER_INPUT_MISSING",
       });
     }
 
-    const trimmedInput = user_input.trim();
-    const maskedInput = maskSensitiveData(trimmedInput).maskedText;
-    const firText = await generateFirDraft(maskedInput, { language });
+    const complaintPayloadJson = JSON.stringify(complaintInput);
+    const maskingResult = maskSensitiveData(complaintPayloadJson);
+    const generatedComplaintText = await generateComplaintLetter(maskingResult.maskedText, { language });
+    const complaintText = sanitizeComplaintText(
+      maskingResult.hasSensitiveData
+        ? unmaskData(generatedComplaintText, maskingResult.replacements)
+        : generatedComplaintText
+    );
 
+    // Only persist if user's plan allows data persistence
     const shouldStore = identity.isAuthenticated && mode === "save";
     if (shouldStore) {
-      const encrypted = encryptData(JSON.stringify(firText));
+      const encrypted = encryptData(JSON.stringify(complaintText));
       await FIR.create({
         userId: identity.userId,
         sessionId: sessionId || "default",
@@ -65,16 +133,16 @@ export async function generateFir(req, res) {
 
     return res.status(200).json({
       success: true,
-      fir_text: firText,
+      complaint_text: complaintText,
     });
   } catch (error) {
-    console.error("[firController] FIR generation failed:", error.message);
+    console.error("[complaintController] Complaint generation failed:", error.message);
 
     return res.status(500).json({
       success: false,
-      message: "Unable to generate FIR at the moment",
-      error: "FIR_GENERATION_FAILED",
-      fir_text: "Please try again later.",
+      message: "Unable to generate complaint letter at the moment",
+      error: "COMPLAINT_GENERATION_FAILED",
+      complaint_text: "Please try again later.",
     });
   }
 }
@@ -93,7 +161,7 @@ export async function getFirHistory(req, res) {
         const parsed = JSON.parse(decryptedStr);
         content = typeof parsed === "string" ? parsed : String(parsed || "");
       } catch (error) {
-        content = "Error: Could not decrypt FIR";
+        content = "Error: Could not decrypt complaint letter";
       }
 
       return {
@@ -108,11 +176,11 @@ export async function getFirHistory(req, res) {
       data: history,
     });
   } catch (error) {
-    console.error("[firController] Error fetching FIR history:", error.message);
+    console.error("[firController] Error fetching complaint history:", error.message);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch FIR history",
-      error: "FIR_HISTORY_FAILED",
+      message: "Failed to fetch complaint history",
+      error: "COMPLAINT_HISTORY_FAILED",
     });
   }
 }

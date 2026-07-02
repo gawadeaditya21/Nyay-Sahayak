@@ -539,7 +539,7 @@ Create a file named `.env` in the `backend/` folder:
 
 ```bash
 # backend/.env
-GEMINI_API_KEY=AIzaSyA_your_actual_api_key_here
+GEMINI_API_KEY=your_api_key_here
 NODE_ENV=development
 PORT=5000
 ```
@@ -1004,7 +1004,7 @@ if (text.includes("terminate immediately")) {
 
 ```javascript
 // Hardcoded in code
-const apiKey = "AIzaSyA12345...";
+const apiKey = "your_api_key_here";
 
 // Committed to Git
 // Exposed in frontend code

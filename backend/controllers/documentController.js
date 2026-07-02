@@ -1,6 +1,3 @@
-import fs from "fs";
-import { createRequire } from "module";
-import { createWorker } from "tesseract.js";
 import Analysis from "../models/Analysis.js";
 import {
   analyzeDocument,
@@ -13,57 +10,9 @@ import { decryptData, encryptData } from "../utils/cryptoUtils.js";
 import { ensureSupportedLanguage } from "../config/languages.js";
 import { checkAndIncrementGuestUsage } from "../utils/guestLimits.js";
 import { resolveMode, resolveRequestIdentity } from "../utils/requestIdentity.js";
+import { extractTextFromPDF, extractTextFromImage, cleanupUploadedFile } from "../utils/fileExtractor.js";
 
-const require = createRequire(import.meta.url);
-const pdf = require("pdf-parse");
-async function extractTextFromPDF(filePath) {
-  const dataBuffer = fs.readFileSync(filePath);
-  const pdfData = await pdf(dataBuffer);
-  const extractedText = pdfData.text.trim();
 
-  if (!extractedText || extractedText.length < 30) {
-    throw new Error("PDF appears to be scanned. Use OCR for image-based PDFs.");
-  }
-
-  return {
-    text: extractedText,
-    pages: pdfData.numpages,
-    method: "pdf-parse",
-  };
-}
-
-async function extractTextFromImage(filePath) {
-  const worker = await createWorker("eng");
-
-  try {
-    const { data } = await worker.recognize(filePath);
-    const extractedText = data.text.trim();
-
-    if (!extractedText || extractedText.length < 20) {
-      throw new Error(
-        "Unable to extract sufficient text from image. Image may be too blurry or contain no text."
-      );
-    }
-
-    return {
-      text: extractedText,
-      confidence: data.confidence,
-      method: "tesseract-ocr",
-    };
-  } finally {
-    await worker.terminate();
-  }
-}
-
-function cleanupUploadedFile(filePath) {
-  if (filePath && fs.existsSync(filePath)) {
-    try {
-      fs.unlinkSync(filePath);
-    } catch (error) {
-      console.error("[documentController] Cleanup failed:", error.message);
-    }
-  }
-}
 
 function buildRiskStatistics(risks = []) {
   return {
@@ -362,6 +311,19 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
     const fileSize = req.file.size;
     const mimeType = req.file.mimetype;
 
+    // Enforce per-plan file size limit (Multer allows up to 15MB globally,
+    // but individual plans may have lower limits, e.g. Plus = 5MB)
+    const maxFileSizeMB = req.planInfo?.limits?.maxFileSizeMB ?? 15;
+    const maxFileSizeBytes = maxFileSizeMB * 1024 * 1024;
+    if (fileSize > maxFileSizeBytes) {
+      cleanupUploadedFile(filePath);
+      return res.status(400).json({
+        success: false,
+        message: `File size (${(fileSize / 1024 / 1024).toFixed(1)}MB) exceeds your plan's limit of ${maxFileSizeMB}MB. Upgrade your plan for larger files.`,
+        error: "FILE_TOO_LARGE_FOR_PLAN",
+      });
+    }
+
     let extractionResult;
 
     if (mimeType === "application/pdf") {
@@ -381,6 +343,18 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
 
     if (!extractedText || extractedText.trim().length < 20) {
       throw new Error("Insufficient text extracted. Document may be empty or unreadable.");
+    }
+
+    // Enforce per-plan page limit
+    const docPages = extractionResult.pages || 1;
+    const maxDocPages = req.planInfo?.limits?.maxDocPages ?? 20;
+    if (docPages > maxDocPages) {
+      cleanupUploadedFile(filePath);
+      return res.status(400).json({
+        success: false,
+        message: `This document has ${docPages} pages, which exceeds your plan's limit of ${maxDocPages} pages. Upgrade your plan for larger documents.`,
+        error: "DOC_PAGES_EXCEEDED",
+      });
     }
 
     const maskingResult = maskSensitiveData(extractedText);
@@ -416,7 +390,6 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
       const parts = [];
       parts.push(`Uploaded: ${fileName}`);
       parts.push(`Size: ${(fileSize / 1024).toFixed(2)} KB`);
-      if (instructions) parts.push(instructions);
       
       const userMessage = parts.join("\n");
       const userEncrypted = encryptData(JSON.stringify(userMessage));
