@@ -15,6 +15,7 @@ export function createTestApp() {
 
   app.use("/api/document", rateLimit, documentRoutes);
   app.use("/api/generate-fir", rateLimit);
+  app.use("/api/generate-complaint", rateLimit);
   app.use("/api", firRoutes);
   app.use("/api/auth", authRoutes);
   app.use("/api/chat", rateLimit, chatRoutes);

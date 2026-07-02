@@ -48,7 +48,8 @@ jest.unstable_mockModule("../services/aiService.js", () => ({
   }),
   detectDocumentType: () => "legal",
   extractTextFromDocx: async () => ({ text: "docx", method: "mammoth-docx" }),
-  generateFirDraft: async () => "FIR DRAFT TEXT",
+  generateComplaintLetter: async () => "COMPLAINT LETTER TEXT",
+  generateFirDraft: async () => "COMPLAINT LETTER TEXT",
   extractNumericTokens: () => [],
   hasMissingNumericTokens: () => false,
   hasPlaceholders: () => false,
@@ -57,6 +58,7 @@ jest.unstable_mockModule("../services/aiService.js", () => ({
   parseJSONResponse: (value) => JSON.parse(value),
   removeMarkdownFormatting: (value) => value,
   translateStructuredOutput: async (value) => value,
+  truncateText: (value) => value,
 }));
 
 jest.unstable_mockModule("pdf-parse", () => (

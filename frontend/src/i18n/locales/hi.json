@@ -34,17 +34,17 @@
     "footerSubtitle": "भारत में आपके अधिकारों के लिए एकीकृत कानूनी सहायक।",
     "tagline": "भारत में आपके अधिकारों के लिए एकीकृत कानूनी सहायक।",
     "newChat": "नई कानूनी चैट",
-    "generateFir": "FIR बनाएं",
+    "generateFir": "शिकायत लिखें",
     "analyzeDoc": "दस्तावेज़ जांचें",
     "upgradePlan": "प्लान अपग्रेड करें",
     "tabs": {
       "chats": "चैट",
-      "firs": "FIR",
+      "firs": "शिकायतें",
       "docs": "दस्तावेज़"
     },
     "historyTypes": {
       "chat": "चैट",
-      "fir": "FIR",
+      "fir": "शिकायत",
       "analysis": "दस्तावेज़"
     }
   },
@@ -72,7 +72,7 @@
     "labels": {
       "chats": "कानूनी चैट",
       "analyses": "दस्तावेज़ विश्लेषण",
-      "firs": "FIR ड्राफ्ट",
+      "firs": "शिकायत ड्राफ्ट",
       "overall": "कुल सहेजी गई गतिविधि"
     },
     "details": {
@@ -105,8 +105,11 @@
   },
   "chat": {
     "title": "Nyay Sahayak कानूनी सहायक",
-    "subtitle": "AI कानूनी मार्गदर्शन, दस्तावेज़ विश्लेषण और FIR सहायता एक ही जगह",
+    "subtitle": "AI कानूनी मार्गदर्शन, दस्तावेज़ विश्लेषण और शिकायत सहायता एक ही जगह",
     "example": "उदाहरण: \"मेरा मोबाइल चोरी हो गया, क्या करूं?\"",
+    "intentIncident": "घटना संबंधी मार्गदर्शन",
+    "intentLegalQuestion": "कानूनी सवाल",
+    "intentGeneralAdvice": "सामान्य सलाह",
     "initialExplanation": "नमस्ते। मैं आपका कानूनी सहायक हूं। आप रेलवे नियम, प्रॉपर्टी एग्रीमेंट या चोरी से जुड़ा सवाल पूछ सकते हैं।",
     "initialRule1": "साफ और विशिष्ट सवाल पूछें।",
     "initialRule2": "भारतीय संदर्भ में व्यावहारिक मार्गदर्शन मिलेगा।",
@@ -120,6 +123,13 @@
     "aiAnalysis": "AI विश्लेषण",
     "ragContextUsed": "RAG संदर्भ उपयोग हुआ",
     "generalLegalGuidance": "सामान्य कानूनी मार्गदर्शन",
+    "situationUnderstanding": "स्थिति की समझ",
+    "immediateActions": "तुरंत करने वाले काम",
+    "legalSections": "लागू कानून",
+    "evidenceToCollect": "इकट्ठा करने वाला सबूत",
+    "nextSteps": "अगले कदम",
+    "riskLevel": "जोखिम स्तर",
+    "practicalAdvice": "व्यावहारिक सलाह",
     "privateModeSkipsSavingChatHistory": "प्राइवेट मोड चैट इतिहास सेव नहीं करता।",
     "guestLimit": "गेस्ट सीमा: 3 संदेश।",
     "rules": "नियम",
@@ -135,29 +145,29 @@
     "noLegalReferencesDetected": "कोई कानूनी संदर्भ नहीं मिला।",
     "lawyerSuggestion": "वकील की सलाह",
     "suggestions": {
-      "generateFir": "FIR बनाएं",
+      "generateComplaint": "शिकायत लिखें",
       "seeSteps": "कदम देखें",
       "analyzeDocument": "दस्तावेज़ विश्लेषण"
     }
   },
   "fir": {
-    "title": "FIR / शिकायत जनरेटर",
+    "title": "शिकायत पत्र जनरेटर",
     "subtitle": "अपनी समस्या सरल भाषा में लिखें और तैयार शिकायत बनाएं।",
     "placeholder": "घटना का विवरण सरल भाषा में लिखें...",
-    "generate": "FIR बनाएं",
+    "generate": "शिकायत बनाएं",
     "generating": "AI तैयार कर रहा है...",
-    "generatedTitle": "तैयार FIR ड्राफ्ट",
+    "generatedTitle": "तैयार शिकायत पत्र",
     "copy": "कॉपी",
     "copied": "कॉपी हो गया",
     "download": "PDF डाउनलोड करें",
-    "cardLabel": "FIR ड्राफ्ट",
+    "cardLabel": "शिकायत ड्राफ्ट",
     "describeComplaint": "अपनी शिकायत का विवरण दें",
     "describeComplaintHelp": "क्या हुआ, कब, कहाँ और कौन शामिल था, लिखें। इसे सरल रखें।",
     "cardPlaceholder": "जैसे, मैंने 14 मार्च को नौकरी के लिए 12,000 रुपये दिए और अब वे जवाब नहीं दे रहे...",
-    "generateDraft": "FIR ड्राफ्ट बनाएं",
+    "generateDraft": "शिकायत पत्र बनाएं",
     "enterProblemDescription": "कृपया अपनी समस्या का विवरण दर्ज करें.",
     "copyFailed": "कॉपी नहीं हो सका. कृपया फिर कोशिश करें.",
-    "unableToGenerate": "FIR बनाने में असमर्थ."
+    "unableToGenerate": "शिकायत पत्र बनाने में असमर्थ."
   },
   "analysis": {
     "aiAnalysis": "AI विश्लेषण",

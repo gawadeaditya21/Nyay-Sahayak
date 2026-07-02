@@ -34,17 +34,17 @@
     "footerSubtitle": "भारतातील तुमच्या हक्कांसाठी एकत्रित कायदेशीर सहाय्यक.",
     "tagline": "भारतातील तुमच्या हक्कांसाठी एकत्रित कायदेशीर सहाय्यक.",
     "newChat": "नवीन कायदेशीर चॅट",
-    "generateFir": "FIR तयार करा",
+    "generateFir": "तक्रार लिहा",
     "analyzeDoc": "दस्तऐवज तपासा",
     "upgradePlan": "प्लान अपग्रेड करा",
     "tabs": {
       "chats": "चॅट",
-      "firs": "FIR",
+      "firs": "तक्रारी",
       "docs": "दस्तऐवज"
     },
     "historyTypes": {
       "chat": "चॅट",
-      "fir": "FIR",
+      "fir": "तक्रार",
       "analysis": "दस्तऐवज"
     }
   },
@@ -74,7 +74,7 @@
     "labels": {
       "chats": "कायदेशीर चॅट",
       "analyses": "दस्तऐवज विश्लेषणे",
-      "firs": "FIR ड्राफ्ट",
+      "firs": "तक्रार ड्राफ्ट",
       "overall": "एकूण जतन केलेला क्रियाकलाप"
     },
     "details": {
@@ -107,8 +107,11 @@
   },
   "chat": {
     "title": "Nyay Sahayak कायदेशीर सहाय्यक",
-    "subtitle": "AI कायदेशीर मार्गदर्शन, दस्तऐवज विश्लेषण आणि FIR मदत एकाच ठिकाणी",
+    "subtitle": "AI कायदेशीर मार्गदर्शन, दस्तऐवज विश्लेषण आणि तक्रार मदत एकाच ठिकाणी",
     "example": "उदाहरण: \"माझा मोबाईल चोरी झाला, आता काय करू?\"",
+    "intentIncident": "घटना मार्गदर्शन",
+    "intentLegalQuestion": "कायदेशीर प्रश्न",
+    "intentGeneralAdvice": "सामान्य सल्ला",
     "initialExplanation": "नमस्कार. मी तुमचा कायदेशीर सहाय्यक आहे. तुम्ही रेल्वे नियम, मालमत्ता करार किंवा चोरीबाबत प्रश्न विचारू शकता.",
     "initialRule1": "स्पष्ट आणि ठोस प्रश्न विचारा.",
     "initialRule2": "भारतीय संदर्भात व्यावहारिक मार्गदर्शन मिळेल.",
@@ -122,6 +125,13 @@
     "aiAnalysis": "AI विश्लेषण",
     "ragContextUsed": "RAG संदर्भ वापरला",
     "generalLegalGuidance": "सामान्य कायदेशीर मार्गदर्शन",
+    "situationUnderstanding": "परिस्थिती समज",
+    "immediateActions": "तात्काळ करायची कामे",
+    "legalSections": "लागू कायदे",
+    "evidenceToCollect": "गोळा करायचे पुरावे",
+    "nextSteps": "पुढील पावले",
+    "riskLevel": "जोखीम पातळी",
+    "practicalAdvice": "व्यावहारिक सल्ला",
     "privateModeSkipsSavingChatHistory": "प्रायव्हेट मोड चॅट इतिहास जतन करत नाही.",
     "guestLimit": "गेस्ट मर्यादा: 3 संदेश.",
     "rules": "नियम",
@@ -137,29 +147,29 @@
     "noLegalReferencesDetected": "कोणतेही कायदेशीर संदर्भ आढळले नाहीत.",
     "lawyerSuggestion": "वकिलाची सूचना",
     "suggestions": {
-      "generateFir": "FIR तयार करा",
+      "generateComplaint": "तक्रार लिहा",
       "seeSteps": "पायऱ्या पहा",
       "analyzeDocument": "दस्तऐवज विश्लेषण"
     }
   },
   "fir": {
-    "title": "FIR / तक्रार जनरेटर",
+    "title": "तक्रार पत्र जनरेटर",
     "subtitle": "आपली समस्या सोप्या भाषेत लिहा आणि तयार तक्रार मिळवा.",
     "placeholder": "घटनेचे तपशील सोप्या भाषेत लिहा...",
-    "generate": "FIR तयार करा",
+    "generate": "तक्रार तयार करा",
     "generating": "AI तयार करत आहे...",
-    "generatedTitle": "तयार FIR ड्राफ्ट",
+    "generatedTitle": "तयार तक्रार पत्र",
     "copy": "कॉपी",
     "copied": "कॉपी झाले",
     "download": "PDF डाउनलोड करा",
-    "cardLabel": "FIR ड्राफ्ट",
+    "cardLabel": "तक्रार ड्राफ्ट",
     "describeComplaint": "तुमची तक्रार वर्णन करा",
     "describeComplaintHelp": "काय झाले, कधी, कुठे आणि कोण सहभागी होते ते लिहा. सोपं ठेवा.",
     "cardPlaceholder": "उदा., मी 14 मार्च रोजी नोकरीसाठी 12,000 रुपये दिले आणि आता ते उत्तर देत नाहीत...",
-    "generateDraft": "FIR ड्राफ्ट तयार करा",
+    "generateDraft": "तक्रार पत्र तयार करा",
     "enterProblemDescription": "कृपया तुमच्या समस्येचे वर्णन लिहा.",
     "copyFailed": "कॉपी करण्यात अयशस्वी. कृपया पुन्हा प्रयत्न करा.",
-    "unableToGenerate": "FIR तयार करता आले नाही."
+    "unableToGenerate": "तक्रार पत्र तयार करता आले नाही."
   },
   "analysis": {
     "aiAnalysis": "AI विश्लेषण",

@@ -385,9 +385,7 @@ export const uploadAndAnalyzeDocument = async (req, res) => {
       aiAnalysis,
     });
 
-    // Only persist if user's plan allows data persistence
-    const canPersist = req.planInfo?.limits?.dataPersistence ?? false;
-    const shouldStore = identity.isAuthenticated && mode === "save" && canPersist;
+    const shouldStore = identity.isAuthenticated && mode === "save";
     if (shouldStore) {
       const parts = [];
       parts.push(`Uploaded: ${fileName}`);
@@ -566,9 +564,7 @@ export const analyzeTextOnly = async (req, res) => {
       },
     };
 
-    // Only persist if user's plan allows data persistence
-    const canPersist = req.planInfo?.limits?.dataPersistence ?? false;
-    const shouldStore = identity.isAuthenticated && mode === "save" && canPersist;
+    const shouldStore = identity.isAuthenticated && mode === "save";
     if (shouldStore) {
       try {
         const userEncrypted = encryptData(JSON.stringify(trimmedText));

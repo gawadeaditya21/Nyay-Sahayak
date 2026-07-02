@@ -34,17 +34,17 @@
     "footerSubtitle": "Unified legal assistant for your rights in India.",
     "tagline": "Unified legal assistant for your rights in India.",
     "newChat": "New Legal Chat",
-    "generateFir": "Generate FIR",
+    "generateFir": "Write Complaint",
       "analyzeDoc": "Analyze Doc",
       "upgradePlan": "Upgrade Plan",
     "tabs": {
       "chats": "Chats",
-      "firs": "FIRs",
+      "firs": "Complaints",
       "docs": "Docs"
     },
     "historyTypes": {
       "chat": "chat",
-      "fir": "FIR",
+      "fir": "Complaint",
       "analysis": "document"
     }
   },
@@ -84,7 +84,7 @@
     "labels": {
       "chats": "Legal chats",
       "analyses": "Document analyses",
-      "firs": "FIR drafts",
+      "firs": "Complaint drafts",
       "overall": "Overall saved activity"
     },
     "details": {
@@ -108,8 +108,11 @@
   },
   "chat": {
     "title": "Nyay Sahayak Legal Assistant",
-    "subtitle": "AI legal guidance, document analysis, and FIR support in one place",
+    "subtitle": "AI legal guidance, document analysis, and complaint support in one place",
     "example": "Example: \"My phone was stolen. What should I do?\"",
+    "intentIncident": "Incident Guidance",
+    "intentLegalQuestion": "Legal Question",
+    "intentGeneralAdvice": "General Advice",
     "initialExplanation": "Hello. I am your legal assistant. You can ask about railway rules, property agreements, or stolen items.",
     "initialRule1": "Ask a clear and specific question.",
     "initialRule2": "You will get practical guidance for the Indian context.",
@@ -123,6 +126,13 @@
     "aiAnalysis": "AI Analysis",
     "ragContextUsed": "RAG context used",
     "generalLegalGuidance": "General legal guidance",
+    "situationUnderstanding": "Situation Understanding",
+    "immediateActions": "Immediate Actions",
+    "legalSections": "Relevant Laws",
+    "evidenceToCollect": "Evidence to Collect",
+    "nextSteps": "Next Steps",
+    "riskLevel": "Risk Level",
+    "practicalAdvice": "Practical Advice",
     "privateModeSkipsSavingChatHistory": "Private mode skips saving chat history.",
     "guestLimit": "Guest limit: 3 messages.",
     "rules": "Rules",
@@ -138,29 +148,29 @@
     "noLegalReferencesDetected": "No legal references detected.",
     "lawyerSuggestion": "Lawyer Suggestion",
     "suggestions": {
-      "generateFir": "Generate FIR",
+      "generateComplaint": "Write Complaint",
       "seeSteps": "See Steps",
       "analyzeDocument": "Analyze Document"
     }
   },
   "fir": {
-    "title": "FIR / Complaint Generator",
+    "title": "Complaint Letter Generator",
     "subtitle": "Describe your issue in simple language and generate a ready-to-submit complaint.",
     "placeholder": "Write the incident details in simple language...",
-    "generate": "Generate FIR",
+    "generate": "Generate Complaint",
     "generating": "AI is generating...",
-    "generatedTitle": "Generated FIR Draft",
+    "generatedTitle": "Generated Complaint Letter",
     "copy": "Copy",
     "copied": "Copied",
     "download": "Download PDF",
-    "cardLabel": "FIR Draft",
+    "cardLabel": "Complaint Draft",
     "describeComplaint": "Describe your complaint",
     "describeComplaintHelp": "Write what happened, when, where, and who was involved. Keep it simple.",
     "cardPlaceholder": "For example, I paid Rs 12,000 for a job on 14 March and now they are not responding...",
-    "generateDraft": "Generate FIR Draft",
+    "generateDraft": "Generate Complaint Letter",
     "enterProblemDescription": "Please enter your problem description.",
     "copyFailed": "Copy failed. Please try again.",
-    "unableToGenerate": "Unable to generate FIR."
+    "unableToGenerate": "Unable to generate complaint letter."
   },
   "analysis": {
     "aiAnalysis": "AI Analysis",

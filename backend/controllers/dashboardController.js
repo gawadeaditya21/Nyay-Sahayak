@@ -34,7 +34,7 @@ function toActivity(type, item) {
 
   return {
     type,
-    title: "FIR draft generated",
+    title: "Complaint letter generated",
     sessionId: item.sessionId,
     route: `/fir?session=${encodeURIComponent(item.sessionId)}`,
     createdAt,

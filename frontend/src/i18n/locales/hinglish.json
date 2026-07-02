@@ -20,17 +20,17 @@
     "footerSubtitle": "India mein aapke adhikaron ke liye ek unified legal assistant.",
     "tagline": "India mein aapke adhikaron ke liye ek unified legal assistant.",
     "newChat": "Nayi Legal Chat",
-    "generateFir": "Generate FIR",
+    "generateFir": "Write Complaint",
     "analyzeDoc": "Analyze Doc",
     "upgradePlan": "Plan Upgrade",
     "tabs": {
       "chats": "Chats",
-      "firs": "FIRs",
+      "firs": "Complaints",
       "docs": "Docs"
     },
     "historyTypes": {
       "chat": "chat",
-      "fir": "FIR",
+      "fir": "Complaint",
       "analysis": "document"
     }
   },
@@ -70,7 +70,7 @@
     "labels": {
       "chats": "Legal chats",
       "analyses": "Document analyses",
-      "firs": "FIR drafts",
+      "firs": "Complaint drafts",
       "overall": "Overall saved activity"
     },
     "details": {
@@ -96,6 +96,9 @@
     "title": "RAG Legal Chatbot",
     "subtitle": "TF-IDF retrieval + Gemini response + legal action suggestions",
     "example": "Example: \"Mera mobile chori ho gaya kya karu?\"",
+    "intentIncident": "Incident Guidance",
+    "intentLegalQuestion": "Legal Question",
+    "intentGeneralAdvice": "General Advice",
     "initialExplanation": "Namaste. Main aapka legal assistant hoon. Aap railway rules, property agreement, ya stolen items ke baare mein puch sakte hain.",
     "initialRule1": "Clear aur specific sawal puchiye.",
     "initialRule2": "Indian context me practical guidance milegi.",
@@ -104,15 +107,27 @@
     "loading": "Relevant legal context fetch karke answer prepare ho raha hai...",
     "disclaimer": "AI guidance final legal opinion nahi hai. Urgent matters ke liye lawyer ya local authorities se baat karein.",
     "errorMessage": "Assistant abhi available nahi hai. Thodi der baad try kijiye.",
-    "errorGuidance": "Agar issue urgent hai to legal expert se consult karein."
+    "errorGuidance": "Agar issue urgent hai to legal expert se consult karein.",
+    "situationUnderstanding": "Situation Understanding",
+    "immediateActions": "Immediate Actions",
+    "legalSections": "Relevant Laws",
+    "evidenceToCollect": "Evidence to Collect",
+    "nextSteps": "Next Steps",
+    "riskLevel": "Risk Level",
+    "practicalAdvice": "Practical Advice",
+    "suggestions": {
+      "generateComplaint": "Write Complaint",
+      "seeSteps": "See Steps",
+      "analyzeDocument": "Analyze Document"
+    }
   },
   "fir": {
-    "title": "FIR / Complaint Generator",
+    "title": "Complaint Letter Generator",
     "subtitle": "Apni problem simple language me likhiye aur ready-to-submit complaint banaiye.",
     "placeholder": "Incident details simple language me likhiye...",
-    "generate": "Generate FIR",
+    "generate": "Generate Complaint",
     "generating": "AI generate kar raha hai...",
-    "generatedTitle": "Generated FIR Draft",
+    "generatedTitle": "Generated Complaint Letter",
     "copy": "Copy",
     "copied": "Copied",
     "download": "Download PDF"

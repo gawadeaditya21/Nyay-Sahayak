@@ -6,6 +6,7 @@ import SettingsPage from './pages/SettingsPage';
 import LandingPage from './pages/LandingPage';
 import AnalyzePage from './pages/AnalyzePage';
 import FirPage from './pages/FirPage';
+import ComplaintOutputPage from './pages/ComplaintOutputPage';
 import LegalStepsPage from './pages/LegalStepsPage';
 import DashboardPage from './pages/DashboardPage';
 import PricingPage from './pages/PricingPage';
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/analyze" element={<AnalyzePage />} />
           <Route path="/fir" element={<FirPage />} />
+          <Route path="/fir/output" element={<ComplaintOutputPage />} />
           <Route path="/steps" element={<LegalStepsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>

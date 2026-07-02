@@ -1,419 +1,180 @@
-import { useEffect, useMemo, useState } from "react";
-import {
-  CheckCircle2,
-  Copy,
-  Download,
-  Loader2,
-  RotateCcw,
-  Send,
-  Sparkles,
-} from "lucide-react";
-import { jsPDF } from "jspdf";
-import { useSearchParams, useOutletContext } from "react-router-dom";
-import { generateFir, fetchFirHistory } from "../services/api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, RotateCcw, Sparkles, WandSparkles } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../context/LanguageContext.jsx";
-import flowData from "../components/fir/firFlow.json";
-import {
-  canUseGuestFeature,
-  getOrCreateGuestSessionId,
-  getPrivacyMode,
-  incrementGuestUsage,
-  isGuestUser,
-  setPrivacyMode,
-} from "../utils/guestIdentity";
+import { generateComplaintLetter } from "../services/api";
+import { sanitizeComplaintText } from "../utils/complaintText";
 
-const flow = flowData.flow;
-const firstStep = "start";
+const INPUT_STORAGE_KEY = "nyaySahayak:complaintInput";
+const DRAFT_STORAGE_KEY = "nyaySahayak:complaintDraft";
 
-function getNextStep(currentQuestion, answer) {
-  if (!currentQuestion) return "end";
-  if (typeof currentQuestion.next === "object") {
-    return answer === "Yes" ? currentQuestion.next.true : currentQuestion.next.false;
-  }
-  return currentQuestion.next;
-}
-
-function getAnswerLabels() {
-  return Object.values(flow).reduce((labels, question) => {
-    if (question.field) {
-      labels[question.field] = question.question;
-    }
-    return labels;
-  }, {});
+function autoResizeTextarea(textarea) {
+  if (!textarea) return;
+  textarea.style.height = "auto";
+  textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
 export default function FirPage() {
   const { t } = useTranslation();
   const { language } = useLanguage();
-  const [step, setStep] = useState(firstStep);
-  const [answers, setAnswers] = useState({});
-  const [currentAnswer, setCurrentAnswer] = useState("");
+  const navigate = useNavigate();
+  const textareaRef = useRef(null);
+  const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
-  const [firText, setFirText] = useState("");
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [privacyMode] = useState(getPrivacyMode());
 
-  const [searchParams, setSearchParams] = useSearchParams();
-  const sessionId = searchParams.get("session");
-  const { refreshSessions, sessionNonce } = useOutletContext() || {};
-
-  const currentQuestion = flow[step];
-  const safeCurrentQuestion = currentQuestion || null;
-  const answeredItems = useMemo(
-    () =>
-      Object.entries(answers).map(([field, value]) => ({
-        field,
-        label: getAnswerLabels()[field] || field,
-        value,
-      })),
-    [answers]
-  );
-  const progressPercent = Math.min(
-    Math.round((answeredItems.length / Object.keys(flow).length) * 100),
-    100
-  );
-
-  useEffect(() => {
-    setPrivacyMode(privacyMode);
-  }, [privacyMode]);
-
-  useEffect(() => {
-    const loadSession = async () => {
-      if (!sessionId) {
-        setFirText("");
-        setAnswers({});
-        setCurrentAnswer("");
-        setStep(firstStep);
-        return;
-      }
-
-      setLoading(true);
-      try {
-        const response = await fetchFirHistory();
-        if (response?.success && Array.isArray(response.data)) {
-          const session = response.data.find((item) => item.sessionId === sessionId);
-          if (session) {
-            setFirText(session.content);
-            setAnswers({});
-            setCurrentAnswer("");
-            setStep("end");
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch FIR history:", err);
-      } finally {
-        setLoading(false);
-      }
+  const copy = useMemo(() => {
+    const localized = {
+      en: {
+        appName: "Nyay Sahayak",
+        title: "Complaint Generator",
+        subtitle: "Describe your issue in simple words",
+        helper:
+          "Write the incident in your own words. Include dates, places, people, amounts, and any proof you have.",
+        placeholder: "e.g., my phone was stolen in Mumbai...",
+        generate: "Generate complaint letter",
+        generating: "Generating complaint letter...",
+        clear: "Clear",
+      },
+      hi: {
+        appName: "Nyay Sahayak",
+        title: "शिकायत जनरेटर",
+        subtitle: "अपनी समस्या सरल शब्दों में लिखें",
+        helper: "घटना को अपने शब्दों में लिखें। तारीख, स्थान, व्यक्ति, राशि और उपलब्ध सबूत शामिल करें।",
+        placeholder: "उदाहरण: मेरा फोन मुंबई में चोरी हो गया...",
+        generate: "शिकायत पत्र बनाएं",
+        generating: "शिकायत पत्र बनाया जा रहा है...",
+        clear: "साफ करें",
+      },
+      mr: {
+        appName: "Nyay Sahayak",
+        title: "तक्रार जनरेटर",
+        subtitle: "आपली समस्या सोप्या शब्दांत लिहा",
+        helper: "घटना तुमच्या शब्दांत लिहा. तारीख, ठिकाण, व्यक्ती, रक्कम आणि उपलब्ध पुरावे जोडा.",
+        placeholder: "उदा. माझा फोन मुंबईत चोरीला गेला...",
+        generate: "तक्रार पत्र तयार करा",
+        generating: "तक्रार पत्र तयार केले जात आहे...",
+        clear: "काढून टाका",
+      },
     };
 
-    loadSession();
-  }, [sessionId]);
+    return localized[language] || localized.en;
+  }, [language]);
 
   useEffect(() => {
-    if (sessionNonce > 0 && !sessionId) {
-      resetFlow();
+    const savedInput = sessionStorage.getItem(INPUT_STORAGE_KEY);
+    if (savedInput) {
+      setText(savedInput);
     }
-  }, [sessionNonce, sessionId]);
+  }, []);
 
-  const resetFlow = () => {
-    setStep(firstStep);
-    setAnswers({});
-    setCurrentAnswer("");
-    setFirText("");
-    setError("");
-    setCopied(false);
-  };
+  useEffect(() => {
+    autoResizeTextarea(textareaRef.current);
+  }, [text]);
 
-  const handleAnswerSubmit = async (value = currentAnswer) => {
-    const trimmedValue = String(value || "").trim();
-    if (!safeCurrentQuestion || !trimmedValue) {
-      setError("Please answer the current question.");
-      return;
-    }
-
-    const updatedAnswers = {
-      ...answers,
-      [safeCurrentQuestion.field]: trimmedValue,
-    };
-    const nextStep = getNextStep(safeCurrentQuestion, trimmedValue);
-
-    setAnswers(updatedAnswers);
-    setCurrentAnswer("");
-    setError("");
-    setCopied(false);
-
-    if (nextStep === "end") {
-      setStep("end");
-      await handleGenerate(updatedAnswers);
-      return;
-    }
-
-    setStep(nextStep);
-  };
-
-  const handleGenerate = async (finalAnswers = answers) => {
-    if (Object.keys(finalAnswers).length === 0) {
-      setError("Please answer the questions before generating the FIR.");
-      return;
-    }
-
-    const guest = isGuestUser();
-    if (guest && !canUseGuestFeature("fir")) {
-      setError(t("common.pleaseLoginToContinue"));
+  const handleGenerate = async () => {
+    const input = text.trim();
+    if (!input) {
+      setError(t("fir.enterProblemDescription") || "Please enter your problem description.");
       return;
     }
 
     setLoading(true);
     setError("");
-    setCopied(false);
-    setFirText("");
-
-    let targetSessionId = sessionId;
-    if (!targetSessionId) {
-      targetSessionId = guest ? getOrCreateGuestSessionId("fir") : crypto.randomUUID();
-    }
 
     try {
-      const response = await generateFir(finalAnswers, {
+      const response = await generateComplaintLetter(input, {
         language,
-        mode: privacyMode,
-        sessionId: targetSessionId,
-        answerLabels: getAnswerLabels(),
+        mode: "save",
       });
 
-      setFirText(response?.fir_text || "");
-
-      if (guest) {
-        incrementGuestUsage("fir");
-      }
-
-      if (refreshSessions) {
-        refreshSessions();
-      }
-
-      if (!sessionId) {
-        setSearchParams({ session: targetSessionId }, { replace: true });
-      }
+      const draftText = sanitizeComplaintText(response?.complaint_text || "");
+      sessionStorage.setItem(INPUT_STORAGE_KEY, input);
+      sessionStorage.setItem(DRAFT_STORAGE_KEY, draftText);
+      navigate("/fir/output", { state: { draftText, sourceText: input } });
     } catch (err) {
-      setError(err.message || t("fir.unableToGenerate"));
+      setError(err.message || t("fir.unableToGenerate") || "Unable to generate complaint letter.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCopy = async () => {
-    if (!firText) return;
-    try {
-      await navigator.clipboard.writeText(firText);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      setError(t("fir.copyFailed"));
+  const handleClear = () => {
+    setText("");
+    setError("");
+    sessionStorage.removeItem(INPUT_STORAGE_KEY);
+    sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
     }
-  };
-
-  const handleDownload = () => {
-    if (!firText) return;
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
-    const margin = 40;
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const maxWidth = pageWidth - margin * 2;
-    const lines = doc.splitTextToSize(firText, maxWidth);
-
-    doc.setFont("Times", "Normal");
-    doc.setFontSize(12);
-    doc.text(lines, margin, 60);
-    doc.save("FIR_Complaint.pdf");
-  };
-
-  const renderAnswerControl = () => {
-    if (!safeCurrentQuestion) return null;
-
-    if (safeCurrentQuestion.type === "select") {
-      return (
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          {safeCurrentQuestion.options.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => handleAnswerSubmit(option)}
-              disabled={loading}
-              className="min-h-12 rounded-xl border border-white/10 bg-[#0a0a0b] px-4 py-3 text-left text-sm font-semibold text-slate-200 transition hover:border-indigo-400 hover:bg-indigo-500/10 disabled:opacity-50"
-            >
-              {option}
-            </button>
-          ))}
-        </div>
-      );
-    }
-
-    const inputType = safeCurrentQuestion.type === "date" || safeCurrentQuestion.type === "time"
-      ? safeCurrentQuestion.type
-      : "text";
-
-    if (safeCurrentQuestion.type === "textarea") {
-      return (
-        <textarea
-          value={currentAnswer}
-          onChange={(event) => setCurrentAnswer(event.target.value)}
-          placeholder="Type your answer..."
-          disabled={loading}
-          className="mt-5 min-h-33 w-full resize-none rounded-xl border border-white/10 bg-[#0a0a0b] px-4 py-4 text-[15px] text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-indigo-500 disabled:opacity-50"
-        />
-      );
-    }
-
-    return (
-      <input
-        type={inputType}
-        value={currentAnswer}
-        onChange={(event) => setCurrentAnswer(event.target.value)}
-        disabled={loading}
-        className="mt-5 h-12 w-full rounded-xl border border-white/10 bg-[#0a0a0b] px-4 text-[15px] text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-indigo-500 disabled:opacity-50"
-      />
-    );
   };
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-[#0a0a0b] text-slate-300">
-      <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
-        <div className="rounded-2xl border border-white/10 bg-[#121215] p-6 shadow-2xl">
-          <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="min-h-full overflow-y-auto bg-[#060607] px-4 py-6 text-slate-100 sm:px-6 lg:px-8 lg:py-8">
+      <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-4xl items-center">
+        <div className="w-full rounded-4xl border border-white/10 bg-[#111215]/95 p-6 shadow-[0_40px_120px_rgba(0,0,0,0.5)] backdrop-blur sm:p-8 lg:p-10">
+          <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-6">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600/20 text-indigo-400">
-                <Sparkles size={24} />
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-indigo-300">
+                <Sparkles size={22} />
               </div>
               <div>
-                <h1 className="text-2xl font-semibold text-white">{t("fir.title")}</h1>
-                <p className="text-sm text-slate-400">
-                  {t("fir.subtitle") || "Answer guided questions to generate a structured legal draft."}
-                </p>
+                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-indigo-300">{copy.appName}</div>
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{copy.title}</h1>
               </div>
             </div>
-
-            <button
-              type="button"
-              onClick={resetFlow}
-              disabled={loading}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:border-indigo-400 hover:text-white disabled:opacity-50"
-            >
-              <RotateCcw size={16} />
-              Start over
-            </button>
           </div>
 
-          <div className="mt-6 h-2 rounded-full bg-white/10">
-            <div
-              className="h-2 rounded-full bg-indigo-500 transition-all"
-              style={{ width: `${progressPercent}%` }}
+          <div className="mx-auto mt-8 max-w-2xl text-center">
+            <h2 className="text-2xl font-semibold text-white sm:text-3xl">{copy.subtitle}</h2>
+            <p className="mt-4 text-sm leading-7 text-slate-400 sm:text-base">{copy.helper}</p>
+          </div>
+
+          <div className="mx-auto mt-8 max-w-3xl">
+            <label className="mb-3 block text-sm font-semibold text-slate-100">
+              {t("fir.describeComplaint") || "Describe your complaint"}
+            </label>
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              placeholder={copy.placeholder}
+              rows={8}
+              className="w-full resize-none overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#0a0a0b] p-5 text-[15px] leading-7 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-indigo-500"
             />
-          </div>
 
-          {error && (
-            <p className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-              {error}
+            {error && (
+              <div className="mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm leading-6 text-rose-200">
+                {error}
+              </div>
+            )}
+
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={loading}
+                className="inline-flex items-center gap-2 rounded-full bg-indigo-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? <Loader2 size={16} className="animate-spin" /> : <WandSparkles size={16} />}
+                {loading ? copy.generating : copy.generate}
+              </button>
+              <button
+                type="button"
+                onClick={handleClear}
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+              >
+                <RotateCcw size={16} />
+                {copy.clear}
+              </button>
+            </div>
+
+            <p className="mt-5 text-center text-xs leading-6 text-slate-500">
+              The next page will show the generated complaint letter and let you copy or download it.
             </p>
-          )}
-
-          <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
-            <div className="rounded-2xl border border-white/10 bg-[#17171b] p-5">
-              {step === "end" ? (
-                <div className="flex min-h-55 flex-col items-center justify-center text-center">
-                  {loading ? (
-                    <Loader2 size={34} className="animate-spin text-indigo-400" />
-                  ) : (
-                    <CheckCircle2 size={38} className="text-emerald-400" />
-                  )}
-                  <h2 className="mt-4 text-xl font-semibold text-white">
-                    {loading ? "Generating your FIR draft" : "Guided answers complete"}
-                  </h2>
-                  <p className="mt-2 max-w-md text-sm text-slate-400">
-                    {loading
-                      ? t("fir.generating") || "Drafting professional FIR based on your context..."
-                      : "Review the generated document below, or start over to create a fresh draft."}
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-indigo-300">
-                    Question {answeredItems.length + 1}
-                  </p>
-                  <h2 className="mt-3 text-xl font-semibold leading-snug text-white">
-                    {safeCurrentQuestion?.question || "Continue with the FIR details"}
-                  </h2>
-                  {renderAnswerControl()}
-
-                  {safeCurrentQuestion?.type !== "select" && (
-                    <button
-                      type="button"
-                      onClick={() => handleAnswerSubmit()}
-                      disabled={loading || !currentAnswer.trim()}
-                      className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-[15px] font-semibold text-white shadow-xl shadow-indigo-900/20 transition hover:bg-indigo-500 disabled:opacity-50 sm:w-auto"
-                    >
-                      <Send size={18} />
-                      Continue
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-[#17171b] p-5">
-              <h3 className="text-sm font-semibold text-white">Your answers</h3>
-              {answeredItems.length === 0 ? (
-                <p className="mt-3 text-sm text-slate-500">Answers will appear here as you progress.</p>
-              ) : (
-                <div className="mt-4 max-h-90 space-y-3 overflow-y-auto pr-1">
-                  {answeredItems.map((item) => (
-                    <div key={item.field} className="rounded-xl border border-white/10 bg-[#0a0a0b] p-3">
-                      <p className="text-xs font-semibold text-slate-500">{item.label}</p>
-                      <p className="mt-1 text-sm text-slate-200">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         </div>
-
-        {firText && (
-          <div className="mt-8 rounded-2xl border border-white/10 bg-white p-6 shadow-2xl sm:p-8">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
-              <h2 className="text-xl font-bold text-slate-800">
-                {t("fir.generatedTitle") || "Generated FIR Document"}
-              </h2>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={handleCopy}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-indigo-600"
-                >
-                  <Copy size={16} />
-                  {copied ? t("fir.copied") || "Copied!" : t("fir.copy") || "Copy Draft"}
-                </button>
-                <button
-                  onClick={handleDownload}
-                  className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-                >
-                  <Download size={16} />
-                  {t("fir.download") || "Download PDF"}
-                </button>
-              </div>
-            </div>
-
-            <div className="max-h-150 overflow-y-auto rounded-xl border border-slate-100 bg-[#f8fafc] p-6 text-[15px] leading-relaxed text-slate-800 shadow-inner">
-              <pre className="whitespace-pre-wrap font-serif text-[15px] leading-relaxed">{firText}</pre>
-            </div>
-          </div>
-        )}
-
-        {loading && step !== "end" && (
-          <div className="mt-4 flex items-center gap-2 text-sm text-indigo-400">
-            <Loader2 size={16} className="animate-spin" />
-            {t("fir.generating") || "Drafting professional FIR based on your context..."}
-          </div>
-        )}
       </div>
     </div>
   );

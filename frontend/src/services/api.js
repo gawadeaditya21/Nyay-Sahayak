@@ -11,6 +11,7 @@
 
 import { resolveLanguage } from "../config/languages";
 import { getEffectiveUserId, getPrivacyMode } from "../utils/guestIdentity";
+import { sanitizeComplaintText } from "../utils/complaintText";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CONFIGURATION
@@ -27,12 +28,15 @@ const ENDPOINTS = {
   DOCUMENT_SESSIONS: `${API_BASE_URL}/document/sessions`,
   DOCUMENT_HISTORY: (sessionId) => `${API_BASE_URL}/document/${sessionId}`,
   CHAT: `${API_BASE_URL}/chat`,
+  COMPLAINT_GENERATE: `${API_BASE_URL}/generate-complaint`,
   FIR_GENERATE: `${API_BASE_URL}/generate-fir`,
   LANGUAGE_PREF: `${API_BASE_URL}/auth/language`,
   CHAT_SESSIONS: `${API_BASE_URL}/chat/sessions`,
   CHAT_HISTORY: (sessionId) => `${API_BASE_URL}/chat/${sessionId}`,
   DASHBOARD_SUMMARY: `${API_BASE_URL}/dashboard/summary`,
   PAYMENT_CHECKOUT: `${API_BASE_URL}/payment/create-checkout-session`,
+  PAYMENT_VERIFY_SESSION: (sessionId) => `${API_BASE_URL}/payment/verify-session/${sessionId}`,
+  AUTH_ME: `${API_BASE_URL}/auth/me`,
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -268,18 +272,16 @@ export async function checkHealth() {
 }
 
 /**
- * Generate FIR / complaint draft
+ * Generate complaint draft
  *
- * @param {string|Object} userInput - Problem description or guided FIR answers
- * @returns {Promise<Object>} FIR draft
+ * @param {string} userInput - Problem description written by the user
+ * @returns {Promise<Object>} complaint draft
  */
-export async function generateFir(userInput, options = {}) {
+export async function generateComplaintLetter(userInput, options = {}) {
   try {
-    const isStructuredInput =
-      userInput && typeof userInput === "object" && !Array.isArray(userInput);
     const textInput = typeof userInput === "string" ? userInput.trim() : "";
 
-    if (!isStructuredInput && !textInput) {
+    if (!textInput) {
       throw new Error("User input cannot be empty");
     }
 
@@ -287,7 +289,7 @@ export async function generateFir(userInput, options = {}) {
     const resolvedMode = normalizedOptions.mode || getPrivacyMode();
     const userId = getEffectiveUserId();
     const token = localStorage.getItem('token');
-    const response = await fetch(ENDPOINTS.FIR_GENERATE, {
+    const response = await fetch(ENDPOINTS.COMPLAINT_GENERATE, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -295,8 +297,6 @@ export async function generateFir(userInput, options = {}) {
       },
       body: JSON.stringify({
         user_input: textInput,
-        ...(isStructuredInput ? { fir_answers: userInput } : {}),
-        ...(normalizedOptions.answerLabels ? { answer_labels: normalizedOptions.answerLabels } : {}),
         language: normalizedOptions.language || getStoredLanguage(),
         mode: resolvedMode,
         userId,
@@ -304,9 +304,14 @@ export async function generateFir(userInput, options = {}) {
       }),
     });
 
-    return await handleResponse(response);
+    const data = await handleResponse(response);
+    if (typeof data?.complaint_text === "string") {
+      data.complaint_text = sanitizeComplaintText(data.complaint_text);
+    }
+
+    return data;
   } catch (error) {
-    console.error("[API] FIR generation error:", error);
+    console.error("[API] Complaint generation error:", error);
     const userMessage = formatErrorMessage(error);
     const formattedError = new Error(userMessage);
     formattedError.originalError = error;
@@ -314,6 +319,8 @@ export async function generateFir(userInput, options = {}) {
     throw formattedError;
   }
 }
+
+export const generateFir = generateComplaintLetter;
 
 export async function sendChatMessage(message, options = {}) {
   try {
@@ -501,6 +508,7 @@ const api = {
   analyzeDocument,
   analyzeText,
   checkHealth,
+  generateComplaintLetter,
   generateFir,
   sendChatMessage,
   fetchChatHistory,
@@ -509,7 +517,9 @@ const api = {
   fetchAnalysisHistory,
   fetchFirHistory,
   fetchDashboardSummary,
+  fetchCurrentUser,
   createCheckoutSession,
+  verifyCheckoutSession,
 };
 
 export async function updateLanguagePreference(userId, preferredLanguage) {
@@ -550,6 +560,52 @@ export async function createCheckoutSession(planType) {
     return await handleResponse(response);
   } catch (error) {
     console.error("[API] Checkout session error:", error);
+    throw error;
+  }
+}
+
+export async function fetchCurrentUser() {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error("Authentication required");
+    }
+
+    const response = await fetch(ENDPOINTS.AUTH_ME, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("[API] Current user error:", error);
+    throw error;
+  }
+}
+
+export async function verifyCheckoutSession(sessionId) {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      throw new Error("Authentication required for subscription verification");
+    }
+
+    if (!sessionId) {
+      throw new Error("Session ID is required");
+    }
+
+    const response = await fetch(ENDPOINTS.PAYMENT_VERIFY_SESSION(sessionId), {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("[API] Verify checkout session error:", error);
     throw error;
   }
 }

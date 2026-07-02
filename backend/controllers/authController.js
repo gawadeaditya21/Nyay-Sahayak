@@ -3,6 +3,21 @@ import { resolveLanguage } from "../config/languages.js";
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
+function buildClientUser(user) {
+    if (!user) {
+        return null;
+    }
+
+    return {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        preferredLanguage: user.preferredLanguage || "en",
+        plan: user.plan || "free",
+        subscriptionStatus: user.subscriptionStatus || "none",
+    };
+}
+
 // Signup Controller
 export const signup = async (req, res) => {
     const { name, email, password, preferredLanguage } = req.body;
@@ -45,18 +60,34 @@ export const login = async (req, res) => {
 
         res.json({
             token,
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                preferredLanguage: user.preferredLanguage || "en",
-                plan: user.plan || "free",
-                subscriptionStatus: user.subscriptionStatus || "none",
-            }
+            user: buildClientUser(user)
         });
     } catch (err) {
         console.error("Detailed Login Error:", err.message);
         res.status(500).json({ msg: "Login Error", error: err.message });
+    }
+};
+
+export const getCurrentUser = async (req, res) => {
+    try {
+        const userId = req.user?._id?.toString() || req.user?.id;
+
+        if (!userId) {
+            return res.status(401).json({ msg: "Unauthorized" });
+        }
+
+        const user = await User.findById(userId).select("-password");
+        if (!user) {
+            return res.status(404).json({ msg: "User not found" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            user: buildClientUser(user),
+        });
+    } catch (err) {
+        console.error("Current User Error:", err.message);
+        res.status(500).json({ msg: "Failed to load current user", error: err.message });
     }
 };
 

@@ -45,6 +45,7 @@ app.use("/api", analysisRoutes);
 app.use("/api", ocrRoutes);
 app.use("/api/pdf", pdfRoutes);
 app.use("/api/generate-fir", rateLimit);
+app.use("/api/generate-complaint", rateLimit);
 app.use("/api", firRoutes);
 
 // auth routes

@@ -46,7 +46,7 @@ export default function MainLayout() {
             dedupeSessionsById(
               firs.data.map((s) => ({
                 id: s.sessionId,
-                title: `FIR Draft ${new Date(s.createdAt).toLocaleDateString()}`,
+                title: `Complaint Draft ${new Date(s.createdAt).toLocaleDateString()}`,
                 updatedAt: s.createdAt,
               }))
             )
