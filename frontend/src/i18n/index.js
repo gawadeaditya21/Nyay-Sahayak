@@ -10,8 +10,10 @@ i18n
   .init({
     fallbackLng: 'en',
     supportedLngs: ['en', 'hi', 'mr', 'bn', 'ta', 'te', 'kn', 'gu', 'pa', 'ml', 'or', 'ur', 'hinglish'],
+    ns: ['common', 'landing', 'chat', 'fir', 'analyze'],
+    defaultNS: 'common',
     backend: {
-      loadPath: '/locales/{{lng}}.json', // TODO: change to {{lng}}/{{ns}}.json in Step 2
+      loadPath: '/locales/{{lng}}/{{ns}}.json',
     },
     detection: {
       order: ['localStorage', 'navigator'],
