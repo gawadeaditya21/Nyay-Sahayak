@@ -52,3 +52,7 @@ coverage/
 # Uploaded files (optional — if you store uploads locally)
 uploads/
 public/uploads/
+
+
+.env
+backend/.env

@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
+import HybridRagService from "./hybridRagService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,7 +68,26 @@ function hasQueryOverlap(queryText, candidateText) {
   return extractTokens(candidateText).some((token) => queryTokens.has(token));
 }
 
-function runPythonSearch(query) {
+async function runPythonSearch(query) {
+  // 🚩 Feature Flag: Switch between OLD TF-IDF and NEW Hybrid RAG
+  const useNewRag = process.env.USE_NEW_RAG === 'true';
+
+  if (useNewRag) {
+    console.log(`[RAG] Using NEW Hybrid RAG for query: "${query}"`);
+    try {
+      const response = await HybridRagService.retrieveContext(query);
+      // Map Qdrant output format back to what existing code expects { text, score }
+      return response.results.map((res) => ({
+        text: res.payload.text,
+        score: res.score || 0.9, // Default score if RRF didn't provide standard score
+      }));
+    } catch (error) {
+      console.error(`[RAG] New Hybrid RAG failed, falling back to legacy Python: ${error.message}`);
+      // Fallback to legacy
+    }
+  }
+
+  console.log(`[RAG] Using LEGACY Python TF-IDF for query: "${query}"`);
   return new Promise((resolve, reject) => {
     const pythonProcess = spawn(PYTHON_BIN, [ML_SCRIPT_PATH, query], {
       cwd: PROJECT_ROOT,

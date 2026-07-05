@@ -4401,17 +4401,27 @@ function shouldRetryComplaintOutput(text) {
   return false;
 }
 
-function buildComplaintPrompt(data, language) {
+function buildComplaintPrompt(data, language, ragContext = "") {
   const resolvedLanguage = ensureSupportedLanguage(language);
   const complaintSource = buildComplaintSourceText(data);
 
-  return `Generate a formal police complaint letter in ${getLanguageLabel(resolvedLanguage)}.
+  let prompt = `Generate a formal police complaint letter in ${getLanguageLabel(resolvedLanguage)}.
 Use simple and clear language.
 Do NOT include JSON, labels, or technical text.
 Do NOT mix languages.
-Return only the final complaint letter.
+Return only the final complaint letter.\n`;
 
-${complaintSource || "{}"}`.trim();
+  if (ragContext) {
+    prompt += `\nCRITICAL LEGAL INSTRUCTION:
+Below is relevant legal context retrieved from our database.
+Use this context to suggest appropriate IPC (Indian Penal Code) and its corresponding BNS (Bharatiya Nyaya Sanhita 2023) sections in the complaint letter if applicable.
+State them clearly (e.g., "Under old IPC section X or new BNS section Y").
+CONTEXT:
+${ragContext}\n`;
+  }
+
+  prompt += `\n${complaintSource || "{}"}`;
+  return prompt.trim();
 }
 
 async function translateComplaintLetter(text, language) {
@@ -4692,11 +4702,16 @@ async function generateComplaintLetter(userInput, options = {}) {
 
   const resolvedLanguage = ensureSupportedLanguage(options.language);
   const languageInstruction = getLanguageLabel(resolvedLanguage);
+  
+  // 🚩 Enhanced with RAG context for IPC+BNS suggestions
+  const incidentDesc = complaintData.incidentDescription || JSON.stringify(complaintData);
+  const rag = await retrieveLegalContext(incidentDesc, "legal");
+
   console.log(
-    `[aiService] generateComplaintLetter language raw="${options.language}" resolved="${resolvedLanguage}" label="${languageInstruction}"`
+    `[aiService] generateComplaintLetter language raw="${options.language}" resolved="${resolvedLanguage}" label="${languageInstruction}" RAG Context used=${Boolean(rag.context)}`
   );
 
-  const prompt = buildComplaintPrompt(complaintData, resolvedLanguage);
+  const prompt = buildComplaintPrompt(complaintData, resolvedLanguage, rag.context);
 
   try {
     const result = await generateContentWithFallback(prompt);
