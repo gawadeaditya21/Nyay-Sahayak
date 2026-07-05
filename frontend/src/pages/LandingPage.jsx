@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useTranslation } from 'react-i18next';
+import LanguageSwitcher from '../components/common/LanguageSwitcher';
 
 import Hero from '../components/landing/Hero';
 import CinematicRevealSection from '../components/landing/CinematicRevealSection';
@@ -122,6 +123,11 @@ export default function LandingPage() {
       <CustomCursor />
       <Background3D />
       
+      {/* Floating Language Switcher for Landing Page */}
+      <div className="absolute top-6 right-6 z-50">
+        <LanguageSwitcher />
+      </div>
+
       {/* Changed overflow-hidden to overflow-x-clip for better GSAP performance */}
       <main className="relative z-10 w-full overflow-x-clip">
         <Hero />
