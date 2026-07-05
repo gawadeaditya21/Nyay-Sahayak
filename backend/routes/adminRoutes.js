@@ -1,7 +1,7 @@
 import express from 'express';
 import { uploadLaw } from '../controllers/adminController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
-import upload from '../middleware/uploadMiddleware.js'; // Assuming you have multer upload middleware
+import { upload } from '../middleware/uploadMiddleware.js'; // Using named import
 
 const router = express.Router();
 
