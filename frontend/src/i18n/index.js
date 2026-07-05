@@ -1,36 +1,27 @@
-import i18n from "i18next";
-import { initReactI18next } from "react-i18next";
+import i18n from 'i18next';
+import { initReactI18next } from 'react-i18next';
+import LanguageDetector from 'i18next-browser-languagedetector';
+import HttpBackend from 'i18next-http-backend';
 
-import { resolveLanguage } from "../config/languages.js";
-import en from "./locales/en.json";
-import hi from "./locales/hi.json";
-import mr from "./locales/mr.json";
-import hinglish from "./locales/hinglish.json";
-
-const resources = {
-  en: { translation: en },
-  hi: { translation: hi },
-  mr: { translation: mr },
-  hinglish: { translation: hinglish },
-};
-
-function getInitialLanguage() {
-  if (typeof window === "undefined") {
-    return "en";
-  }
-
-  try {
-    return resolveLanguage(localStorage.getItem("nyaySahayakLanguage") || "en");
-  } catch {
-    return "en";
-  }
-}
-
-i18n.use(initReactI18next).init({
-  resources,
-  lng: getInitialLanguage(),
-  fallbackLng: "en",
-  interpolation: { escapeValue: false },
-});
+i18n
+  .use(HttpBackend)
+  .use(LanguageDetector)
+  .use(initReactI18next)
+  .init({
+    fallbackLng: 'en',
+    supportedLngs: ['en', 'hi', 'mr', 'bn', 'ta', 'te', 'kn', 'gu', 'pa', 'ml', 'or', 'ur', 'hinglish'],
+    backend: {
+      loadPath: '/locales/{{lng}}.json', // TODO: change to {{lng}}/{{ns}}.json in Step 2
+    },
+    detection: {
+      order: ['localStorage', 'navigator'],
+      caches: ['localStorage'],
+      lookupLocalStorage: 'nyaySahayakLanguage',
+    },
+    interpolation: {
+      escapeValue: false, // React already escapes values
+    },
+    debug: false,
+  });
 
 export default i18n;
