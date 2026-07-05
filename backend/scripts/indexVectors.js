@@ -18,8 +18,8 @@ const DELAY_MS = 1000; // Delay between batches to respect rate limits
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-// We use text-embedding-004 for generating 768-dimensional dense vectors
-const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+// We use gemini-embedding-2 with outputDimensionality 768 for compatibility with existing Qdrant collection
+const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
 
 // Initialize Qdrant
 const qdrantClient = new QdrantClient({
@@ -100,8 +100,12 @@ async function indexData() {
                     ? `Text: ${item.text}\nSummary: ${item.metadata.hindi_summary}`
                     : item.text;
 
-                const result = await embeddingModel.embedContent(textToEmbed);
-                const denseVector = result.embedding.values;
+                // Embed chunk (Dense Vector) with 768 dims
+                const embedResult = await embeddingModel.embedContent({
+                    content: { parts: [{ text: textToEmbed }] },
+                    outputDimensionality: 768
+                });
+                const denseVector = embedResult.embedding.values;
 
                 // Simple pseudo-UUID from chunk_id
                 const pointId = item.chunk_id.toString().padStart(8, '0') + '-0000-0000-0000-000000000000';

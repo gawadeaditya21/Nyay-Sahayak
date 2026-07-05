@@ -11,9 +11,9 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
 // Use flash for reranking (cheaper/faster)
-const llmModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const llmModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
 const qdrantClient = new QdrantClient({
     url: process.env.QDRANT_URL,
@@ -41,7 +41,10 @@ class HybridRagService {
 
     // Embed Query
     static async embedQuery(query) {
-        const result = await embeddingModel.embedContent(query);
+        const result = await embeddingModel.embedContent({
+            content: { parts: [{ text: query }] },
+            outputDimensionality: 768
+        });
         return result.embedding.values;
     }
 
