@@ -278,6 +278,18 @@ export const comprehensiveAnalysis = async (req, res) => {
 
       // Gemini Classification Summary
       classification: {
+        documentType: documentTypeLabel,
+        confidence: confidenceScore,
+        confidenceLevel: confidenceScore >= 80 ? "HIGH" : confidenceScore >= 50 ? "MEDIUM" : "LOW",
+        explanation: structured.smart_explanation || "No explanation provided."
+      },
+
+      // Law Citations via Hybrid RAG
+      law_citations: [],
+
+      // Detailed Risk Assessment
+      riskAssessment: {
+        overallRisk: structured.risk_level || "UNKNOWN",
         documentType: structured.document_type || geminiAnalysis.documentType,
         decision: structured.decision,
         riskLevel: structured.risk_level,
@@ -317,11 +329,33 @@ export const comprehensiveAnalysis = async (req, res) => {
     console.log("[Comprehensive] AI Risks:", risks.length);
     console.log("[Comprehensive] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-    // Return comprehensive report
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // STEP 4: FETCH LAW CITATIONS (HYBRID RAG)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    if (process.env.USE_NEW_RAG === 'true') {
+      try {
+        console.log("[Step 4] 📚 Fetching law citations via Hybrid RAG...");
+        const HybridRagService = (await import('../services/hybridRagService.js')).default;
+        // Use a short summary of the text to search for relevant laws
+        const queryText = documentText.substring(0, 400); 
+        const ragResponse = await HybridRagService.retrieveContext(queryText);
+        
+        comprehensiveReport.law_citations = ragResponse.results.map(r => ({
+           id: r.id,
+           text: r.payload.text,
+           metadata: r.payload.metadata
+        }));
+        console.log(`[Step 4] ✅ Found ${comprehensiveReport.law_citations.length} relevant law citations.`);
+      } catch (error) {
+        console.warn("[Step 4] ⚠️ Failed to fetch law citations:", error.message);
+      }
+    }
+
+    // Return comprehensive report to frontend
     return res.status(200).json({
       success: true,
       data: comprehensiveReport,
-      message: "Comprehensive analysis completed successfully"
+      message: "Comprehensive analysis completed successfully",
     });
 
   } catch (error) {
