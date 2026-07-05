@@ -12,6 +12,7 @@ import chatRoutes from "./routes/chatRoutes.js";
 import firRoutes from "./routes/firRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import usageRoutes from "./routes/usageRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import { stripeWebhook } from "./controllers/paymentController.js";
 import { rateLimit } from "./middleware/rateLimit.js";
@@ -53,6 +54,7 @@ app.use('/api/auth', authRoutes);
 app.use("/api/chat", rateLimit, chatRoutes);
 app.use("/api/dashboard", rateLimit, dashboardRoutes);
 app.use("/api/usage", usageRoutes);
+app.use("/api/admin", adminRoutes);
 
 const PORT = process.env.PORT || 5000;
 
