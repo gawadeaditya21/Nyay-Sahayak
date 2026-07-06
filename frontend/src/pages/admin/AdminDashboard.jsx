@@ -1,10 +1,33 @@
-import { Users, FileText, Scale, Activity, Upload, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Users, FileText, Scale, Activity, Upload, AlertCircle, CheckCircle2, Settings, Shield } from 'lucide-react';
 import StatCard from '../../components/admin/StatCard';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import axios from 'axios';
 
 export default function AdminDashboard() {
   const { t } = useTranslation();
+  const [stats, setStats] = useState({ totalUsers: 0, activeCases: 0, apiRequests: 0, docsProcessed: 0 });
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await axios.get('/api/admin/analytics/dashboard', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setStats(res.data.stats);
+        setRecentActivity(res.data.recentActivity);
+      } catch (err) {
+        console.error("Failed to fetch admin stats", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDashboardData();
+  }, []);
 
   return (
     <div className="p-8 max-w-7xl mx-auto pb-24">
@@ -23,10 +46,10 @@ export default function AdminDashboard() {
       
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard title="Total Users" value="1,284" icon={Users} trend="12" trendUp={true} color="bg-blue-100 text-blue-600" />
-        <StatCard title="Active Cases" value="842" icon={Scale} trend="5" trendUp={true} color="bg-indigo-100 text-indigo-600" />
-        <StatCard title="Documents Analyzed" value="3,492" icon={FileText} trend="18" trendUp={true} color="bg-purple-100 text-purple-600" />
-        <StatCard title="API Requests" value="124k" icon={Activity} trend="2" trendUp={false} color="bg-emerald-100 text-emerald-600" />
+        <StatCard title="Total Users" value={stats.totalUsers} icon={Users} trend="12" trendUp={true} color="bg-blue-100 text-blue-600" />
+        <StatCard title="Active Cases" value={stats.activeCases} icon={Scale} trend="5" trendUp={true} color="bg-indigo-100 text-indigo-600" />
+        <StatCard title="Documents Analyzed" value={stats.docsProcessed} icon={FileText} trend="18" trendUp={true} color="bg-purple-100 text-purple-600" />
+        <StatCard title="API Requests" value={stats.apiRequests} icon={Activity} trend="2" trendUp={false} color="bg-emerald-100 text-emerald-600" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -38,21 +61,19 @@ export default function AdminDashboard() {
           </div>
           <div className="p-6">
             <div className="space-y-6">
-              {[
-                { action: 'New User Registration', user: 'omkar@example.com', time: '10 mins ago', type: 'user' },
-                { action: 'Law Indexed (RERA Act)', user: 'Admin User', time: '1 hour ago', type: 'system' },
-                { action: 'Subscription Upgraded to Pro', user: 'ravi@example.com', time: '3 hours ago', type: 'payment' },
-                { action: 'FIR Generated (Theft)', user: 'priya@example.com', time: '5 hours ago', type: 'action' },
-                { action: 'Property Document Analyzed', user: 'rahul@example.com', time: '6 hours ago', type: 'action' },
-              ].map((activity, i) => (
-                <div key={i} className="flex items-start gap-4">
-                  <div className={`mt-1.5 w-2 h-2 shrink-0 rounded-full ${activity.type === 'system' ? 'bg-blue-500' : activity.type === 'payment' ? 'bg-green-500' : activity.type === 'user' ? 'bg-amber-500' : 'bg-indigo-500'}`} />
+              {loading ? (
+                  <p className="text-gray-500 text-sm">Loading activity...</p>
+              ) : recentActivity.length === 0 ? (
+                  <p className="text-gray-500 text-sm">No recent activity found.</p>
+              ) : recentActivity.map((activity) => (
+                <div key={activity._id} className="flex items-start gap-4">
+                  <div className={`mt-1.5 w-2 h-2 shrink-0 rounded-full ${activity.type === 'SYSTEM' ? 'bg-blue-500' : activity.type === 'DATA' ? 'bg-green-500' : activity.type === 'SECURITY' ? 'bg-amber-500' : 'bg-indigo-500'}`} />
                   <div>
-                    <p className="text-sm font-medium text-gray-800">{activity.action}</p>
+                    <p className="text-sm font-medium text-gray-800">{activity.action} - {activity.target}</p>
                     <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
                       <span className="font-medium text-gray-600">{activity.user}</span>
                       <span>•</span>
-                      <span>{activity.time}</span>
+                      <span>{new Date(activity.createdAt).toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
@@ -99,9 +120,9 @@ export default function AdminDashboard() {
                 <Users size={24} className="mb-2 text-blue-500 group-hover:scale-110 transition-transform" />
                 <span className="text-xs font-semibold text-gray-700">Manage Users</span>
               </Link>
-              <Link to="/admin/audit" className="flex flex-col items-center justify-center p-4 text-center rounded-xl border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-colors group">
-                <FileText size={24} className="mb-2 text-indigo-500 group-hover:scale-110 transition-transform" />
-                <span className="text-xs font-semibold text-gray-700">View Logs</span>
+              <Link to="/admin/settings" className="flex flex-col items-center justify-center p-4 text-center rounded-xl border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-colors group">
+                <Settings size={24} className="mb-2 text-emerald-500 group-hover:scale-110 transition-transform" />
+                <span className="text-xs font-semibold text-gray-700">System Settings</span>
               </Link>
             </div>
           </div>

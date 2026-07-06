@@ -14,7 +14,7 @@ export default function UserRoleModal({ isOpen, onClose, user, onRoleChange }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onRoleChange(user.id, role);
+    onRoleChange(user._id, role);
   };
 
   return (

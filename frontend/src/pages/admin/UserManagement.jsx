@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, Filter, Shield, MoreVertical, Trash2, Edit, ChevronLeft, ChevronRight, User as UserIcon } from 'lucide-react';
 import ConfirmDialog from '../../components/admin/ConfirmDialog';
 import UserRoleModal from '../../components/admin/UserRoleModal';
 import UserDetailsDrawer from '../../components/admin/UserDetailsDrawer';
+import axios from 'axios';
 
 export default function UserManagement() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -15,18 +16,24 @@ export default function UserManagement() {
   const [roleModal, setRoleModal] = useState({ isOpen: false, user: null });
   const [drawerUser, setDrawerUser] = useState(null);
 
-  // Mock data for users
-  const [users, setUsers] = useState([
-    { id: 1, name: 'Omkar Mahadik', email: 'omkarmahadik180@gmail.com', role: 'admin', plan: 'pro', joinedDate: '2024-01-15T10:00:00Z', status: 'active' },
-    { id: 2, name: 'Rahul Sharma', email: 'rahul.s@example.com', role: 'user', plan: 'plus', joinedDate: '2024-02-10T14:30:00Z', status: 'active' },
-    { id: 3, name: 'Priya Patel', email: 'priya.p@example.com', role: 'user', plan: 'free', joinedDate: '2024-03-05T09:15:00Z', status: 'active' },
-    { id: 4, name: 'Amit Kumar', email: 'amit.k@example.com', role: 'user', plan: 'free', joinedDate: '2024-03-12T11:20:00Z', status: 'suspended' },
-    { id: 5, name: 'Neha Singh', email: 'neha.s@example.com', role: 'user', plan: 'pro', joinedDate: '2024-01-20T16:45:00Z', status: 'active' },
-    { id: 6, name: 'Vikram Desai', email: 'vikram.d@example.com', role: 'admin', plan: 'pro', joinedDate: '2023-11-05T08:30:00Z', status: 'active' },
-    { id: 7, name: 'Anjali Gupta', email: 'anjali.g@example.com', role: 'user', plan: 'free', joinedDate: '2024-03-25T13:10:00Z', status: 'active' },
-    { id: 8, name: 'Sanjay Verma', email: 'sanjay.v@example.com', role: 'user', plan: 'plus', joinedDate: '2024-02-28T10:05:00Z', status: 'active' },
-    { id: 9, name: 'Kavita Joshi', email: 'kavita.j@example.com', role: 'user', plan: 'free', joinedDate: '2024-04-01T09:00:00Z', status: 'active' },
-  ]);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } });
+      setUsers(res.data);
+    } catch (err) {
+      console.error("Failed to fetch users", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Filtering
   const filteredUsers = useMemo(() => {
@@ -42,14 +49,26 @@ export default function UserManagement() {
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
   const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const handleDelete = (id) => {
-    setUsers(users.filter(user => user.id !== id));
-    setDeleteConfirm({ isOpen: false, id: null, name: '' });
+  const handleDelete = async (id) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`/api/admin/users/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      setUsers(users.filter(user => user._id !== id));
+      setDeleteConfirm({ isOpen: false, id: null, name: '' });
+    } catch (err) {
+      console.error("Failed to delete user", err);
+    }
   };
 
-  const handleRoleChange = (id, newRole) => {
-    setUsers(users.map(user => user.id === id ? { ...user, role: newRole } : user));
-    setRoleModal({ isOpen: false, user: null });
+  const handleRoleChange = async (id, newRole) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`/api/admin/users/${id}/role`, { role: newRole }, { headers: { Authorization: `Bearer ${token}` } });
+      setUsers(users.map(user => user._id === id ? { ...user, role: newRole } : user));
+      setRoleModal({ isOpen: false, user: null });
+    } catch (err) {
+      console.error("Failed to change user role", err);
+    }
   };
 
   return (
@@ -100,15 +119,21 @@ export default function UserManagement() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {paginatedUsers.length > 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="6" className="p-12 text-center text-gray-500">
+                    <p className="font-medium text-gray-700">Loading users...</p>
+                  </td>
+                </tr>
+              ) : paginatedUsers.length > 0 ? (
                 paginatedUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50/50 transition-colors">
+                  <tr key={user._id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="p-4">
                       <div 
                         className="flex items-center gap-3 cursor-pointer group"
                         onClick={() => setDrawerUser(user)}
                       >
-                        <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+                        <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold uppercase">
                           {user.name.charAt(0)}
                         </div>
                         <div>
@@ -129,13 +154,13 @@ export default function UserManagement() {
                         user.plan === 'plus' ? 'bg-blue-100 text-blue-700' : 
                         'bg-gray-100 text-gray-600'
                       }`}>
-                        {user.plan.toUpperCase()}
+                        {user.plan?.toUpperCase()}
                       </span>
                     </td>
-                    <td className="p-4 text-sm text-gray-500">{new Date(user.joinedDate).toLocaleDateString()}</td>
+                    <td className="p-4 text-sm text-gray-500">{new Date(user.createdAt).toLocaleDateString()}</td>
                     <td className="p-4">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${user.status === 'active' ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}`}>
-                        {user.status === 'active' ? 'Active' : 'Suspended'}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${user.subscriptionStatus !== 'canceled' ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}`}>
+                        {user.subscriptionStatus !== 'canceled' ? 'Active' : 'Suspended'}
                       </span>
                     </td>
                     <td className="p-4 text-right">
@@ -148,7 +173,7 @@ export default function UserManagement() {
                           <Shield size={18} />
                         </button>
                         <button 
-                          onClick={() => setDeleteConfirm({ isOpen: true, id: user.id, name: user.name })}
+                          onClick={() => setDeleteConfirm({ isOpen: true, id: user._id, name: user.name })}
                           className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete User"
                         >

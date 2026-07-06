@@ -1,31 +1,53 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Plus, Filter, FileText, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
 import LawUploadModal from '../../components/admin/LawUploadModal';
 import ConfirmDialog from '../../components/admin/ConfirmDialog';
+import axios from 'axios';
 
 export default function LawManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, id: null, title: '' });
   
-  // Mock data for laws
-  const [laws, setLaws] = useState([
-    { id: 1, title: 'The Indian Penal Code, 1860', size: '2.4 MB', status: 'indexed', date: '2024-03-15T10:00:00Z' },
-    { id: 2, title: 'The Constitution of India', size: '4.1 MB', status: 'indexed', date: '2024-03-14T14:30:00Z' },
-    { id: 3, title: 'Real Estate (Regulation and Development) Act, 2016', size: '1.2 MB', status: 'indexing', date: '2024-03-20T09:15:00Z' },
-    { id: 4, title: 'Information Technology Act, 2000', size: '1.8 MB', status: 'failed', date: '2024-03-19T11:20:00Z' }
-  ]);
+  const [laws, setLaws] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchLaws();
+  }, []);
+
+  const fetchLaws = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get('/api/admin/laws', { headers: { Authorization: `Bearer ${token}` } });
+      setLaws(res.data);
+    } catch (err) {
+      console.error("Failed to fetch laws", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredLaws = laws.filter(law => law.title.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  const handleUploadComplete = (newLaw) => {
-    setLaws([{ ...newLaw, size: 'Unknown' }, ...laws]);
+  const handleUploadComplete = (newLawData) => {
+    if (newLawData.law) {
+      setLaws([newLawData.law, ...laws]);
+    } else {
+      fetchLaws();
+    }
     setIsUploadOpen(false);
   };
 
-  const handleDelete = (id) => {
-    setLaws(laws.filter(law => law.id !== id));
-    setDeleteConfirm({ isOpen: false, id: null, title: '' });
+  const handleDelete = async (id) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`/api/admin/laws/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      setLaws(laws.filter(law => law._id !== id));
+      setDeleteConfirm({ isOpen: false, id: null, title: '' });
+    } catch (err) {
+      console.error("Failed to delete law", err);
+    }
   };
 
   return (
@@ -65,7 +87,7 @@ export default function LawManagement() {
       {/* Laws Table */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 <th className="p-4">Document Name</th>
@@ -76,9 +98,15 @@ export default function LawManagement() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredLaws.length > 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="5" className="p-8 text-center text-gray-500">
+                    Loading laws...
+                  </td>
+                </tr>
+              ) : filteredLaws.length > 0 ? (
                 filteredLaws.map((law) => (
-                  <tr key={law.id} className="hover:bg-gray-50/50 transition-colors">
+                  <tr key={law._id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-red-50 text-red-500 rounded-lg">
@@ -93,10 +121,10 @@ export default function LawManagement() {
                       {law.status === 'indexing' && <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700"><div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"/> Indexing</span>}
                       {law.status === 'failed' && <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700"><AlertCircle size={14}/> Failed</span>}
                     </td>
-                    <td className="p-4 text-sm text-gray-500">{new Date(law.date).toLocaleDateString()}</td>
+                    <td className="p-4 text-sm text-gray-500">{new Date(law.createdAt).toLocaleDateString()}</td>
                     <td className="p-4 text-right">
                       <button 
-                        onClick={() => setDeleteConfirm({ isOpen: true, id: law.id, title: law.title })}
+                        onClick={() => setDeleteConfirm({ isOpen: true, id: law._id, title: law.title })}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         title="Delete Law"
                       >

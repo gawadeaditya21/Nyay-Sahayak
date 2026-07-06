@@ -1,20 +1,29 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Filter, ShieldAlert, LogIn, FileEdit, Trash2, Settings, Download } from 'lucide-react';
+import axios from 'axios';
 
 export default function AuditLogs() {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   
-  // Mock data for audit logs
-  const logs = [
-    { id: 'LOG-992', user: 'Omkar Mahadik', action: 'Changed user role', target: 'Rahul Sharma -> ADMIN', type: 'SECURITY', date: '2024-03-15T14:30:22Z', ip: '192.168.1.1' },
-    { id: 'LOG-991', user: 'System', action: 'Daily Backup Completed', target: 'MongoDB Cluster', type: 'SYSTEM', date: '2024-03-15T12:00:00Z', ip: 'localhost' },
-    { id: 'LOG-990', user: 'Priya Patel', action: 'Failed Login Attempt', target: 'Invalid Password', type: 'AUTH', date: '2024-03-15T10:15:45Z', ip: '103.45.22.1' },
-    { id: 'LOG-989', user: 'Admin User', action: 'Deleted Law Document', target: 'Draft_Law_v1.pdf', type: 'DATA', date: '2024-03-14T16:20:10Z', ip: '192.168.1.1' },
-    { id: 'LOG-988', user: 'Amit Kumar', action: 'Successful Login', target: 'User Dashboard', type: 'AUTH', date: '2024-03-14T09:05:12Z', ip: '45.22.11.9' },
-    { id: 'LOG-987', user: 'Omkar Mahadik', action: 'Updated System Settings', target: 'Rate Limits: 100 -> 150', type: 'SECURITY', date: '2024-03-13T11:45:00Z', ip: '192.168.1.1' },
-    { id: 'LOG-986', user: 'Rahul Sharma', action: 'Uploaded Law Document', target: 'IT_Act_2000.pdf', type: 'DATA', date: '2024-03-13T10:10:00Z', ip: '192.168.1.5' },
-  ];
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchLogs();
+  }, []);
+
+  const fetchLogs = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get('/api/admin/logs', { headers: { Authorization: `Bearer ${token}` } });
+      setLogs(res.data);
+    } catch (err) {
+      console.error("Failed to fetch logs", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredLogs = logs.filter(log => {
     const matchesSearch = log.user.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -88,12 +97,18 @@ export default function AuditLogs() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredLogs.length > 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="5" className="p-12 text-center text-gray-500">
+                    <p className="font-medium text-gray-700">Loading audit logs...</p>
+                  </td>
+                </tr>
+              ) : filteredLogs.length > 0 ? (
                 filteredLogs.map((log) => {
                   const { icon: Icon, color } = getTypeStyle(log.type);
                   return (
-                    <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="p-4 text-xs font-mono text-gray-500">{log.id}</td>
+                    <tr key={log._id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="p-4 text-xs font-mono text-gray-500">{log._id.slice(-6)}</td>
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <div className={`p-2 rounded-lg ${color}`}>
@@ -107,12 +122,12 @@ export default function AuditLogs() {
                       </td>
                       <td className="p-4">
                         <p className="text-sm font-medium text-gray-800">{log.user}</p>
-                        <p className="text-xs font-mono text-gray-500 mt-0.5">{log.ip}</p>
+                        <p className="text-xs font-mono text-gray-500 mt-0.5">{log.ip || '127.0.0.1'}</p>
                       </td>
                       <td className="p-4 text-sm text-gray-600">{log.target}</td>
                       <td className="p-4 text-right">
-                        <p className="text-sm font-medium text-gray-800">{new Date(log.date).toLocaleDateString()}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{new Date(log.date).toLocaleTimeString()}</p>
+                        <p className="text-sm font-medium text-gray-800">{new Date(log.createdAt).toLocaleDateString()}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{new Date(log.createdAt).toLocaleTimeString()}</p>
                       </td>
                     </tr>
                   );
