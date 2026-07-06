@@ -92,7 +92,8 @@
     "time": {
       "minutesAgo": "{{count}} मिनिटांपूर्वी",
       "hoursAgo": "{{count}} तासांपूर्वी",
-      "daysAgo": "{{count}} दिवसांपूर्वी"
+      "daysAgo": "{{count}} दिवसांपूर्वी",
+      "daysAgo_plural": "{{count}} दिवसांपूर्वी"
     }
   },
   "common": {

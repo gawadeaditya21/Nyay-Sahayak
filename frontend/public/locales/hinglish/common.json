@@ -1,7 +1,21 @@
 {
   "appName": "Nyay Sahayak",
   "auth": {
-    "signIn": "Sign In"
+    "signIn": "Sign In",
+    "signUp": "Sign Up",
+    "welcomeBack": "Wapas swagat hai",
+    "createAccountTitle": "Apna account banayein",
+    "createAccountSubtitle": "Apni legal analysis history track karne ke liye sign up karein.",
+    "loginSubtitle": "Apne pichle document scans dekhne ke liye log in karein.",
+    "fullName": "Pura Naam",
+    "fullNamePlaceholder": "John Doe",
+    "emailAddress": "Email Address",
+    "emailPlaceholder": "you@example.com",
+    "password": "Password",
+    "passwordPlaceholder": "••••••••",
+    "alreadyHaveAccount": "Pehle se account hai?",
+    "dontHaveAccount": "Account nahi hai?",
+    "logIn": "Log In"
   },
   "header": {
     "plan": "Basic Plan"
@@ -119,7 +133,25 @@
       "generateComplaint": "Write Complaint",
       "seeSteps": "See Steps",
       "analyzeDocument": "Analyze Document"
-    }
+    },
+    "legalGuidance": "Kanooni Salah",
+    "aiAnalysis": "AI Analysis",
+    "ragContextUsed": "RAG context use kiya gaya",
+    "generalLegalGuidance": "Samanya kanooni salah",
+    "privateModeSkipsSavingChatHistory": "Private mode chat history save karna skip karta hai.",
+    "guestLimit": "Guest limit: 3 messages.",
+    "rules": "Niyam",
+    "penalties": "Jurmana",
+    "suspiciousClauses": "Sandigdh Clauses",
+    "topRisks": "Pramukh Khatre",
+    "warnings": "Chetawniyan",
+    "whatYouShouldDo": "Aapko Kya Karna Chahiye",
+    "actionPlan": "Karyayojana",
+    "quantifiedImpact": "Matratmak Prabhav",
+    "applicableLaws": "Lagu Kanoon",
+    "legalValidityFlags": "Kanooni Vaidhta Flags",
+    "noLegalReferencesDetected": "Koi kanooni references nahi mile.",
+    "lawyerSuggestion": "Vakeel Sujhav"
   },
   "fir": {
     "title": "Complaint Letter Generator",
@@ -130,7 +162,15 @@
     "generatedTitle": "Generated Complaint Letter",
     "copy": "Copy",
     "copied": "Copied",
-    "download": "Download PDF"
+    "download": "Download PDF",
+    "cardLabel": "Shikayat Draft",
+    "describeComplaint": "Apni shikayat ka varnan karein",
+    "describeComplaintHelp": "Likhein kya hua, kab, kahan, aur kaun shaamil tha. Ise saral rakhein.",
+    "cardPlaceholder": "Udaharan ke liye, maine 14 March ko job ke liye Rs 12,000 diye the aur ab wo jawab nahi de rahe...",
+    "generateDraft": "Shikayat Patra Banayein",
+    "enterProblemDescription": "Kripya apni samasya ka vivaran darj karein.",
+    "copyFailed": "Copy nahi ho paya. Kripya phir se koshish karein.",
+    "unableToGenerate": "Shikayat patra nahi bana paya."
   },
   "landing": {
     "heroBadge": "Next-Gen Legal Intelligence",
@@ -237,5 +277,40 @@
       "offerLetter": "Offer Letter"
     },
     "footerCopyright": "© 2026 Nyay Sahayak. All rights reserved."
+  },
+  "analysis": {
+    "aiAnalysis": "AI Analysis",
+    "documentInfo": "Document Jankari",
+    "type": "Prakar",
+    "classification": "Vargikaran",
+    "decision": "Faisla",
+    "confidence": "Vishwas",
+    "keyWarning": "Mukhya Chetawni",
+    "smartExplanation": "Smart Vyakhyan",
+    "simple": "Saral",
+    "risk": "RISK",
+    "topRisks": "Pramukh Khatre",
+    "noMajorRisksDetected": "Koi bade khatre nahi mile.",
+    "whatToDo": "Kya Karein",
+    "noActionItemsProvided": "Koi action items nahi diye gaye.",
+    "detailedRisks": "Vistrit Khatre",
+    "noDetailedRisksFound": "Koi vistrit khatre nahi mile.",
+    "snippet": "Snippet",
+    "lawReference": "Kanooni Sandarbh",
+    "noLegalReferencesDetected": "Koi kanooni references nahi mile.",
+    "documentAnalysis": "Document Analysis",
+    "documentAnalysisSubtitle": "OCR, privacy masking, aur Gemini-powered risk analysis ke liye agreements, notices, ya kanooni documents upload karein.",
+    "uploadedDocument": "Upload kiya gaya: {{name}}",
+    "fileSize": "Size: {{size}} KB",
+    "fileSizeExceeded": "File size 15MB limit se zyada hai. Kripya choti file upload karein.",
+    "invalidFileType": "Galat file type. Kripya PDF, image, ya DOCX file upload karein.",
+    "analysisFailed": "Analysis fail ho gaya. Kripya phir se koshish karein.",
+    "preparingAnalysis": "Analysis taiyar ho raha hai...",
+    "uploadingAndExtractingText": "Upload ho raha hai aur text extract kiya ja raha hai...",
+    "analyzingWithAi": "AI se analyze kiya ja raha hai...",
+    "finalizingReport": "Report final ho rahi hai...",
+    "analyzingText": "Text analyze kiya ja raha hai...",
+    "pasteLegalTextOrInstructions": "Kanooni text paste karein ya upload kiye gaye document ke liye instructions jodein...",
+    "uploadDocument": "Document upload karein"
   }
 }

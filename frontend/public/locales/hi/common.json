@@ -57,7 +57,9 @@
     "accountDetails": "खाता विवरण",
     "billingHelp": "बिलिंग और सुविधाएं प्रबंधित करें।",
     "billingAndFeatures": "बिलिंग और सुविधाएं प्रबंधित करें।",
-    "basicPlan": "बेसिक प्लान"
+    "basicPlan": "बेसिक प्लान",
+    "description": "अपने खाते की प्राथमिकताओं और एप्लिकेशन सेटिंग्स को प्रबंधित करें।",
+    "languageDescription": "लीगल असिस्टेंट इंटरफ़ेस के लिए अपनी पसंदीदा भाषा चुनें।"
   },
   "dashboard": {
     "eyebrow": "खाता गतिविधि",
@@ -90,7 +92,8 @@
     "time": {
       "minutesAgo": "{{count}} मिनट पहले",
       "hoursAgo": "{{count}} घंटे पहले",
-      "daysAgo": "{{count}} दिन पहले"
+      "daysAgo": "{{count}} दिन पहले",
+      "daysAgo_plural": "{{count}} दिन पहले"
     }
   },
   "common": {
