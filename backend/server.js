@@ -3,9 +3,6 @@ import "dotenv/config";
 import connectDB from "./config/db.js";
 import express from "express";
 import cors from "cors";
-import analysisRoutes from "./routes/analysisRoutes.js";
-import ocrRoutes from "./routes/ocrRoutes.js";
-import pdfRoutes from "./routes/pdfRoutes.js";
 import documentRoutes from "./routes/documentRoutes.js";
 import authRoutes from "./routes/authRoutes.js";    
 import chatRoutes from "./routes/chatRoutes.js";
@@ -41,10 +38,7 @@ app.use("/api/payment", paymentRoutes);
 // Primary Document Analysis Route (Recommended)
 app.use("/api/document", rateLimit, documentRoutes);
 
-// Legacy routes (for backward compatibility)
-app.use("/api", analysisRoutes);
-app.use("/api", ocrRoutes);
-app.use("/api/pdf", pdfRoutes);
+// Legacy routes removed
 app.use("/api/generate-fir", rateLimit);
 app.use("/api/generate-complaint", rateLimit);
 app.use("/api", firRoutes);
