@@ -312,5 +312,13 @@
       "offerLetter": "Offer Letter"
     },
     "footerCopyright": "© 2026 Nyay Sahayak. All rights reserved."
+  },
+  "admin": {
+    "dashboard": "Dashboard",
+    "laws": "Laws",
+    "users": "Users",
+    "analytics": "Analytics",
+    "audit": "Audit Logs",
+    "settings": "Settings"
   }
 }

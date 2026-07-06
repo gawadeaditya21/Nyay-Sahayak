@@ -15,6 +15,7 @@ function buildClientUser(user) {
         preferredLanguage: user.preferredLanguage || "en",
         plan: user.plan || "free",
         subscriptionStatus: user.subscriptionStatus || "none",
+        role: user.role ? user.role.toUpperCase() : "USER",
     };
 }
 

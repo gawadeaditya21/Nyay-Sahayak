@@ -12,6 +12,14 @@ import DashboardPage from './pages/DashboardPage';
 import PricingPage from './pages/PricingPage';
 import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentCancel from './pages/PaymentCancel';
+import AdminLayout from './components/admin/AdminLayout';
+import AdminProtectedRoute from './components/admin/AdminProtectedRoute';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import LawManagement from './pages/admin/LawManagement';
+import UserManagement from './pages/admin/UserManagement';
+import Analytics from './pages/admin/Analytics';
+import AuditLogs from './pages/admin/AuditLogs';
+import SystemSettings from './pages/admin/SystemSettings';
 
 export default function App() {
   return (
@@ -36,6 +44,16 @@ export default function App() {
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/payment-success" element={<PaymentSuccess />} />
         <Route path="/payment-cancel" element={<PaymentCancel />} />
+
+        {/* Admin Routes wrapped in AdminLayout and RBAC */}
+        <Route path="/admin" element={<AdminProtectedRoute><AdminLayout /></AdminProtectedRoute>}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="laws" element={<LawManagement />} />
+          <Route path="users" element={<UserManagement />} />
+          <Route path="analytics" element={<Analytics />} />
+          <Route path="audit" element={<AuditLogs />} />
+          <Route path="settings" element={<SystemSettings />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   );

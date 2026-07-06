@@ -41,7 +41,12 @@ export default function LoginPage() {
         // LOGIN LOGIC: Save token and user details
         localStorage.setItem('token', res.data.token);
         localStorage.setItem('user', JSON.stringify(res.data.user));
-        navigate('/chat'); // Go back to assistant/dashboard
+        
+        if (res.data.user?.role?.toUpperCase() === 'ADMIN') {
+          navigate('/admin');
+        } else {
+          navigate('/chat'); // Go back to assistant/dashboard
+        }
       } else {
         // SIGNUP LOGIC: Switch to login mode
         setIsRegister(false);

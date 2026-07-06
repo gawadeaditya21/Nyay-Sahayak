@@ -1,4 +1,4 @@
-import { Scale, LogOut, Settings, Menu } from 'lucide-react';
+import { Scale, LogOut, Settings, Menu, Shield } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../context/LanguageContext.jsx';
@@ -36,6 +36,11 @@ export default function Header({ toggleSidebar }) {
 
         {user ? (
           <div className="flex items-center gap-3 pl-4 border-l border-white/10">
+            {user.role === 'ADMIN' && (
+              <Link to="/admin" title="Admin Portal" className="p-2 hover:bg-white/5 hover:text-white rounded-lg text-blue-400 transition-colors mr-2 border border-blue-500/30 bg-blue-500/10">
+                <Shield size={18} />
+              </Link>
+            )}
             <div className="flex flex-col items-end hidden sm:flex">
               <span className="text-xs font-bold text-white">{user.name}</span>
               <span className={`mt-0.5 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-full ${user.plan === 'pro' ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-sm' : user.plan === 'plus' ? 'bg-indigo-500 text-white shadow-sm' : 'bg-slate-700 text-slate-300'}`}>
