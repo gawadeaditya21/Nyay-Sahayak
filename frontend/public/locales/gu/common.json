@@ -1,0 +1,23 @@
+{
+  "appName": "ન્યાય સહાયક",
+  "auth": {
+    "signIn": "સાઇન ઇન",
+    "signUp": "સાઇન અપ"
+  },
+  "header": {
+    "plan": "યોજના",
+    "freePlan": "મફત યોજના"
+  },
+  "sidebar": {
+    "dashboard": "ડેશબોર્ડ",
+    "newChat": "નવી કાનૂની ચેટ",
+    "generateFir": "ફરિયાદ લખો",
+    "analyzeDoc": "દસ્તાવેજ તપાસો"
+  },
+  "settings": {
+    "title": "સેટિંગ્સ",
+    "preferences": "પસંદગીઓ",
+    "language": "ભાષા",
+    "languageHelp": "કાનૂની સહાયક ઇન્ટરફેસ માટે તમારી પસંદીદા ભાષા પસંદ કરો."
+  }
+}

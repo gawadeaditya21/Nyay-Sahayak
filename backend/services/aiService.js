@@ -11,6 +11,8 @@ import {
   filterRelevantResults,
   runPythonSearch,
 } from "./legalRag.js";
+import crypto from "crypto";
+import TranslationCache from "../models/TranslationCache.js";
 
 const FALLBACK_MODELS = [
   process.env.GEMINI_MODEL || "gemini-2.5-flash-lite",
@@ -307,8 +309,9 @@ function isMixedLanguage(text, language) {
     content = content.replace(/"[^"]+"\s*:/g, " ");
   }
   const devanagariCount = (content.match(/[\u0900-\u097F]/g) || []).length;
+  const urduCount = (content.match(/[\u0600-\u06FF]/g) || []).length;
   const latinCount = (content.match(/[A-Za-z]/g) || []).length;
-  const totalLetters = devanagariCount + latinCount;
+  const totalLetters = devanagariCount + urduCount + latinCount;
 
   if (totalLetters === 0) {
     return false;
@@ -322,10 +325,17 @@ function isMixedLanguage(text, language) {
   return englishHeadings || (latinCount > 20 && latinRatio > 0.28);
 }
 
+function hasUrduText(text) {
+  return /[\u0600-\u06FF]/.test(String(text || ""));
+}
+
 function isLanguageMismatch(text, language) {
   const resolvedLanguage = ensureSupportedLanguage(language);
   if (resolvedLanguage === "hi" || resolvedLanguage === "mr") {
     return !hasDevanagariText(text);
+  }
+  if (resolvedLanguage === "ur") {
+    return !hasUrduText(text);
   }
   return false;
 }
@@ -2928,6 +2938,19 @@ async function translateStructuredOutput(structured, language) {
     return structured;
   }
 
+  // Generate a hash of the original structured output for caching
+  const hashKey = crypto.createHash("md5").update(JSON.stringify(structured)).digest("hex");
+  
+  try {
+    const cached = await TranslationCache.findOne({ hashKey, language: resolvedLanguage });
+    if (cached && cached.translatedData) {
+      console.log(`[aiService] Translation cache hit for language: ${resolvedLanguage}`);
+      return cached.translatedData;
+    }
+  } catch (err) {
+    console.error("[aiService] Error checking translation cache:", err.message);
+  }
+
   const languageLabel = getLanguageLabel(resolvedLanguage);
   const prompt = buildStructuredTranslationPrompt(structured, languageLabel);
   const requiredTokens = extractNumericTokens(JSON.stringify(structured));
@@ -2953,9 +2976,20 @@ async function translateStructuredOutput(structured, language) {
       return structured;
     }
 
+    try {
+      await TranslationCache.create({
+        hashKey,
+        language: resolvedLanguage,
+        translatedData: translated,
+      });
+      console.log(`[aiService] Translation cached for language: ${resolvedLanguage}`);
+    } catch (err) {
+      console.error("[aiService] Error saving translation to cache:", err.message);
+    }
+
     return translated;
   } catch (error) {
-    console.warn("[aiService] Structured translation failed, using English output:", error.message);
+    console.error("[aiService] Translation failed:", error.message);
     return structured;
   }
 }

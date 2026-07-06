@@ -1,0 +1,6 @@
+{
+  "appName": "న্যায়్ సహాయక్",
+  "auth": { "signIn": "సైన్ ఇన్", "signUp": "సైన్ అప్" },
+  "header": { "plan": "ప్లాన్", "freePlan": "ఉచిత ప్లాన్" },
+  "sidebar": { "dashboard": "డాష్‌బోర్డ్", "newChat": "కొత్త న్యాయ చాట్", "generateFir": "ఫిర్యాదు రాయండి", "analyzeDoc": "పత్రం విశ్లేషణ" }
+}
