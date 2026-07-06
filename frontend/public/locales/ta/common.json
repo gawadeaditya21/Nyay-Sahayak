@@ -1,1 +1,6 @@
-{}
+{
+  "appName": "நியாய் சகாயக்",
+  "auth": { "signIn": "உள்நுழைக", "signUp": "பதிவு செய்க" },
+  "header": { "plan": "திட்டம்", "freePlan": "இலவச திட்டம்" },
+  "sidebar": { "dashboard": "முகப்பு", "newChat": "புதிய சட்ட அரட்டை", "generateFir": "புகார் எழுதுக", "analyzeDoc": "ஆவணத்தை பகுப்பாய்வு செய்க" }
+}

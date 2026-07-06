@@ -1,1 +1,6 @@
-{}
+{
+  "appName": "ନ୍ୟାୟ ସହାୟକ",
+  "auth": { "signIn": "ସାଇନ୍ ଇନ୍", "signUp": "ସାଇନ୍ ଅପ୍" },
+  "header": { "plan": "ଯୋଜନା", "freePlan": "ମାଗଣା ଯୋଜନା" },
+  "sidebar": { "dashboard": "ଡ୍ୟାସବୋର୍ଡ", "newChat": "ନୂଆ ଆଇନଗତ ଚାଟ୍", "generateFir": "ଅଭିଯୋଗ ଲେଖନ୍ତୁ", "analyzeDoc": "କାଗଜପତ୍ର ବିଶ୍ଳେଷଣ" }
+}

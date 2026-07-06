@@ -1,1 +1,6 @@
-{}
+{
+  "appName": "نیائے سہایک",
+  "auth": { "signIn": "سائن ان", "signUp": "سائن اپ" },
+  "header": { "plan": "پلان", "freePlan": "مفت پلان" },
+  "sidebar": { "dashboard": "ڈیش بورڈ", "newChat": "نئی قانونی چیٹ", "generateFir": "شکایت لکھیں", "analyzeDoc": "دستاویز کا تجزیہ" }
+}

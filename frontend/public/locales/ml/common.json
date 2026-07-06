@@ -1,1 +1,6 @@
-{}
+{
+  "appName": "ന്യായ സഹായി",
+  "auth": { "signIn": "സൈൻ ഇൻ", "signUp": "സൈൻ അപ്പ്" },
+  "header": { "plan": "പ്ലാൻ", "freePlan": "സൗജന്യ പ്ലാൻ" },
+  "sidebar": { "dashboard": "ഡാഷ്ബോർഡ്", "newChat": "പുതിയ നിയമ ചാറ്റ്", "generateFir": "പരാതി എഴുതുക", "analyzeDoc": "രേഖ വിശകലനം" }
+}

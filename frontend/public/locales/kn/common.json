@@ -1,1 +1,6 @@
-{}
+{
+  "appName": "ನ್ಯಾಯ್ ಸಹಾಯಕ",
+  "auth": { "signIn": "ಸೈನ್ ಇನ್", "signUp": "ಸೈನ್ ಅಪ್" },
+  "header": { "plan": "ಯೋಜನೆ", "freePlan": "ಉಚಿತ ಯೋಜನೆ" },
+  "sidebar": { "dashboard": "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್", "newChat": "ಹೊಸ ಕಾನೂನು ಚಾಟ್", "generateFir": "ದೂರು ಬರೆಯಿರಿ", "analyzeDoc": "ದಾಖಲೆ ವಿಶ್ಲೇಷಿಸಿ" }
+}

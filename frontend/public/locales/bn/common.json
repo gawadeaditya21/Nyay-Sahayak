@@ -1,1 +1,6 @@
-{}
+{
+  "appName": "ন্যায় সহায়ক",
+  "auth": { "signIn": "সাইন ইন", "signUp": "সাইন আপ" },
+  "header": { "plan": "প্ল্যান", "freePlan": "ফ্রি প্ল্যান" },
+  "sidebar": { "dashboard": "ড্যাশবোর্ড", "newChat": "নতুন আইনি চ্যাট", "generateFir": "অভিযোগ লিখুন", "analyzeDoc": "নথি বিশ্লেষণ" }
+}

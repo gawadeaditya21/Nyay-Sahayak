@@ -1,1 +1,6 @@
-{}
+{
+  "appName": "ਨਿਆਏ ਸਹਾਇਕ",
+  "auth": { "signIn": "ਸਾਈਨ ਇਨ", "signUp": "ਸਾਈਨ ਅੱਪ" },
+  "header": { "plan": "ਯੋਜਨਾ", "freePlan": "ਮੁਫਤ ਯੋਜਨਾ" },
+  "sidebar": { "dashboard": "ਡੈਸ਼ਬੋਰਡ", "newChat": "ਨਵੀਂ ਕਾਨੂੰਨੀ ਗੱਲਬਾਤ", "generateFir": "ਸ਼ਿਕਾਇਤ ਲਿਖੋ", "analyzeDoc": "ਦਸਤਾਵੇਜ਼ ਦੀ ਜਾਂਚ" }
+}
