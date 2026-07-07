@@ -47,6 +47,39 @@ const warningStyles = {
   HIGH: "border-rose-500/30 bg-rose-500/10 text-rose-100",
 };
 
+const LawReferenceBadge = ({ law }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const popupRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (popupRef.current && !popupRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={popupRef}>
+      <button 
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="inline-flex items-center gap-2 rounded-full bg-[#121215] px-3 py-1 text-xs font-semibold text-slate-100 border border-white/10 hover:bg-white/5 transition-colors focus:outline-none"
+      >
+        {law.law}
+        <ChevronDown size={12} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {isOpen && (
+        <div className="absolute left-0 top-8 z-50 w-60 rounded-xl bg-[#1a1a1f] p-3 text-xs text-white shadow-xl border border-white/10">
+          {law.description}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const AIAnalysisCard = ({ analysis, t }) => {
   const [expanded, setExpanded] = useState(false);
   const riskLevel = String(analysis?.risk_level || "LOW").toUpperCase();
@@ -189,14 +222,7 @@ const AIAnalysisCard = ({ analysis, t }) => {
             <span className="text-sm text-slate-400">{t("analysis.noLegalReferencesDetected")}</span>
           ) : (
             lawReferences.map((law, index) => (
-              <div key={index} className="group relative">
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#121215] px-3 py-1 text-xs font-semibold text-slate-100 border border-white/10">
-                  {law.law}
-                </span>
-                <div className="absolute left-0 top-8 z-10 hidden w-60 rounded-xl bg-[#0a0a0b] px-3 py-2 text-xs text-white shadow-lg group-hover:block">
-                  {law.description}
-                </div>
-              </div>
+              <LawReferenceBadge key={index} law={law} />
             ))
           )}
         </div>
