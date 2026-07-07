@@ -2997,6 +2997,7 @@ async function translateStructuredOutput(structured, language) {
 function buildSharedGuardrails(languageInstruction) {
   return `
 ${languageInstruction}
+CRITICAL INSTRUCTION: You MUST respond ONLY in the language requested above. Do NOT use English unless the selected language is English. All explanations, reasoning, and JSON values must be exclusively in the requested language.
 Critical rules:
 1. Respond only in the language specified above. Do not mix languages.
 2. Return only valid JSON.
@@ -4440,6 +4441,7 @@ function buildComplaintPrompt(data, language, ragContext = "") {
   const complaintSource = buildComplaintSourceText(data);
 
   let prompt = `Generate a formal police complaint letter in ${getLanguageLabel(resolvedLanguage)}.
+CRITICAL INSTRUCTION: You MUST respond ONLY in ${getLanguageLabel(resolvedLanguage)}. Do NOT use English unless the selected language is English.
 Use simple and clear language.
 Do NOT include JSON, labels, or technical text.
 Do NOT mix languages.
@@ -4465,6 +4467,7 @@ async function translateComplaintLetter(text, language) {
   }
 
   const translatedPrompt = `Translate the following complaint letter into ${getLanguageLabel(resolvedLanguage)}.
+CRITICAL INSTRUCTION: You MUST respond ONLY in ${getLanguageLabel(resolvedLanguage)}. Do NOT use English unless the selected language is English.
 Use simple and clear language.
 Do NOT include JSON, labels, or technical text.
 Do NOT mix languages.

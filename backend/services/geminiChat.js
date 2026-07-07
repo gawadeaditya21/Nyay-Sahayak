@@ -827,7 +827,7 @@ function buildChatPrompt({
   query,
   context,
   language,
-  enforceLanguage = false,
+  enforceLanguage = true,
   enforceQuality = false,
 }) {
   const safeContext =
@@ -836,9 +836,9 @@ function buildChatPrompt({
   const resolvedLanguage = ensureSupportedLanguage(language);
   const languageInstruction = inferLanguageInstruction(resolvedLanguage);
   const languageLabel = getLanguageLabel(resolvedLanguage);
-  const languageDirective = enforceLanguage
-    ? `${languageInstruction}\nIMPORTANT: Respond ONLY in ${languageLabel}. Do not use any other language.`
-    : languageInstruction;
+  
+  // Stronger enforcement based on user requested fix
+  const languageDirective = `${languageInstruction}\nCRITICAL INSTRUCTION: You MUST respond ONLY in ${languageLabel}. Do NOT use English unless the selected language is English. All explanations, reasoning, and advice must be exclusively in ${languageLabel}.`;
 
   return `
 You are Nyay Sahayak, an expert legal assistant for common people in India.
