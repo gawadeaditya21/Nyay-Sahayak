@@ -258,7 +258,7 @@
       "safeCopy": "NDA terms are standard industry practice and safe to sign.",
       "complexLegalDocumentAlt": "Complex Legal Document",
       "signatureLabel": "SIGNATURE: _______________________",
-      "footerHint": "Hover to explore in 3D • Scroll down to scan"
+      "footerHint": "Tap to explore • Scroll down to scan"
     },
     "cinematic": {
       "scanComplete": "Scan Complete",

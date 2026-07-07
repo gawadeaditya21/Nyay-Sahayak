@@ -114,7 +114,7 @@ export default function LawUploadModal({ isOpen, onClose, onUploadComplete }) {
                 onChange={(e) => e.target.files && handleFileSelection(e.target.files[0])}
               />
               <UploadCloud size={40} className={`mx-auto mb-3 ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} />
-              <p className="text-sm font-medium text-gray-700 mb-1">Click or drag PDF file here</p>
+              <p className="text-sm font-medium text-gray-700 mb-1">Tap here to select document or take photo</p>
               <p className="text-xs text-gray-500">Maximum file size 50MB</p>
               {error && <p className="text-xs text-red-500 mt-2 font-medium flex items-center justify-center gap-1"><AlertCircle size={12}/>{error}</p>}
             </div>
