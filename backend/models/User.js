@@ -7,6 +7,7 @@ const UserSchema = new mongoose.Schema({
     preferredLanguage: { type: String, default: "en" },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
     plan: { type: String, enum: ['free', 'plus', 'pro'], default: 'free' },
+    subscriptionTier: { type: String, enum: ['FREE', 'PRO', 'PLUS', 'ENTERPRISE'], default: 'FREE' },
     stripeCustomerId: { type: String },
     stripeSubscriptionId: { type: String },
     subscriptionStatus: { type: String, enum: ['active', 'past_due', 'canceled', 'unpaid', 'incomplete', 'none'], default: 'none' },
