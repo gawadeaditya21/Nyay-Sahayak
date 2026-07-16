@@ -4,11 +4,22 @@ import { protect, optionalProtect } from "../middleware/authMiddleware.js";
 import { upload, handleUploadError } from "../middleware/uploadMiddleware.js";
 import { usageLimiter } from "../middleware/usageLimiter.js";
 
+import { detectUserTier } from "../middleware/tierDetection.js";
+import { createRateLimiter } from "../middleware/rateLimiter.js";
+
 const router = express.Router();
 
 router.get("/sessions", protect, getChatSessions);
 router.get("/:sessionId", protect, getChatHistoryBySession);
-router.post("/", optionalProtect, usageLimiter("chat"), upload.single("document"), chatWithLegalAssistant);
+router.post("/", 
+  optionalProtect, 
+  detectUserTier, 
+  createRateLimiter('chat', 'perHour'), 
+  createRateLimiter('chat', 'perDay'), 
+  usageLimiter("chat"), 
+  upload.single("document"), 
+  chatWithLegalAssistant
+);
 
 router.use(handleUploadError);
 

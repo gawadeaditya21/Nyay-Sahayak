@@ -9,12 +9,29 @@ import { optionalProtect, protect } from "../middleware/authMiddleware.js";
 import { upload, handleUploadError } from "../middleware/uploadMiddleware.js";
 import { usageLimiter } from "../middleware/usageLimiter.js";
 
+import { detectUserTier } from "../middleware/tierDetection.js";
+import { createRateLimiter } from "../middleware/rateLimiter.js";
+
 const router = express.Router();
 
+router.post("/analyze", 
+  optionalProtect, 
+  detectUserTier,
+  createRateLimiter('analysis', 'perHour'),
+  createRateLimiter('analysis', 'perDay'),
+  usageLimiter("analysis"), 
+  upload.single("document"), 
+  uploadAndAnalyzeDocument
+);
 
-
-router.post("/analyze", optionalProtect, usageLimiter("analysis"), upload.single("document"), uploadAndAnalyzeDocument);
-router.post("/analyze-text", optionalProtect, usageLimiter("analysis"), analyzeTextOnly);
+router.post("/analyze-text", 
+  optionalProtect, 
+  detectUserTier,
+  createRateLimiter('analysis', 'perHour'),
+  createRateLimiter('analysis', 'perDay'),
+  usageLimiter("analysis"), 
+  analyzeTextOnly
+);
 router.get("/sessions", protect, getAnalysisSessions);
 
 router.get("/health", (req, res) => {
