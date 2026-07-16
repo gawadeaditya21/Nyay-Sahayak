@@ -320,5 +320,10 @@
     "analytics": "Analytics",
     "audit": "Audit Logs",
     "settings": "Settings"
+  },
+  "week3": {
+    "tour": {
+      "welcome": "Welcome to Nyay Sahayak"
+    }
   }
 }

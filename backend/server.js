@@ -1,5 +1,20 @@
-// Load environment variables from .env file
-import "dotenv/config";
+// Load environment variables from .env file manually (Fallback for missing dotenv)
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Use Node's native environment variable loader (Available in Node >= 20.6.0)
+try {
+  const envPath = path.resolve(__dirname, '.env');
+  if (fs.existsSync(envPath)) {
+    process.loadEnvFile(envPath);
+  }
+} catch (err) {
+  console.warn('⚠️ Could not load .env file manually', err.message);
+}
 import connectDB from "./config/db.js";
 import express from "express";
 import cors from "cors";
