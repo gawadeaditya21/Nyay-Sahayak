@@ -377,6 +377,10 @@
       "tip2": "Bhartiya kanoon se milan kar rahe hain...",
       "tip3": "Aapki privacy surakshit kar rahe hain...",
       "tip4": "Aasan shabdo me jawab bana rahe hain..."
+    },
+    "empty": {
+      "dashboardTitle": "Aapka safar yahan shuru hota hai",
+      "dashboardDesc": "Aapne abhi tak koi chat ya document save nahi kiya hai. Shuru karne ke liye niche ek vikalp chunein."
     }
   }
 }

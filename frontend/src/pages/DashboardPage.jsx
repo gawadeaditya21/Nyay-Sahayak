@@ -13,6 +13,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { fetchDashboardSummary } from "../services/api";
 import { isGuestUser } from "../utils/guestIdentity";
+import DashboardEmptyState from "../components/dashboard/DashboardEmptyState";
 
 const emptyDashboard = {
   totals: {
@@ -268,9 +269,7 @@ export default function DashboardPage() {
                 </div>
 
                 {dashboard.recentActivity.length === 0 ? (
-                  <div className="mt-6 rounded-2xl border border-[var(--color-border-main)] bg-white/5 p-6 text-sm text-slate-500">
-                    {t("dashboard.empty.noSaved")}
-                  </div>
+                  <DashboardEmptyState />
                 ) : (
                   <div className="mt-6 space-y-3">
                     {dashboard.recentActivity.map((item) => {

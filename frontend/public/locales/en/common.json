@@ -385,6 +385,10 @@
       "tip2": "Cross-referencing Indian Laws...",
       "tip3": "Ensuring your privacy is protected...",
       "tip4": "Generating simple explanations..."
+    },
+    "empty": {
+      "dashboardTitle": "Your journey starts here",
+      "dashboardDesc": "You haven't saved any chats or documents yet. Choose an option below to get started."
     }
   }
 }
