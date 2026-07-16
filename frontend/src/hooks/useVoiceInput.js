@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 
 export const useVoiceInput = (onResult) => {
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState(null);
   const [isSupported, setIsSupported] = useState(true);
   const recognitionRef = useRef(null);
+  
+  const { language } = useLanguage();
 
   const onResultRef = useRef(onResult);
 
@@ -25,26 +28,19 @@ export const useVoiceInput = (onResult) => {
     recognition.continuous = true;
     recognition.interimResults = true;
     
-    const savedLang = localStorage.getItem('language');
-    if (savedLang) {
-      try {
-        const parsedLang = JSON.parse(savedLang);
-        if (parsedLang.code === 'hi') recognition.lang = 'hi-IN';
-        else if (parsedLang.code === 'mr') recognition.lang = 'mr-IN';
-        else if (parsedLang.code === 'ta') recognition.lang = 'ta-IN';
-        else if (parsedLang.code === 'te') recognition.lang = 'te-IN';
-        else if (parsedLang.code === 'bn') recognition.lang = 'bn-IN';
-        else if (parsedLang.code === 'gu') recognition.lang = 'gu-IN';
-        else if (parsedLang.code === 'kn') recognition.lang = 'kn-IN';
-        else if (parsedLang.code === 'ml') recognition.lang = 'ml-IN';
-        else if (parsedLang.code === 'pa') recognition.lang = 'pa-IN';
-        else if (parsedLang.code === 'or') recognition.lang = 'or-IN';
-        else recognition.lang = 'en-IN';
-      } catch (e) {
-        recognition.lang = 'en-IN';
-      }
-    } else {
-      recognition.lang = 'en-IN';
+    // Map internal language code to BCP 47 language tag for Speech Recognition
+    switch (language) {
+      case 'hi': recognition.lang = 'hi-IN'; break;
+      case 'mr': recognition.lang = 'mr-IN'; break;
+      case 'ta': recognition.lang = 'ta-IN'; break;
+      case 'te': recognition.lang = 'te-IN'; break;
+      case 'bn': recognition.lang = 'bn-IN'; break;
+      case 'gu': recognition.lang = 'gu-IN'; break;
+      case 'kn': recognition.lang = 'kn-IN'; break;
+      case 'ml': recognition.lang = 'ml-IN'; break;
+      case 'pa': recognition.lang = 'pa-IN'; break;
+      case 'or': recognition.lang = 'or-IN'; break;
+      default: recognition.lang = 'en-IN';
     }
 
     recognition.onstart = () => {
@@ -83,7 +79,7 @@ export const useVoiceInput = (onResult) => {
         recognitionRef.current.abort();
       }
     };
-  }, []);
+  }, [language]);
 
   const toggleListening = useCallback(() => {
     if (!recognitionRef.current) return;
