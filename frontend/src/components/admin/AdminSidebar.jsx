@@ -16,7 +16,7 @@ export default function AdminSidebar() {
   ];
 
   return (
-    <div className="w-64 bg-gray-900 text-white h-full flex flex-col hidden md:flex">
+    <div className="w-64 bg-[var(--color-bg-main)] text-[var(--color-text-main)] h-full flex flex-col hidden md:flex">
       <div className="p-6 border-b border-gray-800 flex items-center gap-3">
         <Scale className="text-blue-500" size={24} />
         <h2 className="text-xl font-bold">Nyay-Sahayak Admin</h2>

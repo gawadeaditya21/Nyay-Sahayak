@@ -29,14 +29,14 @@ export default function AnalysisCard({
   const fallbackFlags = topRisks.slice(0, 3);
 
   return (
-    <div className="w-full max-w-3xl rounded-3xl border border-white/10 bg-slate-900/60 p-6 shadow-2xl backdrop-blur-md">
+    <div className="w-full max-w-3xl rounded-3xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)]/80 p-6 shadow-2xl backdrop-blur-md">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-slate-200">
+          <div className="flex items-center gap-2 text-[var(--color-text-main)]">
             <Sparkles size={18} className="text-indigo-400" />
             <span className="text-sm font-semibold tracking-wide">AI Analysis</span>
           </div>
-          <div className="mt-2 text-2xl font-semibold text-white">{analysis?.document_type || "Document"}</div>
+          <div className="mt-2 text-2xl font-semibold text-[var(--color-text-main)]">{analysis?.document_type || "Document"}</div>
           {fileName && (
             <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
               <FileText size={14} />
@@ -50,7 +50,7 @@ export default function AnalysisCard({
         </span>
       </div>
 
-      <p className="mt-4 text-sm leading-6 text-slate-300">{summary}</p>
+      <p className="mt-4 text-sm leading-6 text-[var(--color-text-main)]">{summary}</p>
 
       <div className="mt-5 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4">
         <div className="flex items-center gap-2 text-rose-200">

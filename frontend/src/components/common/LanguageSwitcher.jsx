@@ -48,7 +48,7 @@ export default function LanguageSwitcher() {
     <div className="relative" ref={dropdownRef}>
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 transition-colors"
+        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-[var(--color-border-main)] text-[var(--color-text-main)] transition-colors"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
@@ -58,7 +58,7 @@ export default function LanguageSwitcher() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 max-h-80 overflow-y-auto rounded-xl bg-[#121214] border border-white/10 shadow-2xl z-50">
+        <div className="absolute right-0 mt-2 w-48 max-h-80 overflow-y-auto rounded-xl bg-[var(--color-bg-surface)] border border-[var(--color-border-main)] shadow-2xl z-50">
           <ul role="listbox" className="p-2 space-y-1">
             {SUPPORTED_LANGUAGES.map((lang) => {
               const isSelected = currentLang.code === lang.code;
@@ -71,7 +71,7 @@ export default function LanguageSwitcher() {
                     className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-colors ${
                       isSelected 
                         ? 'bg-indigo-600/20 text-indigo-300 font-semibold' 
-                        : 'text-slate-300 hover:bg-white/5'
+                        : 'text-[var(--color-text-main)] hover:bg-white/5'
                     }`}
                   >
                     <div className="flex flex-col items-start">

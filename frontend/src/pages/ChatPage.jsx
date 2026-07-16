@@ -6,10 +6,14 @@ import {
   Loader2,
   Sparkles,
   User,
+  Mic,
+  MicOff,
+  ShieldCheck,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { sendChatMessage, fetchChatHistory } from "../services/api";
 import { useLanguage } from "../context/LanguageContext.jsx";
+import { useVoiceInput } from "../hooks/useVoiceInput";
 import PrivacyToggle from "../components/common/PrivacyToggle.jsx";
 import {
   canUseGuestFeature,
@@ -58,6 +62,12 @@ export default function ChatPage() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [messages, setMessages] = useState([initialMessage]);
   const [privacyMode, setPrivacyModeState] = useState(getPrivacyMode());
+  
+  const handleVoiceResult = (transcript) => {
+    setInput((prev) => (prev ? prev + " " + transcript : transcript));
+  };
+  
+  const { isListening, toggleListening, isSupported } = useVoiceInput(handleVoiceResult);
   
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = searchParams.get("session");
@@ -210,16 +220,16 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#0a0a0b] text-slate-300">
+    <div className="flex h-full flex-col overflow-hidden bg-[var(--color-bg-main)] text-[var(--color-text-main)]">
       <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-6">
         <div className="mx-auto w-full max-w-4xl">
-          <div className="mb-8 rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.22),transparent_50%),#121215] p-8 shadow-2xl">
+          <div className="mb-8 rounded-[28px] border border-[var(--color-border-main)] bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.22),transparent_50%),#121215] p-8 shadow-2xl">
             <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-[var(--color-text-main)]">
                 <Sparkles size={22} />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-white">{t("chat.title")}</h1>
+                <h1 className="text-3xl font-bold text-[var(--color-text-main)]">{t("chat.title")}</h1>
                 <p className="text-sm text-slate-400">{t("chat.subtitle")}</p>
               </div>
             </div>
@@ -240,7 +250,7 @@ export default function ChatPage() {
               messages.map((message, index) => (
                 <div key={`${message.role}-${index}`} className={`flex gap-4 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                   {message.role === "assistant" && (
-                    <div className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${message.isError ? "bg-red-500/20 text-red-300" : "bg-indigo-600 text-white"}`}>
+                    <div className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${message.isError ? "bg-red-500/20 text-red-300" : "bg-indigo-600 text-[var(--color-text-main)]"}`}>
                       <Bot size={18} />
                     </div>
                   )}
@@ -252,7 +262,7 @@ export default function ChatPage() {
                           ? "rounded-tr-none bg-white text-[#111827]"
                           : message.isError
                             ? "border border-red-500/20 bg-red-500/10 text-red-100"
-                            : "rounded-tl-none border border-white/10 bg-[#121215] text-slate-200"
+                            : "rounded-tl-none border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] text-[var(--color-text-main)]"
                       }`}
                     >
                       <StructuredReply content={message.content} t={t} />
@@ -280,7 +290,7 @@ export default function ChatPage() {
                   </div>
 
                   {message.role === "user" && (
-                    <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-slate-200">
+                    <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-[var(--color-text-main)]">
                       <User size={18} />
                     </div>
                   )}
@@ -290,10 +300,10 @@ export default function ChatPage() {
 
             {loading && (
               <div className="flex gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-600 text-white">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-600 text-[var(--color-text-main)]">
                   <Loader2 size={18} className="animate-spin" />
                 </div>
-                <div className="rounded-3xl rounded-tl-none border border-white/10 bg-[#121215] px-4 py-3 text-sm italic text-slate-400">
+                <div className="rounded-3xl rounded-tl-none border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] px-4 py-3 text-sm italic text-slate-400">
                   {t("chat.loading")}
                 </div>
               </div>
@@ -304,14 +314,14 @@ export default function ChatPage() {
         </div>
       </div>
 
-      <div className="border-t border-white/5 bg-[#0a0a0b] p-4 sm:p-6">
-        <div className="mx-auto max-w-4xl rounded-3xl border border-white/10 bg-[#121215] p-2 shadow-2xl">
+      <div className="border-t border-[var(--color-border-main)] bg-[var(--color-bg-main)] p-4 sm:p-6">
+        <div className="mx-auto max-w-4xl rounded-3xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] p-2 shadow-2xl">
           <div className="flex items-end gap-2">
             <textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
               placeholder={t("chat.placeholder")}
-              className="max-h-40 flex-1 resize-none bg-transparent py-3 pl-4 text-[15px] text-slate-100 outline-none placeholder:text-slate-600"
+              className="max-h-40 flex-1 resize-none bg-transparent py-3 pl-4 text-[15px] text-[var(--color-text-main)] outline-none placeholder:text-slate-600"
               rows={1}
               disabled={loading}
               onKeyDown={(event) => {
@@ -321,6 +331,19 @@ export default function ChatPage() {
                 }
               }}
             />
+            {isSupported && (
+              <button
+                onClick={toggleListening}
+                className={`rounded-2xl p-3 transition flex items-center justify-center ${
+                  isListening 
+                    ? "bg-red-500 text-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]" 
+                    : "text-slate-400 hover:bg-[var(--color-bg-main)] hover:text-[var(--color-text-main)]"
+                }`}
+                title={isListening ? "Stop listening" : "Start speaking"}
+              >
+                {isListening ? <Mic size={20} /> : <Mic size={20} />}
+              </button>
+            )}
             <button
               onClick={submitMessage}
               disabled={loading || !input.trim()}
@@ -330,7 +353,13 @@ export default function ChatPage() {
             </button>
           </div>
         </div>
-        <p className="mt-4 text-center text-xs text-slate-600">{t("chat.disclaimer")}</p>
+        <div className="mt-5 flex flex-col items-center justify-center gap-2">
+          <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold tracking-wide text-emerald-600 dark:text-emerald-400">
+            <ShieldCheck size={14} />
+            {t("trust.secureAndConfidential", "100% Secure & Confidential (End-to-End Encrypted)")}
+          </div>
+          <p className="text-center text-[11px] text-slate-500">{t("chat.disclaimer")}</p>
+        </div>
       </div>
     </div>
   );
@@ -347,7 +376,7 @@ function StructuredReply({ content, t }) {
 
   return (
     <div className="space-y-3">
-      {topic && <div className="text-base font-semibold text-white">{topic}</div>}
+      {topic && <div className="text-base font-semibold text-[var(--color-text-main)]">{topic}</div>}
       
       {(content.classification || content.risk_level) && (
         <div className="flex flex-wrap gap-2 text-xs font-semibold">

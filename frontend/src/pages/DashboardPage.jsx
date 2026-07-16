@@ -165,14 +165,14 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-y-auto overflow-x-hidden bg-[#0a0a0b] text-slate-300">
+    <div className="flex h-full min-w-0 flex-col overflow-y-auto overflow-x-hidden bg-[var(--color-bg-main)] text-[var(--color-text-main)]">
       <div className="mx-auto w-full min-w-0 max-w-6xl px-4 py-8 sm:px-6">
         <div className="flex min-w-0 flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-indigo-300">
               {t("dashboard.eyebrow")}
             </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--color-text-main)]">
               {t("dashboard.title")}
             </h1>
             <p className="mt-2 text-sm text-slate-400">
@@ -196,7 +196,7 @@ export default function DashboardPage() {
         )}
 
         {loading ? (
-          <div className="mt-10 flex min-h-[360px] items-center justify-center rounded-2xl border border-white/10 bg-[#121215]">
+          <div className="mt-10 flex min-h-[360px] items-center justify-center rounded-2xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)]">
             <div className="flex items-center gap-3 text-sm text-indigo-300">
               <Loader2 size={20} className="animate-spin" />
               {t("dashboard.loading")}
@@ -210,13 +210,13 @@ export default function DashboardPage() {
                 return (
                   <div
                     key={card.label}
-                    className="min-w-0 rounded-2xl border border-white/10 bg-[#121215] p-5 shadow-xl"
+                    className="min-w-0 rounded-2xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] p-5 shadow-xl"
                   >
                     <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${card.bg} ${card.accent}`}>
                       <Icon size={21} />
                     </div>
-                    <p className="mt-5 text-3xl font-semibold text-white">{card.value}</p>
-                    <p className="mt-1 break-words text-sm font-semibold text-slate-300">{card.label}</p>
+                    <p className="mt-5 text-3xl font-semibold text-[var(--color-text-main)]">{card.value}</p>
+                    <p className="mt-1 break-words text-sm font-semibold text-[var(--color-text-main)]">{card.label}</p>
                     <p className="mt-2 break-words text-xs text-slate-500">{card.detail}</p>
                   </div>
                 );
@@ -224,10 +224,10 @@ export default function DashboardPage() {
             </div>
 
             <div className="mt-6 grid min-w-0 gap-6 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
-              <div className="min-w-0 rounded-2xl border border-white/10 bg-[#121215] p-6 shadow-xl">
+              <div className="min-w-0 rounded-2xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] p-6 shadow-xl">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-semibold text-white">{t("dashboard.pastSevenDays")}</h2>
+                    <h2 className="text-lg font-semibold text-[var(--color-text-main)]">{t("dashboard.pastSevenDays")}</h2>
                     <p className="mt-1 text-sm text-slate-500">
                       {t("dashboard.savedActivities", { count: totalWeekly })}
                     </p>
@@ -242,7 +242,7 @@ export default function DashboardPage() {
                     return (
                       <div key={row.type}>
                         <div className="flex items-center justify-between text-sm">
-                          <span className="min-w-0 break-words pr-3 font-semibold text-slate-300">
+                          <span className="min-w-0 break-words pr-3 font-semibold text-[var(--color-text-main)]">
                             {t(meta.labelKey)}
                           </span>
                           <span className={meta.color}>{row.value}</span>
@@ -259,16 +259,16 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="min-w-0 rounded-2xl border border-white/10 bg-[#121215] p-6 shadow-xl">
+              <div className="min-w-0 rounded-2xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] p-6 shadow-xl">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-semibold text-white">{t("dashboard.recentActivity")}</h2>
+                    <h2 className="text-lg font-semibold text-[var(--color-text-main)]">{t("dashboard.recentActivity")}</h2>
                     <p className="mt-1 text-sm text-slate-500">{t("dashboard.recentSubtitle")}</p>
                   </div>
                 </div>
 
                 {dashboard.recentActivity.length === 0 ? (
-                  <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-slate-500">
+                  <div className="mt-6 rounded-2xl border border-[var(--color-border-main)] bg-white/5 p-6 text-sm text-slate-500">
                     {t("dashboard.empty.noSaved")}
                   </div>
                 ) : (
@@ -280,13 +280,13 @@ export default function DashboardPage() {
                         <Link
                           key={`${item.type}-${item.sessionId}-${item.createdAt}`}
                           to={item.route}
-                          className="flex min-w-0 flex-col gap-4 rounded-2xl border border-white/10 bg-[#0a0a0b] p-4 transition hover:border-indigo-400/40 hover:bg-white/[0.07] sm:flex-row sm:items-center"
+                          className="flex min-w-0 flex-col gap-4 rounded-2xl border border-[var(--color-border-main)] bg-[var(--color-bg-main)] p-4 transition hover:border-indigo-400/40 hover:bg-white/[0.07] sm:flex-row sm:items-center"
                         >
                           <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${meta.border} ${meta.bg} ${meta.color}`}>
                             <Icon size={20} />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-white">{item.title}</p>
+                            <p className="truncate text-sm font-semibold text-[var(--color-text-main)]">{item.title}</p>
                             <p className="mt-1 text-xs text-slate-500">{t(meta.labelKey)}</p>
                           </div>
                           <div className="w-full shrink-0 text-left text-xs text-slate-500 sm:w-auto sm:text-right">

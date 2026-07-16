@@ -21,11 +21,11 @@ const defaultSteps = [
 
 export default function LegalStepsCard({ steps = defaultSteps, completed = 1 }) {
   return (
-    <div className="w-full max-w-3xl rounded-3xl border border-white/10 bg-slate-900/60 p-6 shadow-2xl backdrop-blur-md">
+    <div className="w-full max-w-3xl rounded-3xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)]/80 p-6 shadow-2xl backdrop-blur-md">
       <div className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-300">
         Legal Roadmap
       </div>
-      <h3 className="mt-2 text-2xl font-semibold text-white">Action steps you can follow</h3>
+      <h3 className="mt-2 text-2xl font-semibold text-[var(--color-text-main)]">Action steps you can follow</h3>
 
       <div className="mt-6 space-y-4">
         {steps.map((step, index) => {
@@ -40,7 +40,7 @@ export default function LegalStepsCard({ steps = defaultSteps, completed = 1 }) 
                 )}
               </div>
               <div>
-                <div className="text-sm font-semibold text-slate-200">
+                <div className="text-sm font-semibold text-[var(--color-text-main)]">
                   {index + 1}. {step.title}
                 </div>
                 <div className="text-xs text-slate-400 leading-5">{step.detail}</div>

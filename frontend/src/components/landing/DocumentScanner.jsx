@@ -6,13 +6,13 @@ const DocumentScanner = () => {
   const { t } = useTranslation();
 
   return (
-    <div className="relative w-full z-10 bg-[#050505] py-20 border-y border-white/5">
+    <div className="relative w-full z-10 bg-[var(--color-bg-main)] py-20 border-y border-[var(--color-border-main)]">
       <section className="max-w-6xl mx-auto px-6 w-full text-center">
         <div className="mb-10">
           <h2 className="text-indigo-500 font-bold tracking-[0.2em] uppercase text-sm mb-4 inline-flex items-center gap-2">
             <ScanSearch size={16} /> {t("landing.documentScanner.badge", "DOCUMENT SCANNER")}
           </h2>
-          <h3 className="text-3xl md:text-5xl font-serif font-bold text-white">
+          <h3 className="text-3xl md:text-5xl font-serif font-bold text-[var(--color-text-main)]">
             {t("landing.documentScanner.headline", "AI that reads the fine print")}
           </h3>
         </div>
@@ -36,7 +36,7 @@ const DocumentScanner = () => {
           </div>
 
           {/* AI Analysis Output */}
-          <div className="flex-1 bg-[#0a0a0c] p-8 rounded-3xl border border-white/10 shadow-2xl flex flex-col justify-center">
+          <div className="flex-1 bg-[var(--color-bg-surface)] p-8 rounded-3xl border border-[var(--color-border-main)] shadow-2xl flex flex-col justify-center">
             <div className="flex items-center gap-3 text-indigo-400 mb-6">
               <Bot size={28} />
               <span className="font-bold tracking-widest uppercase text-sm">
@@ -44,7 +44,7 @@ const DocumentScanner = () => {
               </span>
             </div>
             
-            <h4 className="text-2xl font-serif font-bold text-white mb-6 leading-tight">
+            <h4 className="text-2xl font-serif font-bold text-[var(--color-text-main)] mb-6 leading-tight">
               {t("landing.documentScanner.liabilityQuotePrefix", "You are taking on")} <span className="text-rose-500">{t("landing.documentScanner.liabilityQuoteEmphasis", "unlimited liability")}</span> {t("landing.documentScanner.liabilityQuoteSuffix", "here.")}
             </h4>
             
@@ -52,7 +52,7 @@ const DocumentScanner = () => {
               <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-4">
                 <AlertTriangle className="text-rose-500 shrink-0 mt-1" size={20} />
                 <div>
-                  <div className="text-white font-bold text-base mb-1">{t("landing.documentScanner.highRiskDetected", "High Risk Detected")}</div>
+                  <div className="text-[var(--color-text-main)] font-bold text-base mb-1">{t("landing.documentScanner.highRiskDetected", "High Risk Detected")}</div>
                   <div className="text-rose-400/80 text-sm">{t("landing.documentScanner.highRiskCopy", "The indemnification clause makes you responsible for all unforeseen costs.")}</div>
                 </div>
               </div>
@@ -60,7 +60,7 @@ const DocumentScanner = () => {
               <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-start gap-4">
                 <CheckCircle className="text-emerald-500 shrink-0 mt-1" size={20} />
                 <div>
-                  <div className="text-white font-bold text-base mb-1">{t("landing.documentScanner.standardConfidentiality", "Standard Confidentiality")}</div>
+                  <div className="text-[var(--color-text-main)] font-bold text-base mb-1">{t("landing.documentScanner.standardConfidentiality", "Standard Confidentiality")}</div>
                   <div className="text-emerald-400/80 text-sm">{t("landing.documentScanner.safeCopy", "The NDA terms are standard and safe to sign.")}</div>
                 </div>
               </div>

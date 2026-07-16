@@ -76,7 +76,7 @@ const Hero = () => {
   const headlineWords = headline.split(" ");
   
   return (
-    <section ref={heroRef} className="relative min-h-screen flex items-center justify-center px-6 pt-20 bg-[#050505]">
+    <section ref={heroRef} className="relative min-h-screen flex items-center justify-center px-6 pt-20 bg-[var(--color-bg-main)]">
       <div className="relative z-10 max-w-5xl mx-auto text-center">
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-bold uppercase tracking-widest mb-8 backdrop-blur-sm">
           <Zap size={14} className="animate-pulse" />
@@ -84,7 +84,7 @@ const Hero = () => {
         </div>
 
         <div className="max-w-4xl mx-auto overflow-hidden">
-          <h1 ref={titleRef} className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-white mb-6 leading-tight flex flex-wrap justify-center gap-[0.2em] pb-2">
+          <h1 ref={titleRef} className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-[var(--color-text-main)] mb-6 leading-tight flex flex-wrap justify-center gap-[0.2em] pb-2">
             {headlineWords.map((word, idx) => (
               <span key={idx} className={`word inline-block ${idx === headlineWords.length - 1 ? 'text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-indigo-600' : ''}`}>
                 {word}
@@ -102,12 +102,12 @@ const Hero = () => {
             {t("landing.getStartedFree")}
             <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
           </MagneticButton>
-          <MagneticButton className="px-8 py-4 bg-transparent text-slate-300 border border-white/20 rounded-xl font-bold text-lg hover:bg-white/5 transition-colors backdrop-blur-sm">
+          <MagneticButton className="px-8 py-4 bg-transparent text-[var(--color-text-main)] border border-[var(--color-border-main)] rounded-xl font-bold text-lg hover:bg-white/5 transition-colors backdrop-blur-sm">
             {t("landing.exploreFeatures")}
           </MagneticButton>
         </div>
 
-        <div className="mt-20 pt-8 border-t border-white/10 flex flex-wrap justify-center gap-12 opacity-50">
+        <div className="mt-20 pt-8 border-t border-[var(--color-border-main)] flex flex-wrap justify-center gap-12 opacity-50">
           <div className="flex items-center gap-2 text-sm text-slate-400">
             <ShieldCheck size={18} />
             <span>{t("landing.aes256Protected")}</span>

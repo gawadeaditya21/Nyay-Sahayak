@@ -14,7 +14,7 @@ export default function PaymentCancel() {
                 <p className="text-gray-600 mb-8">
                     Your checkout process was cancelled. You have not been charged.
                 </p>
-                <Link to="/pricing" className="w-full inline-block py-3 px-4 bg-gray-900 hover:bg-gray-800 text-white rounded-lg font-semibold transition">
+                <Link to="/pricing" className="w-full inline-block py-3 px-4 bg-[var(--color-bg-main)] hover:bg-gray-800 text-white rounded-lg font-semibold transition">
                     Try Again
                 </Link>
             </div>

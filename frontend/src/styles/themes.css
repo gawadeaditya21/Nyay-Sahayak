@@ -1,0 +1,42 @@
+@theme {
+  /* LIGHT THEME (Government-style) */
+  --color-light-bg: #FFFFFF;
+  --color-light-surface: #F8FAFC;
+  --color-light-text: #1E293B;
+  --color-light-primary: #2563EB;
+  --color-light-secondary: #10B981;
+  --color-light-accent: #F59E0B;
+  --color-light-border: #E2E8F0;
+
+  /* DARK THEME (Existing Nyay Sahayak Theme) */
+  --color-dark-bg: #050505;
+  --color-dark-surface: #0a0a0c;
+  --color-dark-text: #f1f5f9;
+  --color-dark-primary: #4F46E5; /* Indigo-600 */
+  --color-dark-secondary: #10B981;
+  --color-dark-accent: #F59E0B;
+  --color-dark-border: rgba(255, 255, 255, 0.1);
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Map CSS Variables depending on theme */
+:root {
+  --color-bg-main: var(--color-light-bg);
+  --color-bg-surface: var(--color-light-surface);
+  --color-text-main: var(--color-light-text);
+  --color-brand-primary: var(--color-light-primary);
+  --color-brand-secondary: var(--color-light-secondary);
+  --color-brand-accent: var(--color-light-accent);
+  --color-border-main: var(--color-light-border);
+}
+
+.dark {
+  --color-bg-main: var(--color-dark-bg);
+  --color-bg-surface: var(--color-dark-surface);
+  --color-text-main: var(--color-dark-text);
+  --color-brand-primary: var(--color-dark-primary);
+  --color-brand-secondary: var(--color-dark-secondary);
+  --color-brand-accent: var(--color-dark-accent);
+  --color-border-main: var(--color-dark-border);
+}

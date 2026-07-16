@@ -17,7 +17,7 @@ const ClauseBlock = ({ clause, isActive }) => {
     <div
       className={`rounded-xl border p-4 font-mono text-sm leading-loose transition-all duration-700 ease-out ${
         isActive
-          ? `border-white/10 ${bgActiveMap[clause.activeColor]} text-white opacity-100`
+          ? `border-[var(--color-border-main)] ${bgActiveMap[clause.activeColor]} text-[var(--color-text-main)] opacity-100`
           : 'border-transparent bg-transparent text-slate-500 opacity-30 blur-[2px]'
       }`}
     >
@@ -63,17 +63,17 @@ const TranslationCard = ({ clause, isActive, direction }) => {
           <Icon size={24} />
         </div>
         <div>
-          <h3 className="text-lg font-bold text-white md:text-xl">{clause.title}</h3>
+          <h3 className="text-lg font-bold text-[var(--color-text-main)] md:text-xl">{clause.title}</h3>
           <p className={`text-sm ${riskTextMap[clause.riskColor]}`}>{clause.risk}</p>
         </div>
       </div>
 
-      <p className="mb-6 text-base leading-relaxed text-slate-300 md:text-lg">
+      <p className="mb-6 text-base leading-relaxed text-[var(--color-text-main)] md:text-lg">
         {clause.explanation}
         {clause.highlightText ? (
           <>
             {' '}
-            <span className="rounded bg-rose-500/20 px-2 py-0.5 font-bold text-white">
+            <span className="rounded bg-rose-500/20 px-2 py-0.5 font-bold text-[var(--color-text-main)]">
               {clause.highlightText}
             </span>{' '}
           </>
@@ -107,7 +107,7 @@ export default function LegaleseDecoder() {
       explanation: t('landing.legaleseDecoder.clauses.indemnityExplanation'),
       verdict: t('landing.legaleseDecoder.clauses.indemnityVerdict'),
       verdictIcon: CheckCircle2,
-      cardBg: 'bg-[#0f0f12]',
+      cardBg: 'bg-[var(--color-bg-surface)]',
       cardBorder: 'border-indigo-500/30',
     },
     {
@@ -179,7 +179,7 @@ export default function LegaleseDecoder() {
   }, []);
 
   return (
-    <div ref={wrapperRef} className="relative z-10 w-full bg-[#050505]">
+    <div ref={wrapperRef} className="relative z-10 w-full bg-[var(--color-bg-main)]">
       <section className="relative flex h-screen w-full flex-col justify-center overflow-hidden">
         <div className="pointer-events-none absolute left-1/2 top-1/2 h-[80vw] w-[80vw] max-h-225 max-w-225 -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-900/10 blur-[120px]" />
 
@@ -189,7 +189,7 @@ export default function LegaleseDecoder() {
               <FileSearch size={16} />
               <span>{t('landing.legaleseDecoder.badge')}</span>
             </div>
-            <h2 className="text-3xl font-bold text-white md:text-5xl font-serif">
+            <h2 className="text-3xl font-bold text-[var(--color-text-main)] md:text-5xl font-serif">
               {t('landing.legaleseDecoder.headlineLine1')}
               <br />
               {t('landing.legaleseDecoder.headlineLine2')}
@@ -197,7 +197,7 @@ export default function LegaleseDecoder() {
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col gap-6 md:flex-row md:gap-8">
-            <div className="relative h-full w-full overflow-hidden rounded-3xl border border-white/10 bg-[#121215] p-6 shadow-2xl md:w-1/2 md:p-8">
+            <div className="relative h-full w-full overflow-hidden rounded-3xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] p-6 shadow-2xl md:w-1/2 md:p-8">
               <div className="pointer-events-none absolute left-0 top-0 z-10 h-20 w-full rounded-t-3xl bg-linear-to-b from-[#121215] to-transparent" />
               <div className="pointer-events-none absolute bottom-0 left-0 z-10 h-20 w-full rounded-b-3xl bg-linear-to-t from-[#121215] to-transparent" />
 

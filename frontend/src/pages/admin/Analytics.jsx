@@ -65,7 +65,7 @@ export default function Analytics() {
                   style={{ height: `${Math.max(10, (d.users / maxUsers) * 100)}%` }}
                 >
                   {/* Tooltip */}
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-[var(--color-text-main)] text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
                     {d.users} users
                   </div>
                   {/* Fill */}

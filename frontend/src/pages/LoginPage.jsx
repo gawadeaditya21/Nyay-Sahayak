@@ -59,7 +59,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-[#050505] p-6 relative overflow-hidden font-sans">
+    <div className="min-h-screen w-full flex items-center justify-center bg-[var(--color-bg-main)] text-[var(--color-text-main)] p-6 relative overflow-hidden font-sans">
       
       {/* Background gradients */}
       <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/20 blur-[120px] rounded-full point-events-none" />
@@ -77,12 +77,12 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="bg-[#121215]/80 backdrop-blur-xl p-8 rounded-4xl border border-white/10 shadow-2xl relative overflow-hidden">
+        <div className="bg-[var(--color-bg-surface)]/80 backdrop-blur-xl p-8 rounded-4xl border border-[var(--color-border-main)] shadow-2xl relative overflow-hidden">
           
           <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-indigo-500 to-blue-500" />
           
           <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-white tracking-tight">
+            <h2 className="text-2xl font-bold text-[var(--color-text-main)] tracking-tight">
               {isRegister ? t("auth.createAccountTitle") : t("auth.welcomeBack")}
             </h2>
             <p className="mt-2 text-sm text-slate-400">
@@ -123,7 +123,7 @@ export default function LoginPage() {
                       value={formData.name}
                       onChange={handleChange}
                       placeholder={t("auth.fullNamePlaceholder")} 
-                      className="w-full pl-11 pr-4 py-3.5 rounded-xl border border-white/10 bg-[#0a0a0c] text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-slate-600" 
+                      className="w-full pl-11 pr-4 py-3.5 rounded-xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] text-[var(--color-text-main)] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-slate-600" 
                     />
                   </div>
                 </motion.div>
@@ -141,7 +141,7 @@ export default function LoginPage() {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder={t("auth.emailPlaceholder")} 
-                  className="w-full pl-11 pr-4 py-3.5 rounded-xl border border-white/10 bg-[#0a0a0c] text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-slate-600" 
+                  className="w-full pl-11 pr-4 py-3.5 rounded-xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] text-[var(--color-text-main)] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-slate-600" 
                 />
               </div>
             </div>
@@ -157,7 +157,7 @@ export default function LoginPage() {
                   value={formData.password}
                   onChange={handleChange}
                   placeholder={t("auth.passwordPlaceholder")} 
-                  className="w-full pl-11 pr-4 py-3.5 rounded-xl border border-white/10 bg-[#0a0a0c] text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-slate-600" 
+                  className="w-full pl-11 pr-4 py-3.5 rounded-xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] text-[var(--color-text-main)] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-slate-600" 
                 />
               </div>
             </div>
@@ -189,7 +189,7 @@ export default function LoginPage() {
         </div>
         
         <div className="text-center mt-8">
-          <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-300 transition-colors">
+          <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-[var(--color-text-main)] transition-colors">
             <ArrowLeft size={16} /> {t("common.backToHome")}
           </Link>
         </div>

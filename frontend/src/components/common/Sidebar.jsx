@@ -50,12 +50,12 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
 
   return (
     <Motion.aside
-      className={`fixed inset-y-0 left-0 z-40 flex h-full w-80 flex-col bg-[#050505] px-5 py-6 transition-transform lg:static lg:translate-x-0 ${
+      className={`fixed inset-y-0 left-0 z-40 flex h-full w-80 flex-col bg-[var(--color-bg-surface)] px-5 py-6 transition-transform lg:static lg:translate-x-0 ${
         isOpen ? "translate-x-0" : "-translate-x-full"
       }`}
     >
       <div className="mb-6 flex items-center justify-between lg:hidden">
-        <span className="font-serif text-lg font-bold tracking-tight text-white">{t("appName")}</span>
+        <span className="font-serif text-lg font-bold tracking-tight text-[var(--color-text-main)]">{t("appName")}</span>
       </div>
 
       <div className="space-y-3">
@@ -85,7 +85,7 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
           <Link
             to="/fir"
             onClick={() => { onNewChat(); close(); }}
-            className="group flex items-center justify-center gap-2 rounded-xl border border-slate-700/50 bg-slate-800/30 px-3 py-2.5 text-xs font-semibold text-slate-300 transition-all hover:bg-slate-800 hover:text-slate-100"
+            className="group flex items-center justify-center gap-2 rounded-xl border border-slate-700/50 bg-[var(--color-bg-surface)]/30 px-3 py-2.5 text-xs font-semibold text-[var(--color-text-main)] transition-all hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-main)]"
           >
             <FileText size={14} className="transition-transform group-hover:scale-110" />
             {t("sidebar.generateFir")}
@@ -93,7 +93,7 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
           <Link
             to="/analyze"
             onClick={() => { onNewChat(); close(); }}
-            className="group flex items-center justify-center gap-2 rounded-xl border border-slate-700/50 bg-slate-800/30 px-3 py-2.5 text-xs font-semibold text-slate-300 transition-all hover:bg-slate-800 hover:text-slate-100"
+            className="group flex items-center justify-center gap-2 rounded-xl border border-slate-700/50 bg-[var(--color-bg-surface)]/30 px-3 py-2.5 text-xs font-semibold text-[var(--color-text-main)] transition-all hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-main)]"
           >
             <Search size={14} className="transition-transform group-hover:scale-110" />
             {t("sidebar.analyzeDoc")}
@@ -111,7 +111,7 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ${
-              activeTab === tab.id ? "bg-indigo-600 text-white shadow-md" : "text-slate-400 hover:text-slate-200"
+              activeTab === tab.id ? "bg-indigo-600 text-white shadow-md" : "text-slate-400 hover:text-[var(--color-text-main)]"
             }`}
           >
             {tab.label}
@@ -133,7 +133,7 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
               <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{t("sidebar.today")}</p>
               <div className="mt-3 space-y-2">
                 {today.length === 0 ? (
-                  <div className="rounded-xl border border-white/5 bg-white/5 px-3 py-2 text-xs text-slate-500">
+                  <div className="rounded-xl border border-[var(--color-border-main)] bg-white/5 px-3 py-2 text-xs text-slate-500">
                     {t("sidebar.noHistoryToday", { type: t(`sidebar.historyTypes.${activeTab}`) })}
                   </div>
                 ) : (
@@ -145,7 +145,7 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
                       className={`block rounded-xl border px-3 py-3 text-xs transition-all ${
                         location.search.includes(`session=${session.id}`) 
                           ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-200" 
-                          : "border-white/5 bg-white/5 text-slate-300 hover:border-white/10 hover:bg-white/10"
+                          : "border-[var(--color-border-main)] bg-white/5 text-[var(--color-text-main)] hover:border-[var(--color-border-main)] hover:bg-white/10"
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -165,7 +165,7 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
               <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{t("sidebar.previousSevenDays")}</p>
               <div className="mt-3 space-y-2">
                 {previous.length === 0 ? (
-                  <div className="rounded-xl border border-white/5 bg-white/5 px-3 py-2 text-xs text-slate-500">
+                  <div className="rounded-xl border border-[var(--color-border-main)] bg-white/5 px-3 py-2 text-xs text-slate-500">
                     {t("sidebar.noRecentHistory")}
                   </div>
                 ) : (
@@ -177,7 +177,7 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
                       className={`block rounded-xl border px-3 py-3 text-xs transition-all ${
                         location.search.includes(`session=${session.id}`) 
                           ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-200" 
-                          : "border-white/5 bg-white/5 text-slate-300 hover:border-white/10 hover:bg-white/10"
+                          : "border-[var(--color-border-main)] bg-white/5 text-[var(--color-text-main)] hover:border-[var(--color-border-main)] hover:bg-white/10"
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -196,13 +196,13 @@ export default function Sidebar({ isOpen, close, recentChats = [], firSessions =
         </AnimatePresence>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-white/5">
+      <div className="mt-4 pt-4 border-t border-[var(--color-border)]">
         <Link 
           to="/pricing"
           onClick={close}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-linear-to-r from-indigo-500 to-purple-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg hover:from-indigo-400 hover:to-purple-500 transition-all"
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--color-bg-main)] font-semibold text-[var(--color-text-main)] shadow-sm transition hover:bg-[var(--color-bg-surface)]"
         >
-          <span className="text-white/80">+</span> {t("sidebar.upgradePlan")}
+          <span className="text-indigo-400">+</span> {t("sidebar.upgradePlan")}
         </Link>
       </div>
       <div className="mt-4 space-y-3 rounded-2xl border border-indigo-500/10 bg-indigo-600/5 p-4">

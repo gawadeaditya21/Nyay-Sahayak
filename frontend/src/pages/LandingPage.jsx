@@ -46,7 +46,7 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="relative bg-[#050505] min-h-screen text-slate-200 selection:bg-indigo-500/30 selection:text-indigo-200">
+    <div className="relative bg-[var(--color-bg-main)] min-h-screen text-[var(--color-text-main)] selection:bg-indigo-500/30 selection:text-indigo-200">
       
       {/* Simplified, high-performance static background */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-40">
@@ -69,7 +69,7 @@ export default function LandingPage() {
         <HowItWorks />
       </main>
       
-      <footer className="relative z-10 py-10 border-t border-white/5 text-center text-slate-500 text-sm bg-[#050505]">
+      <footer className="relative z-10 py-10 border-t border-[var(--color-border-main)] text-center text-slate-500 text-sm bg-[var(--color-bg-main)]">
         <p>{t("landing.footerCopyright")}</p>
       </footer>
     </div>

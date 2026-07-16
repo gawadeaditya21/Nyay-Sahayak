@@ -51,14 +51,14 @@ const HowItWorks = () => {
   ];
 
   return (
-    <section ref={containerRef} className="py-32 bg-[#050505] relative z-10 w-full">
+    <section ref={containerRef} className="py-32 bg-[var(--color-bg-main)] relative z-10 w-full">
       <div className="max-w-7xl mx-auto px-6">
         
         <div className="text-center mb-24 step-row">
           <h2 className="text-indigo-500 font-bold tracking-[0.2em] uppercase text-sm mb-4">
             {t("landing.howItWorks.badge")}
           </h2>
-          <h3 className="text-4xl md:text-6xl font-serif font-bold text-white">
+          <h3 className="text-4xl md:text-6xl font-serif font-bold text-[var(--color-text-main)]">
             {t("landing.howItWorks.headline")}
           </h3>
         </div>
@@ -69,10 +69,10 @@ const HowItWorks = () => {
             return (
               <div key={index} className={`step-row flex flex-col ${isEven ? 'md:flex-row' : 'md:flex-row-reverse'} items-center gap-12 md:gap-24`}>
                 <div className="w-full md:w-1/2 relative">
-                  <div className="aspect-square rounded-full bg-gradient-to-tr from-indigo-900/20 to-transparent border border-white/5 flex items-center justify-center relative overflow-hidden group">
+                  <div className="aspect-square rounded-full bg-gradient-to-tr from-indigo-900/20 to-transparent border border-[var(--color-border-main)] flex items-center justify-center relative overflow-hidden group">
                     <div className="absolute inset-0 bg-indigo-500/10 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
                     
-                    <div className="w-32 h-32 bg-[#0a0a0c] border border-indigo-500/30 rounded-3xl flex items-center justify-center text-indigo-400 shadow-[0_0_50px_rgba(79,70,229,0.2)] z-10 transform group-hover:scale-110 group-hover:rotate-6 transition-transform duration-500">
+                    <div className="w-32 h-32 bg-[var(--color-bg-surface)] border border-indigo-500/30 rounded-3xl flex items-center justify-center text-indigo-400 shadow-[0_0_50px_rgba(79,70,229,0.2)] z-10 transform group-hover:scale-110 group-hover:rotate-6 transition-transform duration-500">
                       {step.icon}
                     </div>
                     
@@ -83,7 +83,7 @@ const HowItWorks = () => {
 
                 <div className="w-full md:w-1/2 text-center md:text-left">
                   <div className="text-indigo-500 font-serif text-2xl font-bold mb-4">Step 0{index + 1}</div>
-                  <h4 className="text-3xl md:text-4xl font-bold text-white mb-6">{step.title}</h4>
+                  <h4 className="text-3xl md:text-4xl font-bold text-[var(--color-text-main)] mb-6">{step.title}</h4>
                   <p className="text-slate-400 leading-relaxed text-lg max-w-md mx-auto md:mx-0">{step.description}</p>
                 </div>
               </div>
@@ -94,7 +94,7 @@ const HowItWorks = () => {
         <div className="mt-40 text-center step-row">
           <button className="inline-flex items-center gap-4 px-10 py-5 bg-white text-[#050505] rounded-full font-bold text-xl hover:bg-indigo-50 transition-colors shadow-[0_0_40px_rgba(255,255,255,0.2)] group">
             {t("landing.howItWorks.cta")}
-            <span className="w-8 h-8 rounded-full bg-[#050505] text-white flex items-center justify-center group-hover:translate-x-2 transition-transform">
+            <span className="w-8 h-8 rounded-full bg-[var(--color-bg-main)] text-[var(--color-text-main)] flex items-center justify-center group-hover:translate-x-2 transition-transform">
               <ArrowRight size={16} />
             </span>
           </button>

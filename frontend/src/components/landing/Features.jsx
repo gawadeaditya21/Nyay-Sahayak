@@ -166,7 +166,7 @@ export default function Features() {
   const activeDotIndex = Math.min(features.length - 1, Math.floor(progress.scroll * features.length));
 
   return (
-    <div ref={wrapperRef} className="relative w-full bg-[#020205]" style={{ height: '500vh' }}>
+    <div ref={wrapperRef} className="relative w-full bg-[var(--color-bg-main)]" style={{ height: '500vh' }}>
       <section className="sticky top-0 flex h-screen w-full flex-col justify-center" style={{ perspective: '1200px' }}>
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none" aria-hidden="true">
           <div
@@ -272,7 +272,7 @@ export default function Features() {
           </div>
 
           <h2
-            className="max-w-195 font-black leading-[1.05] tracking-tighter text-white"
+            className="max-w-195 font-black leading-[1.05] tracking-tighter text-[var(--color-text-main)]"
             style={{ fontSize: 'clamp(36px, 5.5vw, 72px)' }}
           >
             {[t('landing.features.headline'), t('landing.features.headlineAccent')].map((part, index) => (
@@ -396,7 +396,7 @@ export default function Features() {
                       <feature.Icon size={20} strokeWidth={1.5} />
                     </div>
 
-                    <h3 className="mb-3 leading-snug font-bold tracking-tight text-white" style={{ fontSize: 'clamp(15px, 1.15vw, 18px)' }}>
+                    <h3 className="mb-3 leading-snug font-bold tracking-tight text-[var(--color-text-main)]" style={{ fontSize: 'clamp(15px, 1.15vw, 18px)' }}>
                       {feature.title}
                     </h3>
 

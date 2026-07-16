@@ -14,6 +14,7 @@ import {
   ChevronUp,
   Info,
   Sparkles,
+  ShieldCheck,
 } from "lucide-react";
 import {
   analyzeDocument,
@@ -66,13 +67,13 @@ const LawReferenceBadge = ({ law }) => {
       <button 
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="inline-flex items-center gap-2 rounded-full bg-[#121215] px-3 py-1 text-xs font-semibold text-slate-100 border border-white/10 hover:bg-white/5 transition-colors focus:outline-none"
+        className="inline-flex items-center gap-2 rounded-full bg-[var(--color-bg-surface)] px-3 py-1 text-xs font-semibold text-[var(--color-text-main)] border border-[var(--color-border-main)] hover:bg-white/5 transition-colors focus:outline-none"
       >
         {law.law}
         <ChevronDown size={12} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
       {isOpen && (
-        <div className="absolute left-0 top-8 z-50 w-60 rounded-xl bg-[#1a1a1f] p-3 text-xs text-white shadow-xl border border-white/10">
+        <div className="absolute left-0 top-8 z-50 w-60 rounded-xl bg-[var(--color-bg-surface)] p-3 text-xs text-[var(--color-text-main)] shadow-xl border border-[var(--color-border-main)]">
           {law.description}
         </div>
       )}
@@ -93,30 +94,36 @@ const AIAnalysisCard = ({ analysis, t }) => {
     : [];
 
   return (
-    <div className="w-full rounded-2xl border border-white/10 bg-[#121215] p-5 shadow-xl">
-      <div className="flex items-center gap-2 text-slate-200">
-        <Sparkles className="text-indigo-400" size={18} />
-        <span className="font-semibold">{t("analysis.aiAnalysis")}</span>
+    <div className="w-full rounded-2xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] p-5 shadow-xl">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-[var(--color-text-main)]">
+          <Sparkles className="text-indigo-400" size={18} />
+          <span className="font-semibold">{t("analysis.aiAnalysis")}</span>
+        </div>
+        <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+          <ShieldCheck size={12} />
+          {t("trust.secureAnalysis", "Encrypted Analysis")}
+        </div>
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <div className="rounded-2xl border border-white/10 bg-[#0f0f12] p-4 shadow-sm">
-          <div className="flex items-center gap-2 text-slate-200">
+        <div className="rounded-2xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-[var(--color-text-main)]">
             <FileText size={16} className="text-indigo-300" />
             <span className="font-semibold">{t("analysis.documentInfo")}</span>
           </div>
-          <div className="mt-3 space-y-2 text-sm text-slate-300">
+          <div className="mt-3 space-y-2 text-sm text-[var(--color-text-main)]">
             <div>
-              {t("analysis.type")}: <span className="text-white font-semibold">{analysis.document_type}</span>
+              {t("analysis.type")}: <span className="text-[var(--color-text-main)] font-semibold">{analysis.document_type}</span>
             </div>
             <div>
-              {t("analysis.classification")}: <span className="text-white font-semibold">{analysis.classification}</span>
+              {t("analysis.classification")}: <span className="text-[var(--color-text-main)] font-semibold">{analysis.classification}</span>
             </div>
             <div>
-              {t("analysis.decision")}: <span className="text-white font-semibold">{analysis.decision}</span>
+              {t("analysis.decision")}: <span className="text-[var(--color-text-main)] font-semibold">{analysis.decision}</span>
             </div>
             <div>
-              {t("analysis.confidence")}: <span className="text-white font-semibold">{analysis.confidence_score}</span>
+              {t("analysis.confidence")}: <span className="text-[var(--color-text-main)] font-semibold">{analysis.confidence_score}</span>
             </div>
           </div>
         </div>
@@ -135,24 +142,24 @@ const AIAnalysisCard = ({ analysis, t }) => {
         </div>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-white/10 bg-[#0f0f12] p-4 shadow-sm">
-        <div className="flex items-center gap-2 text-slate-200">
+      <div className="mt-4 rounded-2xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] p-4 shadow-sm">
+        <div className="flex items-center gap-2 text-[var(--color-text-main)]">
           <Sparkles size={16} className="text-indigo-300" />
           <span className="font-semibold">{t("analysis.smartExplanation")}</span>
         </div>
-        <p className="mt-3 text-sm text-slate-300">{analysis.smart_explanation}</p>
+        <p className="mt-3 text-sm text-[var(--color-text-main)]">{analysis.smart_explanation}</p>
         {analysis.simple_explanation && (
           <p className="mt-3 text-sm text-slate-400">{t("analysis.simple")}: {analysis.simple_explanation}</p>
         )}
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <div className="rounded-2xl border border-white/10 bg-[#0f0f12] p-4 shadow-sm">
-          <div className="flex items-center gap-2 text-slate-200">
+        <div className="rounded-2xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-[var(--color-text-main)]">
             <CheckCircle2 size={16} className="text-emerald-400" />
             <span className="font-semibold">{t("analysis.topRisks")}</span>
           </div>
-          <ul className="mt-3 space-y-2 text-sm text-slate-300">
+          <ul className="mt-3 space-y-2 text-sm text-[var(--color-text-main)]">
             {topRisks.length === 0 ? (
               <li>{t("analysis.noMajorRisksDetected")}</li>
             ) : (
@@ -161,12 +168,12 @@ const AIAnalysisCard = ({ analysis, t }) => {
           </ul>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#0f0f12] p-4 shadow-sm">
-          <div className="flex items-center gap-2 text-slate-200">
+        <div className="rounded-2xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-[var(--color-text-main)]">
             <CheckCircle2 size={16} className="text-emerald-400" />
             <span className="font-semibold">{t("analysis.whatToDo")}</span>
           </div>
-          <ul className="mt-3 space-y-2 text-sm text-slate-300">
+          <ul className="mt-3 space-y-2 text-sm text-[var(--color-text-main)]">
             {actions.length === 0 ? (
               <li>{t("analysis.noActionItemsProvided")}</li>
             ) : (
@@ -181,27 +188,27 @@ const AIAnalysisCard = ({ analysis, t }) => {
         </div>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-white/10 bg-[#0f0f12] p-4 shadow-sm">
+      <div className="mt-4 rounded-2xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] p-4 shadow-sm">
         <button
           type="button"
           onClick={() => setExpanded((prev) => !prev)}
-          className="flex w-full items-center justify-between text-slate-200"
+          className="flex w-full items-center justify-between text-[var(--color-text-main)]"
         >
           <span className="font-semibold">{t("analysis.detailedRisks")}</span>
           {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </button>
         {expanded && (
-          <div className="mt-4 space-y-3 text-sm text-slate-300">
+          <div className="mt-4 space-y-3 text-sm text-[var(--color-text-main)]">
             {detectedRisks.length === 0 ? (
               <p>{t("analysis.noDetailedRisksFound")}</p>
             ) : (
               detectedRisks.map((risk, index) => (
-                <div key={index} className="rounded-xl border border-white/10 bg-[#121215] p-3">
+                <div key={index} className="rounded-xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] p-3">
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-100">{risk.type}</span>
+                    <span className="font-semibold text-[var(--color-text-main)]">{risk.type}</span>
                     <span className="text-xs font-semibold text-slate-400">{risk.level}</span>
                   </div>
-                  <p className="mt-2 text-sm text-slate-300">{risk.reason}</p>
+                  <p className="mt-2 text-sm text-[var(--color-text-main)]">{risk.reason}</p>
                   {risk.snippet && (
                     <p className="mt-2 text-xs italic text-slate-500">{t("analysis.snippet")}: {risk.snippet}</p>
                   )}
@@ -212,8 +219,8 @@ const AIAnalysisCard = ({ analysis, t }) => {
         )}
       </div>
 
-      <div className="mt-4 rounded-2xl border border-white/10 bg-[#0f0f12] p-4 shadow-sm">
-        <div className="flex items-center gap-2 text-slate-200">
+      <div className="mt-4 rounded-2xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] p-4 shadow-sm">
+        <div className="flex items-center gap-2 text-[var(--color-text-main)]">
           <Info size={16} className="text-indigo-300" />
           <span className="font-semibold">{t("analysis.lawReference")}</span>
         </div>
@@ -429,7 +436,7 @@ export default function AnalyzePage() {
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#0a0a0b] text-slate-300">
+    <div className="flex h-full flex-col overflow-hidden bg-[var(--color-bg-main)] text-[var(--color-text-main)]">
       <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-6">
         <div className="mx-auto w-full max-w-3xl">
           {/* <div className="mb-6 flex flex-wrap items-center gap-3 text-xs text-slate-400">
@@ -442,11 +449,11 @@ export default function AnalyzePage() {
               <Loader2 className="animate-spin text-indigo-500" size={32} />
             </div>
           ) : chatHistory.length === 0 ? (
-            <div className="mt-20 rounded-3xl border border-white/10 bg-[#121215] p-8 text-center shadow-2xl">
+            <div className="mt-20 rounded-3xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] p-8 text-center shadow-2xl">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600/20">
                 <Shield className="text-indigo-400" size={28} />
               </div>
-              <h1 className="mb-3 text-3xl font-bold text-white">{t("analysis.documentAnalysis")}</h1>
+              <h1 className="mb-3 text-3xl font-bold text-[var(--color-text-main)]">{t("analysis.documentAnalysis")}</h1>
               <p className="mx-auto max-w-xl text-sm leading-7 text-slate-400">
                 {t("analysis.documentAnalysisSubtitle")}
               </p>
@@ -466,10 +473,10 @@ export default function AnalyzePage() {
                     <div
                       className={`max-w-[85%] rounded-2xl p-4 text-sm leading-7 ${
                         msg.role === "user"
-                          ? "rounded-tr-none bg-indigo-600 text-white"
+                          ? "rounded-tr-none bg-indigo-600 text-[var(--color-text-main)]"
                           : msg.isError
                           ? "border border-red-500/20 bg-red-500/10 text-red-100"
-                          : "rounded-tl-none border border-white/5 bg-[#121215] text-slate-300"
+                          : "rounded-tl-none border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] text-[var(--color-text-main)]"
                       }`}
                     >
                       {msg.role === "ai" && typeof msg.content === "object" ? (
@@ -490,10 +497,10 @@ export default function AnalyzePage() {
 
               {loading && (
                 <div className="flex gap-4">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/5 bg-[#121215]">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)]">
                     <Loader2 size={18} className="animate-spin text-indigo-400" />
                   </div>
-                  <div className="rounded-2xl border border-white/5 bg-[#121215] px-4 py-3 text-sm italic text-slate-400">
+                  <div className="rounded-2xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] px-4 py-3 text-sm italic text-slate-400">
                     {analysisProgress || t("common.processing")}
                   </div>
                 </div>
@@ -505,8 +512,8 @@ export default function AnalyzePage() {
         </div>
       </div>
 
-      <div className="border-t border-white/5 bg-[#0a0a0b] p-4 sm:p-6">
-        <div className="mx-auto max-w-3xl rounded-2xl border border-white/10 bg-[#121215] p-2">
+      <div className="border-t border-[var(--color-border-main)] bg-[var(--color-bg-main)] p-4 sm:p-6">
+        <div className="mx-auto max-w-3xl rounded-2xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] p-2">
           {file && (
             <div className="mx-2 mb-2 flex items-center justify-between rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-2 text-indigo-300">
               <div className="flex items-center gap-2 overflow-hidden">
@@ -534,7 +541,7 @@ export default function AnalyzePage() {
               value={inputText}
               onChange={(event) => setInputText(event.target.value)}
               placeholder={t("analysis.pasteLegalTextOrInstructions")}
-              className="max-h-32 flex-1 resize-none bg-transparent py-3 text-[15px] text-slate-200 outline-none placeholder:text-slate-600"
+              className="max-h-32 flex-1 resize-none bg-transparent py-3 text-[15px] text-[var(--color-text-main)] outline-none placeholder:text-slate-600"
               rows={1}
               disabled={loading}
               onKeyDown={(event) => {
