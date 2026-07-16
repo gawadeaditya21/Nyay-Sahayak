@@ -85,7 +85,7 @@ export default function MainLayout() {
   );
 
   return (
-    <div className="flex h-screen w-full bg-[#050505] overflow-hidden font-sans">
+    <div className="flex h-screen w-full bg-[var(--color-bg-main)] overflow-hidden font-sans text-[var(--color-text-main)]">
       <AnimatePresence mode="wait">
         <Sidebar 
           isOpen={isSidebarOpen} 
@@ -97,7 +97,7 @@ export default function MainLayout() {
         />
       </AnimatePresence>
       
-      <div className="flex-1 flex flex-col h-full relative max-w-full overflow-hidden bg-[#0d0d0f] lg:rounded-l-[2rem] border-l border-white/5 shadow-2xl">
+      <div className="flex-1 flex flex-col h-full relative max-w-full overflow-hidden bg-[var(--color-bg-surface)] lg:rounded-l-[2rem] border-l border-[var(--color-border-main)] shadow-2xl">
         <Header toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
         <Outlet context={outletContext} /> 
       </div>

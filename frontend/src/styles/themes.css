@@ -9,13 +9,13 @@
   --color-light-border: #E2E8F0;
 
   /* DARK THEME (Existing Nyay Sahayak Theme) */
-  --color-dark-bg: #F9F8F6;
-  --color-dark-surface: #EFE9E3;
-  --color-dark-text: #2A3663;
-  --color-dark-primary: #4F959D;
-  --color-dark-secondary: #10B981; /* Assuming same for now */
-  --color-dark-accent: #F59E0B; /* Assuming same for now */
-  --color-dark-border: #E2E8F0;
+  --color-dark-bg: #050505;
+  --color-dark-surface: #0a0a0c;
+  --color-dark-text: #f1f5f9;
+  --color-dark-primary: #4F46E5; /* Indigo-600 */
+  --color-dark-secondary: #10B981;
+  --color-dark-accent: #F59E0B;
+  --color-dark-border: rgba(255, 255, 255, 0.1);
 }
 
 @custom-variant dark (&:where(.dark, .dark *));

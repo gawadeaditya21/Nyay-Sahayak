@@ -76,7 +76,7 @@ export default function CinematicRevealSection() {
   const laserOpacity = zoom > 0 && zoom < 0.9 ? 1 : 0;
 
   return (
-    <section ref={wrapperRef} className="relative h-[400vh] w-full bg-[#050505]">
+    <section ref={wrapperRef} className="relative h-[400vh] w-full bg-[var(--color-bg-main)]">
       <div className="sticky top-0 h-screen w-full overflow-hidden px-4 sm:px-6">
         <div className="relative flex h-full w-full items-center justify-center" style={{ perspective: '2000px' }}>
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(79,70,229,0.12),transparent_40%),linear-gradient(180deg,rgba(5,5,5,0.95),rgba(5,5,5,1))]" />
@@ -99,7 +99,7 @@ export default function CinematicRevealSection() {
                 <CheckCircle2 size={14} />
                 <span>{t('landing.cinematic.scanComplete')}</span>
               </div>
-              <h2 className="text-4xl font-bold leading-tight text-white sm:text-5xl md:text-7xl font-serif">
+              <h2 className="text-4xl font-bold leading-tight text-[var(--color-text-main)] sm:text-5xl md:text-7xl font-serif">
                 {t('landing.cinematic.headline')}
               </h2>
               <p className="mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-slate-400 sm:mt-6 md:text-lg">
@@ -111,11 +111,11 @@ export default function CinematicRevealSection() {
                   const Icon = feature.icon;
 
                   return (
-                    <div key={feature.title} className="rounded-3xl border border-white/5 bg-[#0a0a0c]/90 p-5 shadow-[0_0_40px_rgba(0,0,0,0.2)] backdrop-blur-sm sm:p-6">
+                    <div key={feature.title} className="rounded-3xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)]/90 p-5 shadow-[0_0_40px_rgba(0,0,0,0.2)] backdrop-blur-sm sm:p-6">
                       <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-indigo-500/15 bg-indigo-500/10 text-indigo-400">
                         <Icon size={22} />
                       </div>
-                      <h3 className="mb-2 text-xl font-bold text-white">{feature.title}</h3>
+                      <h3 className="mb-2 text-xl font-bold text-[var(--color-text-main)]">{feature.title}</h3>
                       <p className="text-sm leading-relaxed text-slate-400 sm:text-base">{feature.desc}</p>
                     </div>
                   );
@@ -135,7 +135,7 @@ export default function CinematicRevealSection() {
               opacity: docOpacity,
             }}
           >
-            <div className="absolute inset-0 overflow-hidden rounded-[1.75rem] border border-indigo-500/30 bg-[#0a0a0c] shadow-[0_0_60px_rgba(79,70,229,0.22)]">
+            <div className="absolute inset-0 overflow-hidden rounded-[1.75rem] border border-indigo-500/30 bg-[var(--color-bg-surface)] shadow-[0_0_60px_rgba(79,70,229,0.22)]">
               <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(rgba(79,70,229,0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(79,70,229,0.2) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
 
               <div className="absolute inset-0 flex items-center justify-center p-8 text-center sm:p-12">
@@ -144,7 +144,7 @@ export default function CinematicRevealSection() {
                     <Scale size={34} className="text-indigo-300" />
                   </div>
 
-                  <h3 className="mb-4 text-3xl font-bold text-white sm:text-4xl md:text-5xl font-serif">{t('appName')}</h3>
+                  <h3 className="mb-4 text-3xl font-bold text-[var(--color-text-main)] sm:text-4xl md:text-5xl font-serif">{t('appName')}</h3>
 
                   <div className="mx-auto max-w-md space-y-3 text-sm leading-relaxed text-slate-400 sm:space-y-4 sm:text-base">
                     <p>{t('landing.cinematic.initializing')}</p>
@@ -156,7 +156,7 @@ export default function CinematicRevealSection() {
               </div>
 
               <div className="absolute left-0 right-0 z-20 h-0.5 bg-cyan-400 transition-opacity" style={{ top: `${laserTop}%`, opacity: laserOpacity, boxShadow: '0 0 20px 5px rgba(34, 211, 238, 0.6), 0 0 40px 10px rgba(79, 70, 229, 0.35)' }}>
-                <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-full border border-cyan-500/50 bg-[#050505] px-3 py-1 text-cyan-200">
+                <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-full border border-cyan-500/50 bg-[var(--color-bg-main)] px-3 py-1 text-cyan-200">
                   <ScanSearch size={14} className="animate-spin" />
                   <span className="text-[10px] font-bold uppercase tracking-[0.28em]">{t('landing.cinematic.scanning')}</span>
                 </div>
@@ -165,7 +165,7 @@ export default function CinematicRevealSection() {
 
             <div className="absolute left-0 top-0 z-30 h-1/2 w-full origin-top" style={{ transformStyle: 'preserve-3d', transform: `rotateX(${topFlapRotate}deg)`, backfaceVisibility: 'hidden' }}>
               <div className="absolute inset-0 rounded-t-[1.75rem] border border-indigo-500/20 bg-linear-to-b from-[#15151a] to-[#111115] shadow-xl" />
-              <div className="absolute bottom-0 left-1/2 flex h-8 w-16 -translate-x-1/2 translate-y-px items-end justify-center rounded-t-full border-x border-t border-indigo-500/40 bg-[#050505] pb-1">
+              <div className="absolute bottom-0 left-1/2 flex h-8 w-16 -translate-x-1/2 translate-y-px items-end justify-center rounded-t-full border-x border-t border-indigo-500/40 bg-[var(--color-bg-main)] pb-1">
                 <Lock size={16} className="text-indigo-500" />
               </div>
             </div>

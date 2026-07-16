@@ -44,7 +44,7 @@ const formatPrice = (amount, currency) =>
 
 function FeatureItem({ children }) {
     return (
-        <li className="flex items-start gap-3 text-sm leading-6 text-slate-300">
+        <li className="flex items-start gap-3 text-sm leading-6 text-[var(--color-text-main)]">
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
             <span>{children}</span>
         </li>
@@ -61,20 +61,20 @@ function PlanCard({ planKey, loadingPlan, onUpgrade }) {
     const cardInner = (
         <article
             className={[
-                'group relative flex h-full flex-col overflow-hidden rounded-3xl border bg-[#111318] p-6 shadow-xl transition-all duration-300 hover:-translate-y-1 hover:scale-105 hover:shadow-2xl md:p-8',
+                'group relative flex h-full flex-col overflow-hidden rounded-3xl border bg-[var(--color-bg-surface)] p-6 shadow-xl transition-all duration-300 hover:-translate-y-1 hover:scale-105 hover:shadow-2xl md:p-8',
                 plan.highlighted
                     ? 'border-transparent ring-1 ring-white/10'
-                    : 'border-white/10 hover:border-white/20',
+                    : 'border-[var(--color-border-main)] hover:border-[var(--color-border-main)]',
             ].join(' ')}
         >
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
             <div className="relative z-10 flex items-start justify-between gap-4">
                 <div>
-                    <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white shadow-lg shadow-black/20 transition-transform duration-300 group-hover:scale-105">
+                    <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--color-border-main)] bg-white/5 text-[var(--color-text-main)] shadow-lg shadow-black/20 transition-transform duration-300 group-hover:scale-105">
                         <Icon className="h-5 w-5 text-indigo-300" />
                     </div>
-                    <h3 className="text-2xl font-semibold tracking-tight text-white">{plan.name}</h3>
+                    <h3 className="text-2xl font-semibold tracking-tight text-[var(--color-text-main)]">{plan.name}</h3>
                     <p className="mt-3 max-w-sm text-sm leading-6 text-slate-400">{plan.description}</p>
                 </div>
 
@@ -86,7 +86,7 @@ function PlanCard({ planKey, loadingPlan, onUpgrade }) {
             </div>
 
             <div className="relative z-10 mt-8 flex items-end gap-2">
-                <span className="text-5xl font-semibold tracking-tight text-white">{formatPrice(pricing.amount, pricing.currency)}</span>
+                <span className="text-5xl font-semibold tracking-tight text-[var(--color-text-main)]">{formatPrice(pricing.amount, pricing.currency)}</span>
                 <span className="pb-1 text-sm font-medium text-slate-400">/mo</span>
             </div>
 
@@ -101,7 +101,7 @@ function PlanCard({ planKey, loadingPlan, onUpgrade }) {
                     <button
                         type="button"
                         disabled
-                        className="inline-flex w-full items-center justify-center rounded-2xl border border-white/10 bg-slate-800 px-5 py-3.5 text-sm font-semibold text-slate-300 shadow-lg shadow-black/20"
+                        className="inline-flex w-full items-center justify-center rounded-2xl border border-[var(--color-border-main)] bg-slate-800 px-5 py-3.5 text-sm font-semibold text-[var(--color-text-main)] shadow-lg shadow-black/20"
                     >
                         {plan.buttonLabel}
                     </button>
@@ -114,7 +114,7 @@ function PlanCard({ planKey, loadingPlan, onUpgrade }) {
                             'inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-sm font-semibold text-white transition-all duration-300 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-70',
                             plan.buttonVariant === 'gradient'
                                 ? 'bg-gradient-to-r from-fuchsia-500 via-violet-500 to-sky-500 shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40'
-                                : 'bg-slate-950 ring-1 ring-white/10 shadow-lg shadow-black/40 hover:ring-indigo-400/40',
+                                : 'bg-[var(--color-bg-main)] ring-1 ring-white/10 shadow-lg shadow-black/40 hover:ring-indigo-400/40',
                         ].join(' ')}
                     >
                         {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -161,14 +161,14 @@ export default function PricingPage() {
     };
 
     return (
-        <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
+        <div className="relative min-h-screen overflow-hidden bg-[var(--color-bg-main)] text-[var(--color-text-main)]">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.16),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.12),transparent_28%),linear-gradient(180deg,#020617_0%,#050816_50%,#020617_100%)]" />
             <div className="pointer-events-none absolute left-1/2 top-16 h-72 w-72 -translate-x-1/2 rounded-full bg-fuchsia-500/10 blur-3xl" />
             <div className="pointer-events-none absolute right-0 top-1/3 h-80 w-80 rounded-full bg-sky-500/10 blur-3xl" />
 
             <section className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col items-center px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
                 <div className="mb-14 max-w-3xl text-center">
-                    <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300 shadow-lg shadow-black/20 backdrop-blur-xl">
+                    <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[var(--color-border-main)] bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-text-main)] shadow-lg shadow-black/20 backdrop-blur-xl">
                         <Sparkles className="h-4 w-4 text-indigo-300" />
                         Premium plans for legal workflows
                     </div>
@@ -195,9 +195,9 @@ export default function PricingPage() {
                 </div>
 
                 <div className="mt-12 flex flex-wrap items-center justify-center gap-4 text-sm text-slate-500">
-                    <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">Secure Stripe checkout</span>
-                    <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">Cancel anytime</span>
-                    <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">Built for productivity</span>
+                    <span className="rounded-full border border-[var(--color-border-main)] bg-white/5 px-4 py-2">Secure Stripe checkout</span>
+                    <span className="rounded-full border border-[var(--color-border-main)] bg-white/5 px-4 py-2">Cancel anytime</span>
+                    <span className="rounded-full border border-[var(--color-border-main)] bg-white/5 px-4 py-2">Built for productivity</span>
                 </div>
             </section>
         </div>

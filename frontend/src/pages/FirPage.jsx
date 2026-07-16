@@ -111,28 +111,28 @@ export default function FirPage() {
   };
 
   return (
-    <div className="min-h-full overflow-y-auto bg-[#060607] px-4 py-6 text-slate-100 sm:px-6 lg:px-8 lg:py-8">
+    <div className="min-h-full overflow-y-auto bg-[var(--color-bg-main)] px-4 py-6 text-[var(--color-text-main)] sm:px-6 lg:px-8 lg:py-8">
       <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-4xl items-center">
-        <div className="w-full rounded-4xl border border-white/10 bg-[#111215]/95 p-6 shadow-[0_40px_120px_rgba(0,0,0,0.5)] backdrop-blur sm:p-8 lg:p-10">
-          <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-6">
+        <div className="w-full rounded-4xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)]/95 p-6 shadow-[0_40px_120px_rgba(0,0,0,0.5)] backdrop-blur sm:p-8 lg:p-10">
+          <div className="flex items-center justify-between gap-4 border-b border-[var(--color-border-main)] pb-6">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-indigo-300">
                 <Sparkles size={22} />
               </div>
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.24em] text-indigo-300">{copy.appName}</div>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">{copy.title}</h1>
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-[var(--color-text-main)] sm:text-4xl">{copy.title}</h1>
               </div>
             </div>
           </div>
 
           <div className="mx-auto mt-8 max-w-2xl text-center">
-            <h2 className="text-2xl font-semibold text-white sm:text-3xl">{copy.subtitle}</h2>
+            <h2 className="text-2xl font-semibold text-[var(--color-text-main)] sm:text-3xl">{copy.subtitle}</h2>
             <p className="mt-4 text-sm leading-7 text-slate-400 sm:text-base">{copy.helper}</p>
           </div>
 
           <div className="mx-auto mt-8 max-w-3xl">
-            <label className="mb-3 block text-sm font-semibold text-slate-100">
+            <label className="mb-3 block text-sm font-semibold text-[var(--color-text-main)]">
               {t("fir.describeComplaint") || "Describe your complaint"}
             </label>
             <textarea
@@ -141,7 +141,7 @@ export default function FirPage() {
               onChange={(event) => setText(event.target.value)}
               placeholder={copy.placeholder}
               rows={8}
-              className="w-full resize-none overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#0a0a0b] p-5 text-[15px] leading-7 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-indigo-500"
+              className="w-full resize-none overflow-hidden rounded-[1.75rem] border border-[var(--color-border-main)] bg-[var(--color-bg-main)] p-5 text-[15px] leading-7 text-[var(--color-text-main)] outline-none transition placeholder:text-slate-600 focus:border-indigo-500"
             />
 
             {error && (
@@ -163,7 +163,7 @@ export default function FirPage() {
               <button
                 type="button"
                 onClick={handleClear}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+                className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border-main)] bg-white/5 px-6 py-3 text-sm font-semibold text-[var(--color-text-main)] transition hover:bg-white/10"
               >
                 <RotateCcw size={16} />
                 {copy.clear}

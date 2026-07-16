@@ -61,14 +61,14 @@ export default function ComplaintOutputPage() {
   };
 
   return (
-    <div className="min-h-full overflow-y-auto bg-[#060607] px-4 py-6 text-slate-100 sm:px-6 lg:px-8 lg:py-8">
+    <div className="min-h-full overflow-y-auto bg-[var(--color-bg-main)] px-4 py-6 text-[var(--color-text-main)] sm:px-6 lg:px-8 lg:py-8">
       <div className="mx-auto max-w-5xl">
-        <div className="rounded-4xl border border-white/10 bg-[#111215]/95 p-6 shadow-[0_40px_120px_rgba(0,0,0,0.5)] backdrop-blur sm:p-8 lg:p-10">
-          <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-5">
+        <div className="rounded-4xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)]/95 p-6 shadow-[0_40px_120px_rgba(0,0,0,0.5)] backdrop-blur sm:p-8 lg:p-10">
+          <div className="flex items-center justify-between gap-4 border-b border-[var(--color-border-main)] pb-5">
             <button
               type="button"
               onClick={handleBack}
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-white/10"
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border-main)] bg-white/5 px-4 py-2 text-sm font-semibold text-[var(--color-text-main)] transition hover:bg-white/10"
             >
               <ArrowLeft size={16} />
               {copyByLanguage.back}
@@ -81,7 +81,7 @@ export default function ComplaintOutputPage() {
           </div>
 
           <div className="mx-auto mt-8 max-w-3xl text-center">
-            <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+            <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-text-main)] sm:text-4xl">
               {copyByLanguage.title}
             </h1>
             <p className="mt-3 text-sm leading-7 text-slate-400 sm:text-base">
