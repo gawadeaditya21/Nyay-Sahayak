@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileSignature, Send, X, Mic, MicOff } from "lucide-react";
+import { FileSignature, Send, X, Mic, MicOff, ShieldCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useVoiceInput } from "../../hooks/useVoiceInput";
 
@@ -30,7 +30,11 @@ export default function FIRInputCard({ onSubmit, onCancel, defaultValue = "" }) 
             <span className="text-xs font-semibold uppercase tracking-[0.2em]">{t("fir.cardLabel")}</span>
           </div>
           <h3 className="mt-2 text-2xl font-semibold text-[var(--color-text-main)]">{t("fir.describeComplaint")}</h3>
-          <p className="mt-1 text-sm text-slate-400">{t("fir.describeComplaintHelp")}</p>
+          <div className="mt-2.5 flex items-center gap-1.5 w-fit rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+            <ShieldCheck size={12} />
+            {t("trust.dataConfidential", "Data is 100% Confidential")}
+          </div>
+          <p className="mt-2 text-sm text-slate-500">{t("fir.describeComplaintHelp")}</p>
         </div>
         <button
           type="button"

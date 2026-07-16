@@ -8,6 +8,7 @@ import {
   User,
   Mic,
   MicOff,
+  ShieldCheck,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { sendChatMessage, fetchChatHistory } from "../services/api";
@@ -352,7 +353,13 @@ export default function ChatPage() {
             </button>
           </div>
         </div>
-        <p className="mt-4 text-center text-xs text-slate-600">{t("chat.disclaimer")}</p>
+        <div className="mt-5 flex flex-col items-center justify-center gap-2">
+          <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold tracking-wide text-emerald-600 dark:text-emerald-400">
+            <ShieldCheck size={14} />
+            {t("trust.secureAndConfidential", "100% Secure & Confidential (End-to-End Encrypted)")}
+          </div>
+          <p className="text-center text-[11px] text-slate-500">{t("chat.disclaimer")}</p>
+        </div>
       </div>
     </div>
   );

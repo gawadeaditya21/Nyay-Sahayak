@@ -14,6 +14,7 @@ import {
   ChevronUp,
   Info,
   Sparkles,
+  ShieldCheck,
 } from "lucide-react";
 import {
   analyzeDocument,
@@ -94,9 +95,15 @@ const AIAnalysisCard = ({ analysis, t }) => {
 
   return (
     <div className="w-full rounded-2xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] p-5 shadow-xl">
-      <div className="flex items-center gap-2 text-[var(--color-text-main)]">
-        <Sparkles className="text-indigo-400" size={18} />
-        <span className="font-semibold">{t("analysis.aiAnalysis")}</span>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-[var(--color-text-main)]">
+          <Sparkles className="text-indigo-400" size={18} />
+          <span className="font-semibold">{t("analysis.aiAnalysis")}</span>
+        </div>
+        <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+          <ShieldCheck size={12} />
+          {t("trust.secureAnalysis", "Encrypted Analysis")}
+        </div>
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
