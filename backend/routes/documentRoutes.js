@@ -9,8 +9,8 @@ import { optionalProtect, protect } from "../middleware/authMiddleware.js";
 import { upload, handleUploadError } from "../middleware/uploadMiddleware.js";
 import { usageLimiter } from "../middleware/usageLimiter.js";
 
-import { detectUserTier } from "../src/middleware/tierDetection.js";
-import { createRateLimiter } from "../src/middleware/rateLimiter.js";
+import { detectUserTier } from "../middleware/tierDetection.js";
+import { createRateLimiter } from "../middleware/rateLimiter.js";
 
 const router = express.Router();
 

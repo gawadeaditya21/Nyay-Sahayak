@@ -4,7 +4,7 @@ dotenv.config();
 
 // ESM mein imports hoist ho jaate hain, isliye hum isse dynamic import karenge
 // taaki dotenv.config() pehle execute ho aur environment variables set ho jayein
-const { default: redisService } = await import('../src/services/redisService.js');
+const { default: redisService } = await import('../services/redisService.js');
 
 async function runTests() {
   console.log('\n🧪 Starting Redis Connection Tests (Upstash)...\n');
