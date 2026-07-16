@@ -7,6 +7,7 @@ import { updateLanguagePreference } from '../../services/api';
 export default function LanguageSwitcher() {
   const { i18n } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
+  const [justChanged, setJustChanged] = useState(false);
   const dropdownRef = useRef(null);
   
   const currentLang = SUPPORTED_LANGUAGES.find(l => l.code === i18n.language) || SUPPORTED_LANGUAGES[0];
@@ -31,6 +32,9 @@ export default function LanguageSwitcher() {
     i18n.changeLanguage(langCode);
     setIsOpen(false);
     
+    setJustChanged(true);
+    setTimeout(() => setJustChanged(false), 1500);
+    
     try {
       const storedUser = localStorage.getItem('user');
       if (storedUser) {
@@ -48,13 +52,21 @@ export default function LanguageSwitcher() {
     <div className="relative" ref={dropdownRef}>
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-[var(--color-border-main)] text-[var(--color-text-main)] transition-colors"
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+          justChanged 
+            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
+            : 'bg-white/5 hover:bg-white/10 border-[var(--color-border-main)] text-[var(--color-text-main)]'
+        }`}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
-        <Globe size={16} className="text-indigo-400" />
+        {justChanged ? (
+          <Check size={16} className="text-emerald-400 animate-in zoom-in duration-300" />
+        ) : (
+          <Globe size={16} className="text-indigo-400" />
+        )}
         <span className="text-sm font-medium hidden sm:block">{currentLang.native}</span>
-        <ChevronDown size={14} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={14} className={`transition-transform ${justChanged ? 'text-emerald-400/50' : 'text-slate-400'} ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (

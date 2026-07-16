@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Copy, Download, PencilLine, Sparkles } from "lucide-react";
+import { Copy, Download, PencilLine, Sparkles, Check, Loader2 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { sanitizeComplaintText } from "../../utils/complaintText";
 
@@ -9,6 +9,8 @@ export default function FIRDraftCard({
   onChange,
 }) {
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
   const textareaRef = useRef(null);
   const cleanedText = useMemo(() => sanitizeComplaintText(firText), [firText]);
   const hasText = cleanedText.length > 0;
@@ -30,7 +32,7 @@ export default function FIRDraftCard({
     try {
       await navigator.clipboard.writeText(cleanedText);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setTimeout(() => setCopied(false), 2000);
     } catch {
       setCopied(false);
     }
@@ -41,16 +43,25 @@ export default function FIRDraftCard({
       return;
     }
 
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
-    const margin = 40;
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const maxWidth = pageWidth - margin * 2;
-    const lines = doc.splitTextToSize(cleanedText, maxWidth);
+    setDownloading(true);
+    
+    // Small artificial delay for micro-interaction UX
+    setTimeout(() => {
+      const doc = new jsPDF({ unit: "pt", format: "a4" });
+      const margin = 40;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const maxWidth = pageWidth - margin * 2;
+      const lines = doc.splitTextToSize(cleanedText, maxWidth);
 
-    doc.setFont("Times", "Normal");
-    doc.setFontSize(12);
-    doc.text(lines, margin, 60);
-    doc.save("FIR_Complaint.pdf");
+      doc.setFont("Times", "Normal");
+      doc.setFontSize(12);
+      doc.text(lines, margin, 60);
+      doc.save("FIR_Complaint.pdf");
+
+      setDownloading(false);
+      setDownloaded(true);
+      setTimeout(() => setDownloaded(false), 2000);
+    }, 600);
   };
 
   const handleEdit = (event) => {
@@ -79,19 +90,33 @@ export default function FIRDraftCard({
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handleCopy}
-            disabled={!hasText}
-            className="inline-flex items-center gap-2 rounded-full border border-slate-400/20 bg-white/5 px-4 py-2 text-xs font-semibold text-[var(--color-text-main)] transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={!hasText || copied}
+            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition disabled:cursor-not-allowed ${
+              copied 
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 disabled:opacity-100" 
+                : "border-slate-400/20 bg-white/5 text-[var(--color-text-main)] hover:bg-white/10 disabled:opacity-40"
+            }`}
           >
-            <Copy size={14} />
-            {copied ? "Copied" : "Copy"}
+            {copied ? <Check size={14} className="animate-in zoom-in" /> : <Copy size={14} />}
+            {copied ? "Copied!" : "Copy"}
           </button>
           <button
             onClick={handleDownload}
-            disabled={!hasText}
-            className="inline-flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={!hasText || downloading || downloaded}
+            className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold text-white transition disabled:cursor-not-allowed ${
+              downloaded
+                ? "bg-emerald-500 disabled:opacity-100"
+                : "bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40"
+            }`}
           >
-            <Download size={14} />
-            Export PDF
+            {downloading ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : downloaded ? (
+              <Check size={14} className="animate-in zoom-in" />
+            ) : (
+              <Download size={14} />
+            )}
+            {downloading ? "Exporting..." : downloaded ? "Exported!" : "Export PDF"}
           </button>
         </div>
       </div>
