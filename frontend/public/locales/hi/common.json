@@ -315,7 +315,20 @@
   },
   "week3": {
     "tour": {
-      "welcome": "Nyay Sahayak me aapka swagat hai"
+      "step1Title": "Nyay Sahayak mein aapka swagat hai",
+      "step1Desc": "Aapka personal AI legal assistant. Chaliye aapko dikhate hain.",
+      "step2Title": "Kanooni sawaal puchein",
+      "step2Desc": "Apni bhasha mein kanooni sawaal puchein aur aasan jawaab paayein.",
+      "step3Title": "Documents analyze karein",
+      "step3Desc": "Kanooni documents ko turant analyze karke hidden risks dhundhein.",
+      "step4Title": "FIR generate karein",
+      "step4Desc": "Aasani se step-by-step FIR generate karein.",
+      "step5Title": "12 Bhashaon mein madad",
+      "step5Desc": "12 bhartiya bhashaon mein madad. Upar se kabhi bhi bhasha badlein.",
+      "step6Title": "Privacy surakshit",
+      "step6Desc": "Aapki privacy end-to-end encryption ke saath 100% surakshit hai.",
+      "step7Title": "Shuru karne ke liye taiyar?",
+      "step7Desc": "Login karne ke liye yahan click karein."
     }
   }
 }

@@ -323,7 +323,20 @@
   },
   "week3": {
     "tour": {
-      "welcome": "Welcome to Nyay Sahayak"
+      "step1Title": "Welcome to Nyay Sahayak",
+      "step1Desc": "Your personal AI legal assistant. Let us show you around.",
+      "step2Title": "Ask legal questions",
+      "step2Desc": "Ask legal questions in your language and get simple, accurate answers.",
+      "step3Title": "Analyze documents",
+      "step3Desc": "Analyze legal documents instantly to find hidden risks.",
+      "step4Title": "Generate FIRs",
+      "step4Desc": "Generate FIRs easily step-by-step.",
+      "step5Title": "12 Indian Languages",
+      "step5Desc": "Get help in 12 Indian languages. Switch anytime from the top right.",
+      "step6Title": "Privacy Protected",
+      "step6Desc": "Your privacy is 100% protected with end-to-end encryption.",
+      "step7Title": "Ready to start?",
+      "step7Desc": "Click here to login and begin your journey to justice."
     }
   }
 }
