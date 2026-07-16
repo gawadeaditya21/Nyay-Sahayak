@@ -26,6 +26,9 @@ import {
   setPrivacyMode,
 } from "../utils/guestIdentity";
 
+import ChatWelcome from "../components/chat/ChatWelcome";
+import ChatTour from "../components/chat/ChatTour";
+
 const ACTION_ROUTES = {
   "Generate FIR": "/fir",
   "See Steps": "/steps",
@@ -135,8 +138,9 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  const submitMessage = async () => {
-    const trimmedInput = input.trim();
+  const submitMessage = async (customText = null) => {
+    const textToSubmit = typeof customText === 'string' ? customText : input;
+    const trimmedInput = textToSubmit.trim();
     if (!trimmedInput || loading) {
       return;
     }
@@ -221,24 +225,33 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[var(--color-bg-main)] text-[var(--color-text-main)]">
+      <ChatTour />
+      
       <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-6">
         <div className="mx-auto w-full max-w-4xl">
-          <div className="mb-8 rounded-[28px] border border-[var(--color-border-main)] bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.22),transparent_50%),#121215] p-8 shadow-2xl">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-[var(--color-text-main)]">
-                <Sparkles size={22} />
+          
+          {messages.length <= 1 ? (
+            <ChatWelcome 
+              onPromptSelect={(prompt) => {
+                submitMessage(prompt);
+              }} 
+            />
+          ) : (
+            <div className="mb-6 flex items-center gap-3 rounded-[20px] border border-[var(--color-border-main)] bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.1),transparent_50%),#121215] p-4 shadow-md">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white">
+                <Sparkles size={18} />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-[var(--color-text-main)]">{t("chat.title")}</h1>
-                <p className="text-sm text-slate-400">{t("chat.subtitle")}</p>
+                <h1 className="text-lg font-bold text-[var(--color-text-main)]">{t("chat.title")}</h1>
+                <p className="text-xs text-slate-400">{t("chat.subtitle")}</p>
               </div>
             </div>
-            <p className="text-sm text-slate-400">{t("chat.example")}</p>
-            <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-400">
-              <PrivacyToggle value={privacyMode} onChange={setPrivacyModeState} />
-              <span>{t("chat.privateModeSkipsSavingChatHistory")}</span>
-              {isGuestUser() && <span className="text-amber-300">{t("chat.guestLimit")}</span>}
-            </div>
+          )}
+
+          <div className="mb-6 flex flex-wrap items-center justify-center gap-3 text-xs text-slate-400" data-tour="chat-privacy">
+            <PrivacyToggle value={privacyMode} onChange={setPrivacyModeState} />
+            <span>{t("chat.privateModeSkipsSavingChatHistory")}</span>
+            {isGuestUser() && <span className="text-amber-300">{t("chat.guestLimit")}</span>}
           </div>
 
           <div className="space-y-6 pb-8">
@@ -318,6 +331,7 @@ export default function ChatPage() {
         <div className="mx-auto max-w-4xl rounded-3xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] p-2 shadow-2xl">
           <div className="flex items-end gap-2">
             <textarea
+              data-tour="chat-input"
               value={input}
               onChange={(event) => setInput(event.target.value)}
               placeholder={t("chat.placeholder")}
@@ -333,6 +347,7 @@ export default function ChatPage() {
             />
             {isSupported && (
               <button
+                data-tour="chat-voice"
                 onClick={toggleListening}
                 className={`rounded-2xl p-3 transition flex items-center justify-center ${
                   isListening 

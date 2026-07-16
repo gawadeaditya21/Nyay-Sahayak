@@ -336,7 +336,39 @@
       "step6Title": "Privacy Protected",
       "step6Desc": "Your privacy is 100% protected with end-to-end encryption.",
       "step7Title": "Ready to start?",
-      "step7Desc": "Click here to login and begin your journey to justice."
+      "step7Desc": "Click here to login and begin your journey to justice.",
+      "chatInputTitle": "Type your question",
+      "chatInputDesc": "Describe your legal problem naturally in any language.",
+      "chatVoiceTitle": "Use Voice Input",
+      "chatVoiceDesc": "Don't want to type? Just tap the microphone and speak.",
+      "chatPrivacyTitle": "Private Mode",
+      "chatPrivacyDesc": "Toggle this to prevent your chat history from being saved."
+    },
+    "chat": {
+      "welcomeDesc": "I am your AI legal assistant. I can help you understand laws, draft documents, or guide you on how to file an FIR. Start by typing below or pick an example to begin."
+    },
+    "prompts": {
+      "tryAsking": "Try asking about:",
+      "catProperty": "Property & Land",
+      "prop1": "Landlord illegally evicting me, what to do?",
+      "prop2": "Neighbor encroaching on my land",
+      "prop3": "Property dispute with siblings",
+      "catFamily": "Family Law",
+      "fam1": "How to file for divorce?",
+      "fam2": "Child custody laws in India",
+      "fam3": "Domestic violence complaint process",
+      "catConsumer": "Consumer Rights",
+      "con1": "Product defective, seller refusing refund",
+      "con2": "Online shopping fraud, what to do?",
+      "con3": "Bank charging hidden fees",
+      "catEmployment": "Employment",
+      "emp1": "Employer not paying salary",
+      "emp2": "Wrongful termination steps",
+      "emp3": "Sexual harassment at workplace",
+      "catCriminal": "Criminal",
+      "crim1": "Cyber crime, how to file FIR?",
+      "crim2": "Theft happened, what to do?",
+      "crim3": "Someone threatening me online"
     }
   }
 }

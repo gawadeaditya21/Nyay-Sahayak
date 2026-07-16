@@ -328,7 +328,39 @@
       "step6Title": "Privacy surakshit",
       "step6Desc": "Aapki privacy end-to-end encryption ke saath 100% surakshit hai.",
       "step7Title": "Shuru karne ke liye taiyar?",
-      "step7Desc": "Login karne ke liye yahan click karein."
+      "step7Desc": "Login karne ke liye yahan click karein.",
+      "chatInputTitle": "Apna sawaal likhein",
+      "chatInputDesc": "Apni kanooni pareshani kisi bhi bhasha mein likhein.",
+      "chatVoiceTitle": "Awaaz ka istemal karein",
+      "chatVoiceDesc": "Likhna nahi chahte? Bas mic par tap karein aur bolein.",
+      "chatPrivacyTitle": "Private Mode",
+      "chatPrivacyDesc": "Ise on karein taaki aapki chat history save na ho."
+    },
+    "chat": {
+      "welcomeDesc": "Main aapka AI legal assistant hoon. Main kanoon samajhne, documents banane aur FIR file karne mein aapki madad kar sakta hoon. Niche type karein ya shuru karne ke liye ek udaharan chunein."
+    },
+    "prompts": {
+      "tryAsking": "Inke baare mein puchein:",
+      "catProperty": "Zameen aur Sampatti",
+      "prop1": "Makan malik jabran nikal raha hai, kya karun?",
+      "prop2": "Padosi meri zameen par kabza kar raha hai",
+      "prop3": "Bhai-behnon ke saath sampatti ka vivad",
+      "catFamily": "Parivarik Kanoon",
+      "fam1": "Talaq ke liye apply kaise karein?",
+      "fam2": "Bharat mein bacchon ki custody ke kanoon",
+      "fam3": "Gharelu hinsa ki shikayat kaise karein",
+      "catConsumer": "Upbhokta Adhikar",
+      "con1": "Samaan kharab hai, dukandar paise wapas nahi de raha",
+      "con2": "Online shopping mein dhokha, kya karein?",
+      "con3": "Bank hidden charges kaat raha hai",
+      "catEmployment": "Rozgar aur Naukri",
+      "emp1": "Company salary nahi de rahi hai",
+      "emp2": "Galat tarike se naukri se nikal diya",
+      "emp3": "Office mein yaun utpidan (sexual harassment)",
+      "catCriminal": "Aapradhik Mamle",
+      "crim1": "Cyber crime, FIR kaise darj karein?",
+      "crim2": "Chori ho gayi hai, kya karun?",
+      "crim3": "Koi mujhe online dhamki de raha hai"
     }
   }
 }
