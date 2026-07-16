@@ -28,6 +28,7 @@ import {
 
 import ChatWelcome from "../components/chat/ChatWelcome";
 import ChatTour from "../components/chat/ChatTour";
+import AILoadingIndicator from "../components/chat/AILoadingIndicator";
 
 const ACTION_ROUTES = {
   "Generate FIR": "/fir",
@@ -312,14 +313,7 @@ export default function ChatPage() {
             )}
 
             {loading && (
-              <div className="flex gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-600 text-[var(--color-text-main)]">
-                  <Loader2 size={18} className="animate-spin" />
-                </div>
-                <div className="rounded-3xl rounded-tl-none border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] px-4 py-3 text-sm italic text-slate-400">
-                  {t("chat.loading")}
-                </div>
-              </div>
+              <AILoadingIndicator text={t("chat.loading", "AI is typing...")} />
             )}
 
             <div ref={messagesEndRef} />

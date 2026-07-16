@@ -239,6 +239,7 @@ const AIAnalysisCard = ({ analysis, t }) => {
 };
 
 import AnalyzeTour from "../components/onboarding/AnalyzeTour";
+import AILoadingIndicator from "../components/chat/AILoadingIndicator";
 
 export default function AnalyzePage() {
   const { t } = useTranslation();
@@ -499,14 +500,7 @@ export default function AnalyzePage() {
               ))}
 
               {loading && (
-                <div className="flex gap-4">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)]">
-                    <Loader2 size={18} className="animate-spin text-indigo-400" />
-                  </div>
-                  <div className="rounded-2xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] px-4 py-3 text-sm italic text-slate-400">
-                    {analysisProgress || t("common.processing")}
-                  </div>
-                </div>
+                <AILoadingIndicator text={analysisProgress || t("common.processing")} />
               )}
 
               <div ref={messagesEndRef} />

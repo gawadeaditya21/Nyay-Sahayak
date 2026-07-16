@@ -371,6 +371,12 @@
       "crim1": "Cyber crime, FIR kaise darj karein?",
       "crim2": "Chori ho gayi hai, kya karun?",
       "crim3": "Koi mujhe online dhamki de raha hai"
+    },
+    "loading": {
+      "tip1": "Kanooni niyamo ko padh rahe hain...",
+      "tip2": "Bhartiya kanoon se milan kar rahe hain...",
+      "tip3": "Aapki privacy surakshit kar rahe hain...",
+      "tip4": "Aasan shabdo me jawab bana rahe hain..."
     }
   }
 }

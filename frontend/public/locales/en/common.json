@@ -379,6 +379,12 @@
       "crim1": "Cyber crime, how to file FIR?",
       "crim2": "Theft happened, what to do?",
       "crim3": "Someone threatening me online"
+    },
+    "loading": {
+      "tip1": "Reading through legal clauses...",
+      "tip2": "Cross-referencing Indian Laws...",
+      "tip3": "Ensuring your privacy is protected...",
+      "tip4": "Generating simple explanations..."
     }
   }
 }
