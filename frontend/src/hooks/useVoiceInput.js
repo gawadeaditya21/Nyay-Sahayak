@@ -5,6 +5,7 @@ export const useVoiceInput = (onResult) => {
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState(null);
   const [isSupported, setIsSupported] = useState(true);
+  const [interimResult, setInterimResult] = useState("");
   const recognitionRef = useRef(null);
   
   const { language } = useLanguage();
@@ -46,6 +47,7 @@ export const useVoiceInput = (onResult) => {
     recognition.onstart = () => {
       setIsListening(true);
       setError(null);
+      setInterimResult("");
     };
 
     recognition.onerror = (event) => {
@@ -54,19 +56,28 @@ export const useVoiceInput = (onResult) => {
         setError(event.error);
       }
       setIsListening(false);
+      setInterimResult("");
     };
 
     recognition.onend = () => {
       setIsListening(false);
+      setInterimResult("");
     };
 
     recognition.onresult = (event) => {
       let finalTranscript = '';
+      let interimTranscript = '';
+      
       for (let i = event.resultIndex; i < event.results.length; ++i) {
         if (event.results[i].isFinal) {
           finalTranscript += event.results[i][0].transcript + ' ';
+        } else {
+          interimTranscript += event.results[i][0].transcript;
         }
       }
+      
+      setInterimResult(interimTranscript);
+      
       if (finalTranscript && onResultRef.current) {
         onResultRef.current(finalTranscript);
       }
@@ -88,6 +99,7 @@ export const useVoiceInput = (onResult) => {
       recognitionRef.current.stop();
     } else {
       try {
+        setInterimResult("");
         recognitionRef.current.start();
       } catch (err) {
         console.error("Failed to start speech recognition", err);
@@ -95,5 +107,5 @@ export const useVoiceInput = (onResult) => {
     }
   }, [isListening]);
 
-  return { isListening, error, isSupported, toggleListening };
+  return { isListening, error, isSupported, interimResult, toggleListening };
 };

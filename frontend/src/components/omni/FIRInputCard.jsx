@@ -11,7 +11,7 @@ export default function FIRInputCard({ onSubmit, onCancel, defaultValue = "" }) 
     setValue((prev) => (prev ? prev + " " + transcript : transcript));
   };
   
-  const { isListening, toggleListening, isSupported } = useVoiceInput(handleVoiceResult);
+  const { isListening, toggleListening, isSupported, interimResult, error } = useVoiceInput(handleVoiceResult);
 
   const handleSubmit = () => {
     const trimmed = value.trim();
@@ -46,6 +46,16 @@ export default function FIRInputCard({ onSubmit, onCancel, defaultValue = "" }) 
       </div>
 
       <div className="relative">
+        {isListening && (
+          <div className="absolute -top-14 left-0 right-0 mb-2 flex items-center gap-3 rounded-2xl bg-indigo-500/10 px-4 py-3 border border-indigo-500/20 text-sm text-indigo-300 backdrop-blur-md z-10">
+            <div className="flex gap-1 shrink-0">
+              <span className="block h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: '0ms' }} />
+              <span className="block h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: '150ms' }} />
+              <span className="block h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: '300ms' }} />
+            </div>
+            <span className="italic line-clamp-1 truncate">{interimResult || "Listening..."}</span>
+          </div>
+        )}
         <textarea
           value={value}
           onChange={(event) => setValue(event.target.value)}
@@ -63,10 +73,16 @@ export default function FIRInputCard({ onSubmit, onCancel, defaultValue = "" }) 
             }`}
             title={isListening ? "Stop listening" : "Start speaking"}
           >
-            <Mic size={18} />
+            {isListening ? <MicOff size={18} /> : <Mic size={18} />}
           </button>
         )}
       </div>
+      
+      {error && (
+        <div className="mt-2 text-xs text-rose-400 font-semibold px-2">
+          Voice recognition error: {error}. Please try again or check microphone permissions.
+        </div>
+      )}
 
       <div className="mt-4 flex flex-wrap gap-3">
         <button

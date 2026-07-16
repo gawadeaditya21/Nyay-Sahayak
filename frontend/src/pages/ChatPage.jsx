@@ -71,7 +71,7 @@ export default function ChatPage() {
     setInput((prev) => (prev ? prev + " " + transcript : transcript));
   };
   
-  const { isListening, toggleListening, isSupported } = useVoiceInput(handleVoiceResult);
+  const { isListening, toggleListening, isSupported, interimResult, error } = useVoiceInput(handleVoiceResult);
   
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = searchParams.get("session");
@@ -323,6 +323,16 @@ export default function ChatPage() {
 
       <div className="border-t border-[var(--color-border-main)] bg-[var(--color-bg-main)] p-4 sm:p-6">
         <div className="mx-auto max-w-4xl rounded-3xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)] p-2 shadow-2xl">
+          {isListening && (
+            <div className="mb-2 mx-2 flex items-center gap-3 rounded-2xl bg-indigo-500/10 px-4 py-3 border border-indigo-500/20 text-sm text-indigo-300">
+              <div className="flex gap-1">
+                <span className="block h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: '0ms' }} />
+                <span className="block h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: '150ms' }} />
+                <span className="block h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: '300ms' }} />
+              </div>
+              <span className="italic line-clamp-1">{interimResult || "Listening..."}</span>
+            </div>
+          )}
           <div className="flex items-end gap-2">
             <textarea
               data-tour="chat-input"
@@ -350,7 +360,7 @@ export default function ChatPage() {
                 }`}
                 title={isListening ? "Stop listening" : "Start speaking"}
               >
-                {isListening ? <Mic size={20} /> : <Mic size={20} />}
+                {isListening ? <MicOff size={20} /> : <Mic size={20} />}
               </button>
             )}
             <button
@@ -362,6 +372,13 @@ export default function ChatPage() {
             </button>
           </div>
         </div>
+        
+        {error && (
+          <div className="mt-3 text-center text-xs text-rose-400 font-semibold px-2">
+            Voice recognition error: {error}. Please try again or check microphone permissions.
+          </div>
+        )}
+        
         <div className="mt-5 flex flex-col items-center justify-center gap-2">
           <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold tracking-wide text-emerald-600 dark:text-emerald-400">
             <ShieldCheck size={14} />
