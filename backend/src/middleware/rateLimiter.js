@@ -73,6 +73,21 @@ export const createRateLimiter = (endpoint, timeframe = 'perHour') => {
         const nextTierName = tierName === 'FREE' ? 'PRO' : 'PLUS';
         const nextTierConfig = getTierConfig(nextTierName);
         
+        // Asynchronously log to MongoDB for Analytics / Admin Dashboard
+        // (No await to avoid slowing down the response)
+        try {
+          const AuditLog = (await import('../../models/AuditLog.js')).default;
+          AuditLog.create({
+            user: identifier,
+            action: `RATE_LIMIT_EXCEEDED_${endpoint.toUpperCase()}`,
+            target: timeframe,
+            type: 'SECURITY',
+            ip: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'unknown-ip'
+          }).catch(err => console.error('[RateLimiter] Analytics DB save failed:', err.message));
+        } catch (err) {
+          // Model import failed gracefully
+        }
+
         return res.status(429).json({
           error: "Rate limit exceeded",
           message: `You have used ${result.used}/${result.limit} ${endpoint} requests this ${timeframe.replace('per', '')}`,
