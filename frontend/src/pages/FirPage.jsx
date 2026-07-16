@@ -15,6 +15,8 @@ function autoResizeTextarea(textarea) {
   textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
+import FirTour from "../components/onboarding/FirTour";
+
 export default function FirPage() {
   const { t } = useTranslation();
   const { language } = useLanguage();
@@ -112,6 +114,7 @@ export default function FirPage() {
 
   return (
     <div className="min-h-full overflow-y-auto bg-[var(--color-bg-main)] px-4 py-6 text-[var(--color-text-main)] sm:px-6 lg:px-8 lg:py-8">
+      <FirTour />
       <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-4xl items-center">
         <div className="w-full rounded-4xl border border-[var(--color-border-main)] bg-[var(--color-bg-surface)]/95 p-6 shadow-[0_40px_120px_rgba(0,0,0,0.5)] backdrop-blur sm:p-8 lg:p-10">
           <div className="flex items-center justify-between gap-4 border-b border-[var(--color-border-main)] pb-6">
@@ -136,6 +139,7 @@ export default function FirPage() {
               {t("fir.describeComplaint") || "Describe your complaint"}
             </label>
             <textarea
+              data-tour="fir-input"
               ref={textareaRef}
               value={text}
               onChange={(event) => setText(event.target.value)}
@@ -152,6 +156,7 @@ export default function FirPage() {
 
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
               <button
+                data-tour="fir-generate"
                 type="button"
                 onClick={handleGenerate}
                 disabled={loading}

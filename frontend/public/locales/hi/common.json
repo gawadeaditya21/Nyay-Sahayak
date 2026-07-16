@@ -334,7 +334,17 @@
       "chatVoiceTitle": "Awaaz ka istemal karein",
       "chatVoiceDesc": "Likhna nahi chahte? Bas mic par tap karein aur bolein.",
       "chatPrivacyTitle": "Private Mode",
-      "chatPrivacyDesc": "Ise on karein taaki aapki chat history save na ho."
+      "chatPrivacyDesc": "Ise on karein taaki aapki chat history save na ho.",
+      "analyzeUploadTitle": "Documents upload karein",
+      "analyzeUploadDesc": "Kanooni documents, notice ya contracts ki PDF ya images upload karein.",
+      "analyzeTextTitle": "Text paste karein",
+      "analyzeTextDesc": "Ya kanooni text seedhe yahan paste karein.",
+      "analyzeSubmitTitle": "AI Insights paayein",
+      "analyzeSubmitDesc": "Hidden risks aur aasan bhasha mein samajhne ke liye click karein.",
+      "firInputTitle": "Ghatna ka vivran dein",
+      "firInputDesc": "Jo hua usko apne shabdon mein likhein. Kanooni shabdon ki chinta na karein.",
+      "firGenerateTitle": "FIR generate karein",
+      "firGenerateDesc": "Humara AI isko automatically ek official police complaint mein format karega."
     },
     "chat": {
       "welcomeDesc": "Main aapka AI legal assistant hoon. Main kanoon samajhne, documents banane aur FIR file karne mein aapki madad kar sakta hoon. Niche type karein ya shuru karne ke liye ek udaharan chunein."

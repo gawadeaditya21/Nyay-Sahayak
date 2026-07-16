@@ -238,6 +238,8 @@ const AIAnalysisCard = ({ analysis, t }) => {
   );
 };
 
+import AnalyzeTour from "../components/onboarding/AnalyzeTour";
+
 export default function AnalyzePage() {
   const { t } = useTranslation();
   const { language } = useLanguage();
@@ -437,6 +439,7 @@ export default function AnalyzePage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[var(--color-bg-main)] text-[var(--color-text-main)]">
+      <AnalyzeTour />
       <div className="flex-1 overflow-y-auto px-4 py-8 sm:px-6">
         <div className="mx-auto w-full max-w-3xl">
           {/* <div className="mb-6 flex flex-wrap items-center gap-3 text-xs text-slate-400">
@@ -528,6 +531,7 @@ export default function AnalyzePage() {
 
           <div className="flex items-end gap-2">
             <button
+              data-tour="analyze-upload"
               onClick={() => fileInputRef.current?.click()}
               disabled={loading}
               className="rounded-xl p-3 text-slate-400 transition hover:bg-white/5 hover:text-white"
@@ -538,6 +542,7 @@ export default function AnalyzePage() {
             <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept="image/*,.pdf,.docx" />
 
             <textarea
+              data-tour="analyze-text"
               value={inputText}
               onChange={(event) => setInputText(event.target.value)}
               placeholder={t("analysis.pasteLegalTextOrInstructions")}
@@ -553,6 +558,7 @@ export default function AnalyzePage() {
             />
 
             <button
+              data-tour="analyze-submit"
               onClick={handleSend}
               disabled={loading || (!file && !inputText.trim())}
               className="rounded-xl bg-indigo-600 p-3 text-white transition hover:bg-indigo-500 disabled:opacity-30"

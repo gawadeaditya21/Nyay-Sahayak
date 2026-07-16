@@ -342,7 +342,17 @@
       "chatVoiceTitle": "Use Voice Input",
       "chatVoiceDesc": "Don't want to type? Just tap the microphone and speak.",
       "chatPrivacyTitle": "Private Mode",
-      "chatPrivacyDesc": "Toggle this to prevent your chat history from being saved."
+      "chatPrivacyDesc": "Toggle this to prevent your chat history from being saved.",
+      "analyzeUploadTitle": "Upload Documents",
+      "analyzeUploadDesc": "Upload PDF or images of legal documents, notices, or contracts.",
+      "analyzeTextTitle": "Paste Text",
+      "analyzeTextDesc": "Or simply paste the legal text directly here.",
+      "analyzeSubmitTitle": "Get AI Insights",
+      "analyzeSubmitDesc": "Click to scan for hidden risks, missing clauses, and plain-English explanations.",
+      "firInputTitle": "Describe the Incident",
+      "firInputDesc": "Write what happened in your own words. Don't worry about legal terms.",
+      "firGenerateTitle": "Generate FIR",
+      "firGenerateDesc": "Our AI will automatically translate and format it into an official police complaint."
     },
     "chat": {
       "welcomeDesc": "I am your AI legal assistant. I can help you understand laws, draft documents, or guide you on how to file an FIR. Start by typing below or pick an example to begin."
