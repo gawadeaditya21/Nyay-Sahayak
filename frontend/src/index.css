@@ -1,5 +1,6 @@
 @import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital,wght@0,400;0,600;1,400&family=Space+Grotesk:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
+@import "./styles/themes.css";
 
 :root {
   --font-body: "Space Grotesk", "IBM Plex Sans", sans-serif;
