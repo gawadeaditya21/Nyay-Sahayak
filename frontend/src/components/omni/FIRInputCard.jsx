@@ -1,10 +1,17 @@
 import { useState } from "react";
-import { FileSignature, Send, X } from "lucide-react";
+import { FileSignature, Send, X, Mic, MicOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useVoiceInput } from "../../hooks/useVoiceInput";
 
 export default function FIRInputCard({ onSubmit, onCancel, defaultValue = "" }) {
   const { t } = useTranslation();
   const [value, setValue] = useState(defaultValue);
+
+  const handleVoiceResult = (transcript) => {
+    setValue((prev) => (prev ? prev + " " + transcript : transcript));
+  };
+  
+  const { isListening, toggleListening, isSupported } = useVoiceInput(handleVoiceResult);
 
   const handleSubmit = () => {
     const trimmed = value.trim();
@@ -34,12 +41,28 @@ export default function FIRInputCard({ onSubmit, onCancel, defaultValue = "" }) 
         </button>
       </div>
 
-      <textarea
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        placeholder={t("fir.cardPlaceholder")}
-        className="mt-4 min-h-35 w-full resize-none rounded-2xl border border-[var(--color-border-main)] bg-[var(--color-bg-main)] px-4 py-3 text-sm text-[var(--color-text-main)] outline-none focus:border-indigo-500"
-      />
+      <div className="relative">
+        <textarea
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          placeholder={t("fir.cardPlaceholder")}
+          className="mt-4 min-h-35 w-full resize-none rounded-2xl border border-[var(--color-border-main)] bg-[var(--color-bg-main)] px-4 py-3 pb-12 text-sm text-[var(--color-text-main)] outline-none focus:border-indigo-500"
+        />
+        {isSupported && (
+          <button
+            type="button"
+            onClick={toggleListening}
+            className={`absolute bottom-5 right-5 flex h-9 w-9 items-center justify-center rounded-xl transition-all ${
+              isListening 
+                ? 'bg-red-500 text-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]' 
+                : 'text-slate-400 hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-main)]'
+            }`}
+            title={isListening ? "Stop listening" : "Start speaking"}
+          >
+            <Mic size={18} />
+          </button>
+        )}
+      </div>
 
       <div className="mt-4 flex flex-wrap gap-3">
         <button

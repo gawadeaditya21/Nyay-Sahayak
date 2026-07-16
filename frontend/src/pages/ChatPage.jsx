@@ -6,10 +6,13 @@ import {
   Loader2,
   Sparkles,
   User,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { sendChatMessage, fetchChatHistory } from "../services/api";
 import { useLanguage } from "../context/LanguageContext.jsx";
+import { useVoiceInput } from "../hooks/useVoiceInput";
 import PrivacyToggle from "../components/common/PrivacyToggle.jsx";
 import {
   canUseGuestFeature,
@@ -58,6 +61,12 @@ export default function ChatPage() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [messages, setMessages] = useState([initialMessage]);
   const [privacyMode, setPrivacyModeState] = useState(getPrivacyMode());
+  
+  const handleVoiceResult = (transcript) => {
+    setInput((prev) => (prev ? prev + " " + transcript : transcript));
+  };
+  
+  const { isListening, toggleListening, isSupported } = useVoiceInput(handleVoiceResult);
   
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = searchParams.get("session");
@@ -321,6 +330,19 @@ export default function ChatPage() {
                 }
               }}
             />
+            {isSupported && (
+              <button
+                onClick={toggleListening}
+                className={`rounded-2xl p-3 transition flex items-center justify-center ${
+                  isListening 
+                    ? "bg-red-500 text-white animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]" 
+                    : "text-slate-400 hover:bg-[var(--color-bg-main)] hover:text-[var(--color-text-main)]"
+                }`}
+                title={isListening ? "Stop listening" : "Start speaking"}
+              >
+                {isListening ? <Mic size={20} /> : <Mic size={20} />}
+              </button>
+            )}
             <button
               onClick={submitMessage}
               disabled={loading || !input.trim()}
