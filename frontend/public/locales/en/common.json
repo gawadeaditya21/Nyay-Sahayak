@@ -389,6 +389,10 @@
     "empty": {
       "dashboardTitle": "Your journey starts here",
       "dashboardDesc": "You haven't saved any chats or documents yet. Choose an option below to get started."
+    },
+    "success": {
+      "fir": "FIR Generated Successfully!",
+      "analysis": "Analysis Complete!"
     }
   }
 }

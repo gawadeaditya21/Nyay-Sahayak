@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, RotateCcw, Sparkles, WandSparkles } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
+import SuccessCelebration from "../components/common/SuccessCelebration";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "../context/LanguageContext.jsx";
@@ -25,6 +27,8 @@ export default function FirPage() {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [successData, setSuccessData] = useState(null);
 
   const copy = useMemo(() => {
     const localized = {
@@ -94,7 +98,9 @@ export default function FirPage() {
       const draftText = sanitizeComplaintText(response?.complaint_text || "");
       sessionStorage.setItem(INPUT_STORAGE_KEY, input);
       sessionStorage.setItem(DRAFT_STORAGE_KEY, draftText);
-      navigate("/fir/output", { state: { draftText, sourceText: input } });
+      
+      setSuccessData({ draftText, sourceText: input });
+      setShowCelebration(true);
     } catch (err) {
       setError(err.message || t("fir.unableToGenerate") || "Unable to generate complaint letter.");
     } finally {
@@ -181,6 +187,17 @@ export default function FirPage() {
           </div>
         </div>
       </div>
+      
+      <AnimatePresence>
+        {showCelebration && (
+          <SuccessCelebration 
+            message={t("week3.success.fir", "FIR Generated Successfully!")}
+            onComplete={() => {
+              navigate("/fir/output", { state: successData });
+            }} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

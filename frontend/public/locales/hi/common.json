@@ -381,6 +381,10 @@
     "empty": {
       "dashboardTitle": "Aapka safar yahan shuru hota hai",
       "dashboardDesc": "Aapne abhi tak koi chat ya document save nahi kiya hai. Shuru karne ke liye niche ek vikalp chunein."
+    },
+    "success": {
+      "fir": "FIR safaltapurvak ban gai!",
+      "analysis": "Vishleshan Pura Hua!"
     }
   }
 }

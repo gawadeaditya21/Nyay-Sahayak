@@ -240,6 +240,8 @@ const AIAnalysisCard = ({ analysis, t }) => {
 
 import AnalyzeTour from "../components/onboarding/AnalyzeTour";
 import AILoadingIndicator from "../components/chat/AILoadingIndicator";
+import { AnimatePresence } from "framer-motion";
+import SuccessCelebration from "../components/common/SuccessCelebration";
 
 export default function AnalyzePage() {
   const { t } = useTranslation();
@@ -251,6 +253,7 @@ export default function AnalyzePage() {
   const [chatHistory, setChatHistory] = useState([]);
   const [analysisProgress, setAnalysisProgress] = useState(null);
   const [privacyMode, setPrivacyModeState] = useState(getPrivacyMode());
+  const [showCelebration, setShowCelebration] = useState(false);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = searchParams.get("session");
@@ -412,6 +415,8 @@ export default function AnalyzePage() {
       } else {
         addAIMessage(formatAnalysisResponse(response));
       }
+      
+      setShowCelebration(true);
 
       if (guest) {
         const history = [...chatHistory, { role: "user", content: parts.join("\n"), hasFile: Boolean(currentFile) }];
@@ -562,6 +567,15 @@ export default function AnalyzePage() {
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showCelebration && (
+          <SuccessCelebration 
+            message={t("week3.success.analysis", "Analysis Complete!")}
+            onComplete={() => setShowCelebration(false)} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
